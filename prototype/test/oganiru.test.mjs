@@ -320,12 +320,15 @@ test('a game saved before the city loads into the town with it: the player where
   assert.equal(again.game.view(id).self.y, 0);
 });
 
-test('the six towers are solid to their tops, with room to walk round them; nothing of the city is in the town', () => {
-  assert.equal(OGANIRU_TOWERS.length, 6);
+test('the towers are solid to their tops, with room to walk round them (the sample\'s six where they were); nothing of the city is in the town', () => {
+  // (Stage 3, 2 November 2026: downtown's thirty, the sample's six among them, as they were: test/oganiru-downtown.test.mjs)
+  assert.ok(OGANIRU_TOWERS.length >= 20 && OGANIRU_TOWERS.length <= 40, `${OGANIRU_TOWERS.length} towers`);
+  const sample = [['t1', 72, -716, 34], ['t2', 152, -722, 26], ['t3', -72, -716, 30], ['t4', -152, -720, 22], ['t5', 72, -842, 10], ['t6', -72, -846, 40]];
+  for (const [id, x, z, storeys] of sample) { const t = OGANIRU_TOWERS.find((q) => q.id === id); assert.ok(t && t.x === x && t.z === z && t.storeys === storeys, `${id} as it was`); }
   for (const t of OGANIRU_TOWERS) {
     assert.ok(!zoneWalkable(t.x, t.z, [], 0.4, 0.15), `${t.name} is solid`);
     assert.ok(zoneSolid(t.x, t.z, 0.25, t.height - 1), `${t.name} to its top`);
-    assert.ok(t.height >= 30, `${t.name}: ${t.height} m`);
+    assert.ok(t.storeys >= 6 && t.height >= 6 * 3.6, `${t.name}: ${t.height} m`);
   }
   assert.ok(OGANIRU_TOWERS.some((t) => t.storeys >= 40) && OGANIRU_TOWERS.some((t) => t.storeys <= 12), 'tall and lower');
   // nothing of the city on the town's land, the airport's or the Kwale road's

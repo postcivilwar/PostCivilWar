@@ -11,7 +11,7 @@
 //     the slip roads and the loops (the middle of each, every 8 m), along the expressway's carriageways from where it is
 //     on the ground, down through its cutting and up along its viaduct.
 // Worked out when first wanted, not before (a phone opening the town has enough to do).
-import { OGANIRU, OGANIRU_ROADS, OGANIRU_KERBED, OGANIRU_JUNCTIONS, OGANIRU_DECKS, OGANIRU_TOWERS, OGANIRU_ROUNDABOUTS, OGANIRU_PLACES, OGANIRU_CUTTING, EXPRESSWAY_Z, expresswayY, oganiruGroundY, onOganiru, roadWidthAt, zoneWalkable } from './zone.js';
+import { OGANIRU, OGANIRU_ROADS, OGANIRU_KERBED, OGANIRU_JUNCTIONS, OGANIRU_DECKS, OGANIRU_TOWERS, towerFront, OGANIRU_ROUNDABOUTS, OGANIRU_PLACES, OGANIRU_CUTTING, EXPRESSWAY_Z, expresswayY, oganiruGroundY, onOganiru, roadWidthAt, zoneWalkable } from './zone.js';
 import { walkLevel } from './levels.js';
 
 const KERB = OGANIRU.kerb;
@@ -123,17 +123,21 @@ function* build() {
     }
     if (last) ends.push(last.k);
   }
-  // the towers' plazas: a few points across each, about the towers
+  // the towers' plazas: a few points across each, about the towers, 12 m apart or a little less, a row of them along each
+  // edge (since Stage 3, 2 November 2026: a plaza reaching out to its street's walkway had its last row up to 12 m short
+  // of it, too far to be joined to it, and some towers' doors led nowhere)
   for (const b of OGANIRU_KERBED) {
     if (!b.plaza) continue;
     yield;
     run += 1;
     const grid = new Map();
-    for (let x = b.x0 + 1.5; x <= b.x1 - 1.5; x += 12) for (let z = b.z0 + 1.5; z <= b.z1 - 1.5; z += 12) {
+    const ni = Math.max(1, Math.ceil((b.x1 - b.x0 - 3) / 12)), nj = Math.max(1, Math.ceil((b.z1 - b.z0 - 3) / 12));
+    for (let i = 0; i <= ni; i += 1) for (let j = 0; j <= nj; j += 1) {
+      const x = b.x0 + 1.5 + ((b.x1 - b.x0 - 3) * i) / ni, z = b.z0 + 1.5 + ((b.z1 - b.z0 - 3) * j) / nj;
       if (!zoneWalkable(x, z, [], 0.6, KERB)) continue;
       const k = add(x, z, KERB, true, 'walk');
       runOf[k] = run; ends.push(k);
-      grid.set(`${Math.round((x - b.x0) / 12)},${Math.round((z - b.z0) / 12)}`, k);
+      grid.set(`${i},${j}`, k);
     }
     for (const [key, k] of grid) { const [i, j] = key.split(',').map(Number); for (const [di, dj] of [[1, 0], [0, 1], [1, 1], [1, -1]]) { const o = grid.get(`${i + di},${j + dj}`); if (o !== undefined && open(nodes[k].x, nodes[k].z, nodes[o].x, nodes[o].z, KERB)) link(k, o); } }
   }
@@ -188,15 +192,17 @@ function* build() {
       zebras.push({ a: sides[0], b: sides[1], crossing });
     }
   }
-  // the towers' doors (at the foot of their steps, toward Unity Avenue), across their plazas to the pavement
+  // the towers' doors (at the foot of their steps, toward the street each stands on), across their plazas to the pavement
+  // (as far as that street's walkway: since Stage 3 some stand well back from it)
   const doors = [];
   for (const t of OGANIRU_TOWERS) {
     yield;
-    const facing = t.x > 0 ? -1 : 1;
-    const x = t.x + facing * (t.dx / 2 + 3.2), z = t.z;
+    const f = towerFront(t, 3.2);
+    const x = f.x, z = f.z;
+    const reach = Math.max(20, Math.abs(t.front - (t.face[0] ? x : z)) + 14);
     const k = add(x, z, KERB, true, 'door');
-    doors.push({ k, tower: t.id, name: t.name, x, z, h: facing > 0 ? Math.PI / 2 : -Math.PI / 2 });
-    for (const [o] of near(x, z, 20, (n, i) => n.foot && i !== k).slice(0, 6)) if (onKerb(x, z, nodes[o].x, nodes[o].z) && open(x, z, nodes[o].x, nodes[o].z, KERB)) link(k, o);
+    doors.push({ k, tower: t.id, name: t.name, x, z, h: f.heading });
+    for (const [o] of near(x, z, reach, (n, i) => n.foot && i !== k).slice(0, 6)) if (onKerb(x, z, nodes[o].x, nodes[o].z) && open(x, z, nodes[o].x, nodes[o].z, KERB)) link(k, o);
   }
   // the Hope bridge's walkways, over the cutting at the street's level
   {

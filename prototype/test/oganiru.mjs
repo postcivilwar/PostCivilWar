@@ -66,8 +66,9 @@ for (const p of [a, b]) await p.evaluate(() => { const n = window.__nlw; n.place
 const drawn = await a.evaluate(() => {
   const n = window.__nlw, names = new Set();
   // (since Stage 2 the city is drawn in pieces, each mesh's name ending in its piece's square, ":4,2"; the signals' lamps
-  // by their colour; the pillars with the rest of the concrete)
-  n.scene.traverse((o) => { if (o.name && /^(oganiru|lamps|lamp-)/.test(o.name)) names.add(o.name.replace(/:\d+,\d+$/, '').replace(/:t\d+$/, ':tower').replace(/^oganiru:signals:\w+$/, 'oganiru:signals')); });
+  // by their colour; the pillars with the rest of the concrete; since Stage 3 the towers are the skyline's, one mesh for
+  // each kind of wall, and their lobbies one mesh)
+  n.scene.traverse((o) => { if (o.name && /^(oganiru|lamps|lamp-)/.test(o.name)) names.add(o.name.replace(/:\d+,\d+$/, '').replace(/:t\d+$/, ':tower').replace(/^oganiru:towers:[\w-]+$/, 'oganiru:tower').replace(/^oganiru:lobbies$/, 'oganiru:lobby').replace(/^oganiru:signals:\w+$/, 'oganiru:signals')); });
   return { ready: n.city.ready, names: [...names].sort(), lamps: n.streetLamps.stats(), stats: n.city.stats() };
 });
 check('the city is built and drawn: its ground, roads and markings, kerbs, strips and walkways, decks with their undersides and pillars, its towers, signals and signs', drawn.ready && ['oganiru:ground', 'oganiru:tar', 'oganiru:rampTar', 'oganiru:paint', 'oganiru:kerb', 'oganiru:grass', 'oganiru:pave', 'oganiru:concrete', 'oganiru:soffit', 'oganiru:tower', 'oganiru:lobby', 'oganiru:signals'].every((k) => drawn.names.includes(k)), drawn.names);

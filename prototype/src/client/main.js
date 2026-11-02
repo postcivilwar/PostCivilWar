@@ -124,6 +124,7 @@ import { createTorchBeams } from './torch-beams.js';
 import { HEADLAMP_LIGHT, TORCH_LIGHT } from './light.js';
 import { createStreetLamps } from './render-lamps.js';
 import { oganiruSteps } from './render-oganiru.js';
+import { skylineSteps } from './render-skyline.js';
 import { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LOW, levelSetting, memoryLimitMB, autoStart, autoCeiling, remembered, remember, levelOf } from './graphics.js';
 import { showSoftPatches, softPatchesShown, softPatchOpacity } from './soft-patch.js';
 import { fallTime, flightAt } from './falls.js';
@@ -369,6 +370,7 @@ function start(carried) {
     cityBoards = null;
   }
   function buildCity() {
+    buildSkyline();
     if (city.ready) return;
     if (!cityJob) cityJob = citySteps(false);
     while (!cityJob.next('now').done) { /* all of it, now */ }
@@ -399,6 +401,32 @@ function start(carried) {
     cityBegun = false;
     cityStats.letGo += 1;
     return true;
+  }
+  // Oganiru City's towers, its skyline (Stage 3, 2 November 2026, render-skyline.js): built once, a phone's as well, once
+  // the town is warmed up (or at once with the city for someone already in it), so that downtown is seen from the town
+  // and from the flyovers whether or not the city round it is built; never let go. Not drawn from inside a hall.
+  let skyline = null, skylineJob = null, skylineBegun = false;
+  const skylineStats = { steps: 0, frames: 0, longestMs: 0, workMs: 0 };
+  function buildSkyline() {
+    if (skyline) return;
+    if (!skylineJob) skylineJob = skylineSteps(scene, { lite: LITE });
+    let step;
+    while (!(step = skylineJob.next('now')).done) { /* all of it, now */ }
+    skyline = step.value; skylineJob = null;
+  }
+  function stepSkyline(budgetMs = 6) {
+    if (skyline) { skylineJob = null; return; }
+    if (!skylineJob) skylineJob = skylineSteps(scene, { lite: LITE, renderer, camera });
+    const t0 = performance.now();
+    skylineStats.frames += 1;
+    for (;;) {
+      const s0 = performance.now();
+      const step = skylineJob.next();
+      const took = performance.now() - s0;
+      skylineStats.steps += 1; skylineStats.workMs += took; skylineStats.longestMs = Math.max(skylineStats.longestMs, took);
+      if (step.done) { skyline = step.value; skylineJob = null; return; }
+      if (step.value === 'waiting' || performance.now() - t0 >= budgetMs) return;
+    }
   }
   // (for the measuring: how many pieces, over how many frames, the longest piece, the work in all, in ms)
   const beyondStats = { steps: 0, frames: 0, longestMs: 0, workMs: 0, builds: 0, letGo: 0, shapesLetGo: 0 };
@@ -4863,6 +4891,8 @@ blood.update(dt, view.blood || []);
     streetLamps.update(dt, { night, wet: groundWet, camera, hall: !!hall, target: cam.target, reach: lampReach });
     // (its slim trees read once it is in sight: not while the eye is in the town, nor before the habitation near the player)
     if (city.ready && cityShown && !habitationBusy()) { if (habitationKit && habitationKit.plants) city.trees.use(habitationKit.plants); else if (!habitationKit && playing && !cityOnDisk && performance.now() > habitationRetryAt) habitationCodeOf().catch(() => { habitationRetryAt = performance.now() + 30000; }); city.update(dt, { night, hour, camera, storm: weather.kind === 'storm' ? 1 : weather.wet ? 0.4 : 0 }); }
+    // (the towers' windows lit at night, more in the evening than late; their lobbies; the tallest crowns' bands)
+    if (skyline) skyline.update(dt, { night, hour });
     markerMaterial.opacity = 0.55 + Math.sin(clock * 3) * 0.3;
 
     monitor.mark('sound and sight');
@@ -4909,6 +4939,9 @@ blood.update(dt, view.blood || []);
       outskirts.see(cam.target.x, cam.target.z, reach, outdoors);
       // (Oganiru City: built once the town is warmed up, or at once for someone already in it; a phone far from it lets it go)
       if (!city.ready && playing && cityWanted(predicted.x, predicted.z)) { if (oganiruAway(predicted.x, predicted.z) < 60) buildCity(); else if (warm.stage >= 5) cityBegun = true; }
+      // (its towers, the skyline: once the town is warmed up; not drawn from inside a hall)
+      if (!skyline && playing && warm.stage >= 5) skylineBegun = true;
+      if (skyline) skyline.show(!hall);
       if (LITE && playing && city.ready && oganiruAway(predicted.x, predicted.z) > CITY_PHONE.go) letGoCity();
       // (its street lamps, the deck's lights' pools among them, drawn while it is)
       if (city.ready) { cityShown = city.see(cam.target.x, cam.target.z, reach * 1.25) !== false; streetLamps.show({ city: cityShown }); }
@@ -4939,6 +4972,7 @@ blood.update(dt, view.blood || []);
     if (beyondBegun && !outskirts.ready && playing) stepBeyond();
     // (the habitation first: while it is being made ready near the player, the city waits; 1 November 2026, the habitation
     // test's sign, from which it is to be seen within two minutes of the land beyond the town being in)
+    else if (skylineBegun && !skyline && playing && !habitationBusy()) stepSkyline();
     else if (cityBegun && !city.ready && playing && !habitationBusy()) stepCity();
     monitor.mark('drawing');
     // behind the opening nothing of the town can be seen: once it is warmed up, it is not drawn at all
@@ -5141,7 +5175,7 @@ blood.update(dt, view.blood || []);
     saveNow() { writeStored(SAVE_KEY, { host: host.save(), playerId }); },
     get lite() { return LITE; }, get going() { return going; }, get me() { return me; },
     // for the browser tests: the power bike's riding controls on screen, with nothing to ride (no bike is in the game yet)
-    get beyond() { return outskirts.ready; }, get city() { return city; }, buildCity: () => buildCity(), letGoCity: () => letGoCity(), get cityStats() { return { ...cityStats }; }, get streetLamps() { return streetLamps; }, get closures() { return closures; }, get billboards() { return billboards; }, get cityBoards() { return cityBoards; }, adBoard, buildBeyond: () => buildBeyond(), beginBeyond: () => { beyondBegun = true; }, get beyondSteps() { return { ...beyondStats }; },
+    get beyond() { return outskirts.ready; }, get city() { return city; }, buildCity: () => buildCity(), letGoCity: () => letGoCity(), get cityStats() { return { ...cityStats }; }, get skyline() { return skyline; }, buildSkyline: () => buildSkyline(), get skylineStats() { return { ...skylineStats, ...(skyline ? skyline.stats() : {}) }; }, get streetLamps() { return streetLamps; }, get closures() { return closures; }, get billboards() { return billboards; }, get cityBoards() { return cityBoards; }, adBoard, buildBeyond: () => buildBeyond(), beginBeyond: () => { beyondBegun = true; }, get beyondSteps() { return { ...beyondStats }; },
     bikePreview(on) { bikePreview = !!on; showControls(); return controls.shown; },
     bikeAudio: { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz }, get bikeInput() { return controls.bike(); },
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },

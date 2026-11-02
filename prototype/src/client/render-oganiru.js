@@ -27,7 +27,9 @@
 // built once (`oganiruSteps`, a generator, as the land beyond the town is), on a phone only when the player is coming
 // near the city, and let go again when they are far.
 import { OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_KERBED, OGANIRU_MEDIAN_GAPS, OGANIRU_TOWERS, OGANIRU_TREES, OGANIRU_PILLARS, OGANIRU_SIGNALS, OGANIRU_SIGNS, OGANIRU_JUNCTIONS, OGANIRU_ROUNDABOUTS, OGANIRU_CUTTING, OGANIRU_STOP_LINES, OGANIRU_PLACES, EXPRESSWAY_Z, oganiruAway, expresswayY, roadWidthAt, ZONE, signalState, HABITATION_MODELS, HABITATION, habitationGroundAt, ofOganiru } from '../sim/zone.js';
-import { Batch, place, linear, noise, smoothNoise, grassTexture, textTexture, surface, buildingKit, letGoOnceSent } from './render-kit.js';
+import { Batch, place, linear, noise, smoothNoise, grassTexture, surface, buildingKit, letGoOnceSent } from './render-kit.js';
+import { Mesher, Q_UV } from './render-mesher.js';
+import { letPaintedGo } from './painted.js';
 import { addTree, CITY_FLAT } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
 import { reflects, weathers } from './render-finish.js';
@@ -133,22 +135,6 @@ function soffitTexture(size) {
     for (let k = 1; k < 4; k += 1) { g.beginPath(); g.moveTo((k * n) / 4, 0); g.lineTo((k * n) / 4, n); g.stroke(); }
   });
 }
-// A tower's lobby: two storeys of glass in light frames, 2 m panes (8 m to the picture); `lit`: the panes alone,
-// white, where its light shows at night.
-function lobbyTexture(size, lit = false) {
-  return canvasOf(size, (g, n) => {
-    const m = n / 8;
-    g.fillStyle = lit ? '#000' : '#c9cdd0'; g.fillRect(0, 0, n, n);
-    for (let i = 0; i < 4; i += 1) for (const [y0, y1] of [[0.6, 3.7], [3.85, 7.0]]) {
-      // (the picture's top is high up: y in metres from the foot is (8 - y) down it)
-      const top = n - y1 * m, h = (y1 - y0) * m;
-      if (lit) { g.fillStyle = y0 < 1 ? '#fff4e0' : '#d8cdb8'; g.fillRect(i * 2 * m + m * 0.06, top, 2 * m - m * 0.12, h); continue; }
-      const grad = g.createLinearGradient(0, top, 0, top + h);
-      grad.addColorStop(0, '#5d7487'); grad.addColorStop(0.6, '#3e5160'); grad.addColorStop(1, '#2f3b45');
-      g.fillStyle = grad; g.fillRect(i * 2 * m + m * 0.06, top, 2 * m - m * 0.12, h);
-    }
-  });
-}
 // Pavers: square concrete slabs, 40 cm, each its own shade, joints between (2 m to the picture).
 function paverTexture(size) {
   return canvasOf(size, (g, n) => {
@@ -161,104 +147,9 @@ function paverTexture(size) {
     }
   });
 }
-// A tower's walls, as a picture of 9 bays by 4 storeys (14.4 m each way), near-white where the material's own colour
-// shows through. `kind`: which wall.
-const FACADES = {
-  'glass-blue': { frame: '#c9d2da', glass: [62, 108, 150], spandrel: null, ribs: 0, punched: false },
-  'glass-grey': { frame: '#8c9399', glass: [92, 102, 112], spandrel: null, ribs: 0, punched: false },
-  'office-teal': { frame: '#dfe5e6', glass: [52, 120, 122], spandrel: '#e8ecea', ribs: 0, punched: false },
-  round: { frame: '#d8dde0', glass: [84, 126, 160], spandrel: '#e2e5e6', ribs: 0, punched: false },
-  'ribbed-white': { frame: '#f1efe9', glass: [70, 84, 96], spandrel: '#f1efe9', ribs: 1, punched: true },
-  stone: { frame: '#cdbb9b', glass: [58, 70, 78], spandrel: '#c4b190', ribs: 0, punched: true },
-};
-const BAYS = 9, STOREYS_IN = 4, TILE = 14.4;
-function facadeTexture(kind, size) {
-  const f = FACADES[kind];
-  return canvasOf(size, (g, n) => {
-    g.fillStyle = f.frame; g.fillRect(0, 0, n, n);
-    const bw = n / BAYS, sh = n / STOREYS_IN;
-    for (let j = 0; j < STOREYS_IN; j += 1) for (let i = 0; i < BAYS; i += 1) {
-      const k = 0.82 + rnd(i * 11 + j, 31) * 0.3;
-      const [r, gg, b] = f.glass.map((c) => Math.round(Math.min(255, c * k)));
-      g.fillStyle = `rgb(${r},${gg},${b})`;
-      if (f.punched) {
-        // windows set in a solid wall; on the ribbed tower, a pier between every two
-        const wide = f.ribs && i % 2 ? 0.5 : 0.62;
-        g.fillRect(i * bw + bw * (1 - wide) / 2, j * sh + sh * 0.2, bw * wide, sh * 0.6);
-      } else {
-        // a curtain wall: glass from floor to floor, thin mullions, a band at each floor (or a spandrel panel)
-        g.fillRect(i * bw + bw * 0.04, j * sh + sh * 0.06, bw * 0.92, sh * (f.spandrel ? 0.62 : 0.86));
-        if (f.spandrel) { g.fillStyle = f.spandrel; g.fillRect(i * bw, j * sh + sh * 0.7, bw, sh * 0.3); }
-      }
-    }
-  });
-}
-// Which windows are lit at night: in each a number (green) by which one comes on sooner or later in the evening (the
-// tower's shader lights those under the share for the hour), where its glass is (red).
-function litTexture(punched, size) {
-  return canvasOf(size, (g, n) => {
-    g.fillStyle = '#000'; g.fillRect(0, 0, n, n);
-    const bw = n / BAYS, sh = n / STOREYS_IN;
-    for (let j = 0; j < STOREYS_IN; j += 1) for (let i = 0; i < BAYS; i += 1) {
-      const order = Math.round(rnd(i * 13 + j * 5, 41) * 255), warm = 170 + Math.round(rnd(i, j + 50) * 85);
-      g.fillStyle = `rgb(${warm},${order},0)`;
-      if (punched) g.fillRect(i * bw + bw * 0.22, j * sh + sh * 0.22, bw * 0.56, sh * 0.56);
-      else g.fillRect(i * bw + bw * 0.06, j * sh + sh * 0.08, bw * 0.88, sh * 0.6);
-    }
-  }, true);
-}
 
 // ------------------------------------------------------------------------------------- building shapes --
-// Triangles for one material, gathered and made into one mesh: every face its own normal (or the shape's own), its
-// colour, and where its picture lies.
-class Mesher {
-  constructor() { this.p = []; this.n = []; this.c = []; this.u = []; }
-  get empty() { return this.p.length === 0; }
-  vert(x, y, z, nx, ny, nz, col, u, v) { this.p.push(x, y, z); this.n.push(nx, ny, nz); this.c.push(col.r, col.g, col.b); this.u.push(u, v); }
-  // a four-sided face a b c d (each [x, y, z]), facing `facing` ([x, y, z]; its corners put round the other way if it
-  // would face away), with its picture's corners (`uv`: four [u, v])
-  quad(a, b, c, d, col, uv = Q_UV, facing = null) {
-    // (its normal across its diagonals: right for a face of three corners, one given twice, too)
-    const ux = c[0] - a[0], uy = c[1] - a[1], uz = c[2] - a[2], vx = d[0] - b[0], vy = d[1] - b[1], vz = d[2] - b[2];
-    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
-    const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
-    if (facing && nx * facing[0] + ny * facing[1] + nz * facing[2] < 0) { this.quad(a, d, c, b, col, [uv[0], uv[3], uv[2], uv[1]], null); return; }
-    const C = col.isColor ? col : linear(col);
-    this.vert(...a, nx, ny, nz, C, ...uv[0]); this.vert(...b, nx, ny, nz, C, ...uv[1]); this.vert(...c, nx, ny, nz, C, ...uv[2]);
-    this.vert(...a, nx, ny, nz, C, ...uv[0]); this.vert(...c, nx, ny, nz, C, ...uv[2]); this.vert(...d, nx, ny, nz, C, ...uv[3]);
-  }
-  // a shape from the library, placed by `matrix`, its picture laid as `mode` says ('wall': across x + z and up; 'plan':
-  // across the ground; 'own': its own), `scale` metres to the picture
-  geo(geometry, matrix, col, mode = 'wall', scale = 4) {
-    const g = geometry.index ? geometry.toNonIndexed() : geometry.clone();
-    g.applyMatrix4(matrix);
-    if (!g.attributes.normal) g.computeVertexNormals();
-    const P = g.attributes.position.array, N = g.attributes.normal.array, T = g.attributes.uv ? g.attributes.uv.array : null;
-    const C = col.isColor ? col : linear(col);
-    for (let i = 0, k = 0; i < P.length; i += 3, k += 2) {
-      const u = mode === 'plan' ? P[i] / scale : mode === 'own' && T ? T[k] : (P[i] + P[i + 2]) / scale;
-      const v = mode === 'plan' ? P[i + 2] / scale : mode === 'own' && T ? T[k + 1] : P[i + 1] / scale;
-      this.vert(P[i], P[i + 1], P[i + 2], N[i], N[i + 1], N[i + 2], C, u, v);
-    }
-    g.dispose(); geometry.dispose();
-  }
-  // a box w (x) by h by d (z), its middle at (x, y, z), turned `ry`: its picture laid as walls are
-  box(w, h, d, x, y, z, col, ry = 0, mode = 'wall', scale = 4) { this.geo(new THREE.BoxGeometry(w, h, d), place(x, y, z, ry), col, mode, scale); }
-  build(material, { shadows = true, receive = true } = {}) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
-    g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(this.u, 2));
-    g.computeBoundingSphere();
-    letGoOnceSent(g);
-    this.p = this.n = this.c = this.u = null;
-    const mesh = new THREE.Mesh(g, material);
-    mesh.castShadow = shadows; mesh.receiveShadow = receive;
-    return mesh;
-  }
-}
-const Q_UV = [[0, 0], [1, 0], [1, 1], [0, 1]];
+// (Mesher, the triangles for one material made into one mesh: render-mesher.js)
 const UP = [0, 1, 0], DOWN = [0, -1, 0];
 const shade = (hex, k) => linear(hex).multiplyScalar(k);
 
@@ -1041,129 +932,167 @@ function signsTile(M, T, signs) {
       for (const k of [-1, 1]) M.metal.box(0.35, 7.2, 0.35, s.x, y + 3.6, EZ + k * across, 0x7c8288);
       M.metal.box(0.5, 0.5, s.across - 0.3, s.x, y + 7.0, EZ, 0x7c8288);
       M.metal.box(0.3, 0.3, s.across - 0.3, s.x, y + 6.2, EZ, 0x7c8288);
-      signs.push(signMesh(s.lines, s.x + Math.sin(s.facing) * 0.3, y + 6.0, s.z, s.facing, s.width, s.height, [fg, bg]));
+      signs.add(s.lines, s.x + Math.sin(s.facing) * 0.3, y + 6.0, s.z, s.facing, s.width, s.height, [fg, bg]);
       continue;
     }
     // on two posts beside the road
     const w = s.width, h = s.height;
     for (const k of [-1, 1]) M.metal.box(0.1, h + 2.2, 0.1, s.x + Math.cos(s.facing) * k * (w / 2 - 0.3), (h + 2.2) / 2, s.z - Math.sin(s.facing) * k * (w / 2 - 0.3), 0x6d7177, s.facing);
-    signs.push(signMesh(s.lines, s.x + Math.sin(s.facing) * 0.06, 2.2 + h / 2, s.z + Math.cos(s.facing) * 0.06, s.facing, w, h, [fg, bg]));
+    signs.add(s.lines, s.x + Math.sin(s.facing) * 0.06, 2.2 + h / 2, s.z + Math.cos(s.facing) * 0.06, s.facing, w, h, [fg, bg]);
   }
 }
 
 // ------------------------------------------------------------------------------------------------ towers --
-// Each tower: its walls from the lobby up (the picture of its kind, lit at night window by window), its crown (set back
-// in steps, the tallest lit), its lobby of glass with a canopy and steps, its shops at the foot with their names.
-function towerMaterial(kind, lite, textures) {
-  const punched = FACADES[kind].punched;
-  const glass = !punched;
-  const m = surface({ map: textures.facade(kind), emissiveMap: textures.lit(punched), emissive: linear(0xffd59a), emissiveIntensity: 0, roughness: glass ? 0.14 : 0.62, metalness: glass ? 0.55 : 0.08 });
-  if (glass) reflects(m, 0.9); else weathers(m, { darken: 0.15 });
-  const lit = { value: 0.5 };
-  m.userData.lit = lit;
-  m.onBeforeCompile = (shader) => {
-    shader.uniforms.uLit = lit;
-    // a window is lit when its own number is under tonight's share: its glass (red) times whether it is on
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uLit;').replace('#include <emissivemap_fragment>', `#ifdef USE_EMISSIVEMAP
-        vec4 litWin = texture2D(emissiveMap, vEmissiveMapUv);
-        totalEmissiveRadiance *= litWin.r * step(litWin.g, uLit);
-      #endif`);
-  };
-  m.customProgramCacheKey = () => 'pcw-tower-windows';
-  m.userData.kind = kind;
-  return m;
-}
-// (in one piece of the city: `list` the towers in it; `materials` the city's, one a kind; the lit bands round the tallest
-// crowns made into one mesh with `bandMaterial`, given back)
-function addTowers(group, lite, textures, signs, M, list, materials, bandMaterial) {
-  const crowns = [];
+// What is at each tower's foot, drawn by the piece it stands in (its walls, its lobby's glass and its top are the
+// skyline's, the whole city's, built once: render-skyline.js): columns at its corners, a canopy over the way in, a frame
+// of dark metal round its doors and steps up to them, its name over them, its shops either side with their names over
+// their windows and a strip of colour; and its finer work, seen from near: the white towers' ribs standing out of their
+// walls, the stone ones' cornices and the finials at the corners of their steps, the plant on the roofs. (Stage 3,
+// 2 November 2026: each tower's front faces the street it stands on, `face`.)
+const towerSeed = (t) => { let h = 7; for (const ch of t.id) h = (h * 31 + ch.charCodeAt(0)) % 9973; return h; };
+function addTowers(signs, M, list) {
   for (const t of list) {
-    if (!materials.has(t.kind)) materials.set(t.kind, towerMaterial(t.kind, lite, textures));
-    const mat = materials.get(t.kind);
-    const W = new Mesher();
     const lobby = 7.2, top = t.storeys * 3.6;
-    const facing = t.x > 0 ? -1 : 1;              // the side toward Unity Avenue (its lobby faces the avenue)
-    const bodyTop = top;
-    const col = 0xffffff;
-    if (t.kind === 'round') {
-      const segs = lite ? 24 : 40, r = t.dx / 2;
-      for (let i = 0; i < segs; i += 1) {
-        const a0 = (i / segs) * Math.PI * 2, a1 = ((i + 1) / segs) * Math.PI * 2;
-        const p0 = [t.x + Math.sin(a0) * r, lobby, t.z + Math.cos(a0) * r], p1 = [t.x + Math.sin(a1) * r, lobby, t.z + Math.cos(a1) * r];
-        const u0 = (a0 * r) / TILE, u1 = (a1 * r) / TILE;
-        W.quad(p0, p1, [p1[0], bodyTop, p1[2]], [p0[0], bodyTop, p0[2]], col, [[u0, lobby / TILE], [u1, lobby / TILE], [u1, bodyTop / TILE], [u0, bodyTop / TILE]], [Math.sin((a0 + a1) / 2), 0, Math.cos((a0 + a1) / 2)]);
+    const round = t.kind === 'round', r = t.dx / 2;
+    const [fx, fz] = t.face;
+    // the way along its front (to its left as it looks out), the middle of its front, half its front's width
+    const ax = fz, az = -fx;
+    const hw = round ? r : fx ? t.dz / 2 : t.dx / 2;
+    const fx0 = t.x + fx * (round ? r : t.dx / 2), fz0 = t.z + fz * (round ? r : t.dz / 2);
+    const heading = Math.atan2(fx, fz);
+    // a box set out from its front, turned as it faces: `width` along its front, `depth` out, its middle `out` from the
+    // front and `side` along it
+    const obox = (Mx, width, h, depth, out, y, side, col) => Mx.box(width, h, depth, fx0 + fx * out + ax * side, y, fz0 + fz * out + az * side, col, heading);
+    // (its own colours: neighbours differ)
+    const seed = towerSeed(t);
+    const canopy = [0x2d3236, 0x6b5a45, 0x3c4a52, 0xd9d6cf][seed % 4];
+    // columns at its corners
+    if (!round) for (const cx of [-1, 1]) for (const cz of [-1, 1]) M.solid.box(0.9, lobby, 0.9, t.x + cx * t.dx / 2, lobby / 2 + KERB, t.z + cz * t.dz / 2, 0xd9d6cf);
+    // the canopy over the way in; round its doors a frame of dark metal, 4.4 m wide and 3.2 high; the steps up to them
+    obox(M.solid, 9, 0.25, 3.2, 1.6, 4.4 + KERB, 0, canopy);
+    for (const k of [-1, 1]) obox(M.metal, 0.25, 3.3, 0.3, 0.12, KERB + 1.65, k * 2.2, 0x23272b);
+    obox(M.metal, 4.65, 0.3, 0.3, 0.12, KERB + 3.3, 0, 0x23272b);
+    for (const [out, hk] of [[2.7, 0.15], [1.8, 0.3], [0.9, 0.45]]) obox(M.concrete, 8, hk, out + 1.2, out / 2 - 0.6, KERB + hk / 2, 0, 0xd8d3c8);
+    signs.add([t.lobby], fx0 + fx * 3.25, 5.1 + KERB, fz0 + fz * 3.25, heading, 6.5, 0.55, ['#ffffff', 'rgba(20,24,28,0.92)']);
+    // the shops at its foot, either side of the way in: their names over their windows, a strip of colour over each (on
+    // the round one, round its wall)
+    (t.shops || []).forEach((name, k) => {
+      const side = (k === 0 ? -1 : 1) * (round ? r * 0.56 : hw * 0.6);
+      const strip = [0x1f5d3a, 0xc59b2a, 0x8a2f2f, 0x2f4f8a, 0x5a3d7a][(seed + k * 3) % 5];
+      const words = [['#ffffff', '#1f5d3a'], ['#1a1a1a', '#f2c200'], ['#ffffff', '#8a2f2f'], ['#ffffff', '#2f4f8a'], ['#ffffff', '#5a3d7a']][(seed + k * 3) % 5];
+      if (round) {
+        const th = Math.asin(Math.max(-1, Math.min(1, side / r))), dx = Math.cos(th) * fx + Math.sin(th) * ax, dz = Math.cos(th) * fz + Math.sin(th) * az, h = Math.atan2(dx, dz);
+        signs.add([name.toUpperCase()], t.x + dx * (r + 0.08), 3.3 + KERB, t.z + dz * (r + 0.08), h, 5.2, 0.7, words);
+        M.solid.box(5.6, 0.12, 0.6, t.x + dx * (r + 0.3), 2.85 + KERB, t.z + dz * (r + 0.3), strip, h);
+        return;
       }
-    } else {
+      signs.add([name.toUpperCase()], fx0 + fx * 0.08 + ax * side, 3.3 + KERB, fz0 + fz * 0.08 + az * side, heading, 5.2, 0.7, words);
+      obox(M.solid, 5.6, 0.12, 0.6, 0.3, 2.85 + KERB, side, strip);
+    });
+    // the white towers' ribs: a fin out of the wall at every second bay, from the lobby's slab to the roof
+    if (t.kind === 'ribbed-white') {
       const x0 = t.x - t.dx / 2, x1 = t.x + t.dx / 2, z0 = t.z - t.dz / 2, z1 = t.z + t.dz / 2;
-      const face = (a, b, out) => { const len = Math.hypot(b[0] - a[0], b[1] - a[1]); W.quad([a[0], lobby, a[1]], [b[0], lobby, b[1]], [b[0], bodyTop, b[1]], [a[0], bodyTop, a[1]], col, [[0, lobby / TILE], [len / TILE, lobby / TILE], [len / TILE, bodyTop / TILE], [0, bodyTop / TILE]], out); };
-      face([x0, z0], [x1, z0], [0, 0, -1]); face([x1, z0], [x1, z1], [1, 0, 0]); face([x1, z1], [x0, z1], [0, 0, 1]); face([x0, z1], [x0, z0], [-1, 0, 0]);
+      const every = 3.2, h = top - lobby, y = lobby + h / 2, rib = 0xf6f4ee;
+      for (let x = x0 + every; x < x1 - 0.8; x += every) for (const [z, out] of [[z0, -1], [z1, 1]]) M.solid.box(0.45, h, 0.5, x, y, z + out * 0.25, rib);
+      for (let z = z0 + every; z < z1 - 0.8; z += every) for (const [x, out] of [[x0, -1], [x1, 1]]) M.solid.box(0.5, h, 0.45, x + out * 0.25, y, z, rib);
     }
-    const body = W.build(mat);
-    body.name = `oganiru:${t.id}`;
-    body.userData.tower = true;
-    group.add(body);
-    // the roof and the crown: stepped back, its own solid stuff (and on the stone one, a little pyramid of a top)
-    const round = t.kind === 'round';
-    const roofCol = t.kind === 'stone' ? 0xcdbb9b : t.kind === 'ribbed-white' ? 0xf1efe9 : 0x8a9096;
-    if (round) M.solid.geo(new THREE.CylinderGeometry(t.dx / 2, t.dx / 2, 0.6, lite ? 24 : 40), place(t.x, top + 0.3, t.z), roofCol);
-    else M.solid.box(t.dx + 0.4, 0.8, t.dz + 0.4, t.x, top + 0.4, t.z, roofCol);
+    // the stone ones: a cornice round the top of the walls, and at each step of the crown, finials at its corners
     const crown = t.crown || 0;
-    if (crown > 0) {
-      const steps = t.kind === 'stone' ? 3 : 2;
+    if (t.kind === 'stone') {
+      M.solid.box(t.dx + 1.2, 0.7, t.dz + 1.2, t.x, top - 0.6, t.z, 0xbfae8e);
       let y = top + 0.8;
-      for (let k = 0; k < steps; k += 1) {
-        const shrink = 0.72 - k * 0.18, h = (crown * (k === steps - 1 ? 0.5 : 0.25));
-        const cw = (round ? t.dx : t.dx) * shrink, cd = (round ? t.dx : t.dz) * shrink;
-        if (round) M.solid.geo(new THREE.CylinderGeometry(cw / 2, cw / 2, h, lite ? 20 : 32), place(t.x, y + h / 2, t.z), roofCol);
-        else M.solid.box(cw, h, cd, t.x, y + h / 2, t.z, roofCol);
+      const steps = 3;
+      for (let k = 0; k < steps && crown > 0; k += 1) {
+        const shrink = 0.72 - k * 0.18, h = crown * (k === steps - 1 ? 0.5 : 0.25), cw = t.dx * shrink, cd = t.dz * shrink;
+        M.solid.box(cw + 0.8, 0.45, cd + 0.8, t.x, y + h - 0.2, t.z, 0xbfae8e);
+        if (k < steps - 1) for (const cx of [-1, 1]) for (const cz of [-1, 1]) M.solid.geo(new THREE.ConeGeometry(0.55, 2.6, 4), place(t.x + cx * (cw / 2 - 0.4), y + h + 1.3, t.z + cz * (cd / 2 - 0.4), Math.PI / 4), 0xd6c6a6);
         y += h;
       }
-      if (t.kind === 'stone') M.solid.geo(new THREE.ConeGeometry(t.dx * 0.18, crown * 0.3, 4), place(t.x, y + crown * 0.15, t.z, Math.PI / 4), 0x6f8f7a);
-      // the tallest: a lit band round the top of the crown
-      if (t.storeys >= 30) crowns.push({ t, y: y - 0.6, w: (round ? t.dx : t.dx) * (0.72 - (steps - 1) * 0.18) + 0.1, d: (round ? t.dx : t.dz) * (0.72 - (steps - 1) * 0.18) + 0.1, round });
     }
-    // rooftop plant: boxes and a water tank
-    M.solid.box(4, 2.2, 3, t.x + 3, top + 0.8 + (crown > 0 ? 0 : 1.1), t.z - 4, 0x9a9da0);
-    // the lobby: two storeys of clear glass set back a metre, columns, a canopy over the way in, steps up to it
-    const lx = round ? t.dx / 2 - 1 : t.dx / 2 - 1, lz = round ? t.dx / 2 - 1 : t.dz / 2 - 1;
-    if (round) M.lobby.geo(new THREE.CylinderGeometry(lx, lx, lobby, lite ? 24 : 40, 1, true), place(t.x, lobby / 2 + KERB, t.z), 0xffffff, 'wall', 8);
-    else M.lobby.box(lx * 2, lobby, lz * 2, t.x, lobby / 2 + KERB, t.z, 0xffffff, 0, 'wall', 8);
-    if (!round) for (const cx of [-1, 1]) for (const cz of [-1, 1]) M.solid.box(0.8, lobby, 0.8, t.x + cx * (t.dx / 2 - 0.4), lobby / 2 + KERB, t.z + cz * (t.dz / 2 - 0.4), 0xd9d6cf);
-    // (the slab over the lobby, the tower's walls standing on it)
-    if (round) M.solid.geo(new THREE.CylinderGeometry(t.dx / 2 + 0.15, t.dx / 2 + 0.15, 0.5, lite ? 24 : 40), place(t.x, lobby + KERB - 0.1, t.z), 0xd9d6cf);
-    else M.solid.box(t.dx + 0.3, 0.5, t.dz + 0.3, t.x, lobby + KERB - 0.1, t.z, 0xd9d6cf);
-    const front = t.x + facing * (round ? t.dx / 2 : t.dx / 2);
-    M.solid.box(3.2, 0.25, 9, front + facing * 1.4, 4.4 + KERB, t.z, 0x2d3236);
-    for (const [out, hk] of [[2.7, 0.15], [1.8, 0.3], [0.9, 0.45]]) M.concrete.box(out, hk, 8, front + facing * (out / 2), KERB + hk / 2, t.z, 0xd8d3c8);
-    signs.push(signMesh([t.lobby], front + facing * 0.05 + facing * 2.95, 5.1 + KERB, t.z, facing > 0 ? Math.PI / 2 : -Math.PI / 2, 6.5, 0.55, ['#ffffff', 'rgba(20,24,28,0.92)']));
-    // the shops at its foot, along the walkway beside the avenue: their names over their windows
-    (t.shops || []).forEach((name, k) => {
-      const z = t.z + (k === 0 ? -1 : 1) * (round ? t.dx * 0.28 : t.dz * 0.3);
-      signs.push(signMesh([name.toUpperCase()], front + facing * 0.08, 3.3 + KERB, z, facing > 0 ? Math.PI / 2 : -Math.PI / 2, 5.2, 0.7, k === 0 ? ['#ffffff', '#1f5d3a'] : ['#1a1a1a', '#f2c200']));
-      M.solid.box(0.6, 0.12, 5.6, front + facing * 0.5, 2.85 + KERB, z, k === 0 ? 0x1f5d3a : 0xc59b2a);
-    });
+    // the plant on the roof, beside the crown: a box of machinery and a water tank
+    if (!round) {
+      const cx = seed % 2 ? 1 : -1, cz = seed % 3 ? 1 : -1;
+      const px = t.x + cx * (t.dx / 2 - 2.0), pz = t.z + cz * (t.dz / 2 - 2.6);
+      M.solid.box(3, 2.2, 2.4, px, top + 0.8 + 1.1, pz, 0x9a9da0);
+      M.metal.geo(new THREE.CylinderGeometry(1.0, 1.0, 2.2, 10), place(px - cx * 3.4, top + 0.8 + 1.1, pz), 0x7f868c);
+    }
   }
-  // the lit bands round the tallest crowns
-  const band = new Mesher();
-  for (const c of crowns) {
-    if (c.round) { const g = new THREE.CylinderGeometry(c.w / 2 + 0.05, c.w / 2 + 0.05, 0.5, 40, 1, true); band.geo(g, place(c.t.x, c.y, c.t.z), 0xfff4dc, 'own'); }
-    else band.box(c.w, 0.5, c.d, c.t.x, c.y, c.t.z, 0xfff4dc);
-  }
-  const bandMesh = band.empty ? null : band.build(bandMaterial, { shadows: false });
-  if (bandMesh) { bandMesh.name = 'oganiru:crowns'; bandMesh.userData.tower = true; }
-  return bandMesh;
 }
 
-// A sign: a board with the text on it, standing `facing` (0: toward +z), its middle at (x, y, z).
+// A piece's signs: their words painted one under another on one picture (or a few, none taller than the graphics card
+// takes), each board a part of it, all of them drawn as one (2 November 2026: downtown's seventy-odd names, each its
+// own picture and mesh before). Each board stands `facing` (0: toward +z), its middle at (x, y, z), `w` by `h` metres;
+// its picture as wide as SIGN_WIDTH (a phone's half of it: it reads them from no nearer), as tall as its shape asks.
 let SIGN_WIDTH = 1024;
-function signMesh(lines, x, y, z, facing, w, h, [fg, bg]) {
-  const W = SIGN_WIDTH, k = W / 1024;
-  const tex = textTexture(lines, { width: W, height: Math.max(Math.round(96 * k), Math.round(W * (h / w))), background: bg, colour: fg, size: Math.min(Math.round(110 * k), Math.round(760 * k * (h / w) / Math.max(1, lines.length))) });
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, metalness: 0.05 }));
-  mesh.position.set(x, y, z);
-  mesh.rotation.y = facing;
-  mesh.name = 'oganiru:sign';
-  return mesh;
+const SIGN_TALLEST = 4096, SIGN_GAP = 8;
+const SIGN_FONT = '"Arial Narrow", "Roboto Condensed", Impact, sans-serif';
+class SignAtlas {
+  constructor() { this.list = []; }
+  get empty() { return this.list.length === 0; }
+  add(lines, x, y, z, facing, w, h, [fg, bg]) { this.list.push({ lines, x, y, z, facing, w, h, fg, bg }); }
+  // the meshes (one for each picture), `name`d
+  build(name, lite) {
+    const W = SIGN_WIDTH, k = W / 1024, scale = lite ? 0.5 : 1;
+    // each board's place on a picture
+    const sheets = [];
+    let sheet = null;
+    for (const s of this.list) {
+      s.px = Math.max(Math.round(96 * k), Math.round(W * (s.h / s.w)));
+      s.size = Math.min(Math.round(110 * k), Math.round(760 * k * (s.h / s.w) / Math.max(1, s.lines.length)));
+      if (!sheet || sheet.height + s.px + SIGN_GAP > SIGN_TALLEST) { sheet = { signs: [], height: 0 }; sheets.push(sheet); }
+      s.top = sheet.height + SIGN_GAP / 2;
+      sheet.height += s.px + SIGN_GAP;
+      sheet.signs.push(s);
+    }
+    return sheets.map((S) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(W * scale)); canvas.height = Math.max(1, Math.round(S.height * scale));
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
+      const draw = () => {
+        const g = canvas.getContext('2d');
+        g.setTransform(scale, 0, 0, scale, 0, 0);
+        g.clearRect(0, 0, W, S.height);
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        for (const s of S.signs) {
+          // (its ground carried a little above and below it, so that its edges stay its own colour far off)
+          g.fillStyle = s.bg; g.fillRect(0, s.top - SIGN_GAP / 2, W, s.px + SIGN_GAP);
+          g.fillStyle = s.fg;
+          s.lines.forEach((text, i) => {
+            let px = s.size;
+            g.font = `800 ${px}px ${SIGN_FONT}`;
+            while (g.measureText(text).width > W - 36 && px > 14) { px -= 2; g.font = `800 ${px}px ${SIGN_FONT}`; }
+            g.fillText(text, W / 2, s.top + (s.px * (i + 0.5)) / s.lines.length + 2);
+          });
+        }
+        texture.needsUpdate = true;
+      };
+      draw();
+      // (painted again once the fonts have come; from then on, on a phone, its pixels let go once the graphics card has
+      // them, and painted again whenever they are wanted: painted.js)
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { draw(); letPaintedGo(texture, () => draw()); }).catch(() => {});
+      else letPaintedGo(texture, () => draw());
+      // the boards: one face each, its picture its part of the sheet
+      const n = S.signs.length, P = new Float32Array(n * 18), N = new Float32Array(n * 18), U = new Float32Array(n * 12);
+      S.signs.forEach((s, i) => {
+        const rx = Math.cos(s.facing), rz = -Math.sin(s.facing), nx = Math.sin(s.facing), nz = Math.cos(s.facing);
+        const hw = s.w / 2, hh = s.h / 2;
+        const c = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([a, b]) => [s.x + rx * a, s.y + b, s.z + rz * a]);
+        const v0 = 1 - (s.top + s.px) / S.height, v1 = 1 - s.top / S.height;
+        const uv = [[0, v0], [1, v0], [1, v1], [0, v1]];
+        [0, 1, 2, 0, 2, 3].forEach((q, j) => { P.set(c[q], i * 18 + j * 3); N.set([nx, 0, nz], i * 18 + j * 3); U.set(uv[q], i * 12 + j * 2); });
+      });
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(P, 3));
+      geometry.setAttribute('normal', new THREE.BufferAttribute(N, 3));
+      geometry.setAttribute('uv', new THREE.BufferAttribute(U, 2));
+      geometry.computeBoundingSphere();
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6, metalness: 0.05 }));
+      mesh.name = name;
+      mesh.userData.signs = n;
+      return mesh;
+    });
+  }
 }
 
 // ------------------------------------------------------------------------------------------- the trees --
@@ -1296,11 +1225,11 @@ function treeBoards(group, model, copies, renderer, lite) {
 // One piece of the city, built: its steps (a few milliseconds each), at the end its group of meshes, its signs, the
 // fixed lights under its decks.
 function* buildTile(T, S) {
-  const { lite, materials, textures, towerMaterials, bandMaterial } = S;
+  const { lite, materials } = S;
   const group = new THREE.Group(); group.name = `oganiru:${T.key}`;
-  const M = { tar: new Mesher(), rampTar: new Mesher(), wear: new Mesher(), paint: new Mesher(), kerb: new Mesher(), grass: new Mesher(), pave: new Mesher(), concrete: new Mesher(), soffit: new Mesher(), stain: new Mesher(), solid: new Mesher(), metal: new Mesher(), lit: new Mesher(), lobby: new Mesher() };
+  const M = { tar: new Mesher(), rampTar: new Mesher(), wear: new Mesher(), paint: new Mesher(), kerb: new Mesher(), grass: new Mesher(), pave: new Mesher(), concrete: new Mesher(), soffit: new Mesher(), stain: new Mesher(), solid: new Mesher(), metal: new Mesher(), lit: new Mesher() };
   const shadeSolid = new Batch(), foliage = new Foliage();
-  const fixedLights = [], signs = [];
+  const fixedLights = [], signs = new SignAtlas();
   const ground = groundTile(T, lite);
   if (ground) { const mesh = new THREE.Mesh(ground, materials.ground); mesh.receiveShadow = true; mesh.name = `oganiru:ground:${T.key}`; group.add(mesh); }
   yield;
@@ -1319,7 +1248,7 @@ function* buildTile(T, S) {
   signsTile(M, T, signs);
   yield;
   const towers = OGANIRU_TOWERS.filter((t) => inTile(T, t.x, t.z));
-  const crowns = towers.length ? addTowers(group, lite, textures, signs, M, towers, towerMaterials, bandMaterial) : null;
+  if (towers.length) addTowers(signs, M, towers);
   yield;
   // shade trees along the verges and palms on the expressway's banks, as the town's own (render-world.js addTree)
   let n = 0;
@@ -1343,12 +1272,11 @@ function* buildTile(T, S) {
   build('stain', materials.stain, false);
   build('solid', materials.solid, true);
   build('metal', materials.metal, true);
-  build('lit', materials.lit, false);
-  build('lobby', materials.lobby, false); yield;
+  build('lit', materials.lit, false); yield;
   if (!shadeSolid.empty) { const m = shadeSolid.build(materials.solid); m.castShadow = true; m.receiveShadow = true; m.name = `oganiru:trunks:${T.key}`; group.add(m); }
   for (const mesh of foliage.build(foliageMaterials())) { mesh.name = `oganiru:leaves:${T.key}`; group.add(mesh); }
-  for (const s of signs) group.add(s);
-  if (crowns) group.add(crowns);
+  if (!signs.empty) for (const mesh of signs.build(`oganiru:signs:${T.key}`, lite)) group.add(mesh);
+  if (towers.length) group.userData.towers = towers.length;
   return { group, fixedLights };
 }
 
@@ -1361,10 +1289,7 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
   SIGN_WIDTH = lite ? 512 : 1024;
   const size = lite ? 512 : 1024;
   const textures = {
-    asphalt: asphaltTexture(size), concrete: concreteTexture(lite ? 256 : 512), soffit: soffitTexture(lite ? 128 : 256), lobby: lobbyTexture(lite ? 128 : 512), lobbyLit: lobbyTexture(lite ? 64 : 128, true), pavers: paverTexture(lite ? 128 : 256),
-    facades: new Map(), lits: new Map(),
-    facade(kind) { if (!this.facades.has(kind)) this.facades.set(kind, facadeTexture(kind, lite ? 256 : 1024)); return this.facades.get(kind); },
-    lit(punched) { if (!this.lits.has(punched)) { const t = litTexture(punched, lite ? 128 : 256); t.colorSpace = THREE.NoColorSpace; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; this.lits.set(punched, t); } return this.lits.get(punched); },
+    asphalt: asphaltTexture(size), concrete: concreteTexture(lite ? 256 : 512), soffit: soffitTexture(lite ? 128 : 256), pavers: paverTexture(lite ? 128 : 256),
   };
   yield;
   // ---- the materials every piece draws with ----
@@ -1384,14 +1309,10 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
     soffit: weathers(surface({ vertexColors: true, map: textures.soffit, roughness: 0.92, metalness: 0 }), { darken: 0.1 }),
     stain: new THREE.MeshLambertMaterial({ color: linear(0x2d2a24), transparent: true, opacity: 0.28, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     metal: reflects(surface({ vertexColors: true, roughness: 0.45, metalness: 0.55 }), 0.6, 'metal'),
-    // (the lobbies' glass: dark by day, giving back the sky; lit warm from within at night)
-    lobby: reflects(new THREE.MeshStandardMaterial({ vertexColors: true, map: textures.lobby, emissiveMap: textures.lobbyLit, emissive: linear(0xffe2b0), emissiveIntensity: 0, roughness: 0.12, metalness: 0.35 }), 0.8),
     kerb: weathers(surface({ map: kerbTexture(lite ? 256 : 512), roughness: 0.8, metalness: 0 }), { darken: 0.2 }),
     solid: kit.solid,
     lit: glowMaterial || new THREE.MeshBasicMaterial({ color: 0xfff1c9 }),
   };
-  const towerMaterials = new Map();
-  const bandMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0xb9bcc0), emissive: linear(0xfff0d0), emissiveIntensity: 0, roughness: 0.6 });
   yield;
   // the signals' lamps, the whole city's: one mesh for each colour, each lamp lit or dark by its own phase and its
   // junction's step in the cycle (as Market Road's: render-city.js, which has one mesh a phase)
@@ -1427,7 +1348,7 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
 
   // ---- the pieces ----
   const near = lite ? TILE_NEAR.lite : TILE_NEAR.full;
-  const S = { lite, materials, textures, towerMaterials, bandMaterial };
+  const S = { lite, materials, textures };
   const pieces = new Map();             // key -> { T, state: 'queued' | 'building' | 'built', steps, group, fixedLights, ready }
   let building = null;
   let compiled = false;
@@ -1477,7 +1398,7 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
     g.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
       const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-      for (const m of mats) { if (shared.has(m) || towerMaterials.has(m.userData.kind) && towerMaterials.get(m.userData.kind) === m || m === bandMaterial) continue; if (m.map) m.map.dispose(); m.dispose(); }
+      for (const m of mats) { if (shared.has(m)) continue; if (m.map) m.map.dispose(); m.dispose(); }
     });
   }
 
@@ -1501,13 +1422,7 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
       if (changed) S2.mesh.instanceColor.needsUpdate = true;
     }
     nowLit.clear();
-    // the towers' windows: lit at night, more of them in the evening than late (`uLit`: the share lit)
-    const h = ((hour % 24) + 24) % 24;
-    // (from dusk about half of them, fewer as the night goes on, a few at four in the morning, more again before dawn)
-    const share = h >= 18 ? 0.55 - (h - 18) * 0.05 : h < 5 ? 0.25 - h * 0.035 : h < 7 ? 0.12 + (h - 5) * 0.1 : 0.4;
-    for (const m of towerMaterials.values()) { m.emissiveIntensity = night * 1.6; m.userData.lit.value = Math.max(0.08, share); }
-    bandMaterial.emissiveIntensity = night * 2.2;
-    materials.lobby.emissiveIntensity = night * 0.45;
+    // (the towers' windows, lit at night: render-skyline.js)
     trees.update(eye, storm);
     closures.update(dt, night, eye ? eye.position : null);
   }
@@ -1525,7 +1440,9 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
       p.d = d;
       if (d > near.go && p.state !== 'queued') { letGoPiece(p); continue; }
       if (d > near.go && p.state === 'queued') { pieces.delete(T.key); continue; }
-      if (p.group) p.group.visible = d < reach || p.group.children.some((c) => c.userData.tower) && d < reach * 2.2;
+      // (the towers themselves are the skyline's, seen from anywhere: render-skyline.js; what is at their feet, with the rest
+      // of the piece, from as near as the rest)
+      if (p.group) p.group.visible = d < reach;
     }
     return shownAll;
   }
@@ -1539,8 +1456,8 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
     closures.dispose();
     for (const S2 of signalMeshes) { S2.mesh.dispose(); S2.mesh.material.dispose(); }
     disc.dispose();
-    for (const m of [...Object.values(materials), ...towerMaterials.values(), bandMaterial]) { if (keep.has(m)) continue; m.dispose(); }
-    for (const t of [groundMap, materials.kerb.map, materials.grass.map, textures.asphalt, textures.concrete, textures.soffit, textures.lobby, textures.lobbyLit, textures.pavers, ...textures.facades.values(), ...textures.lits.values()]) if (t) t.dispose();
+    for (const m of Object.values(materials)) { if (keep.has(m)) continue; m.dispose(); }
+    for (const t of [groundMap, materials.kerb.map, materials.grass.map, textures.asphalt, textures.concrete, textures.soffit, textures.pavers]) if (t) t.dispose();
     if (lamps) for (const T of OGANIRU_TILES) lamps.dropFixed(`city:${T.key}`);
   }
   // every piece near (x, z) built now, whatever it takes (someone put down in the city, the tests, the measuring)

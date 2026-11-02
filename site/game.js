@@ -5873,7 +5873,31 @@ function buildDecks() {
   out.push(r('p-sb-on', 'Peace Interchange (Peace Avenue to south-bound)', true));
 
   const raised = (q) => q.y > 0.35;
-  const footprint = (B, x, z) => { let best = null; for (let m = 0; m < B.path.length - 1; m += 1) { const a = B.path[m], b = B.path[m + 1]; const ex = b.x - a.x, ez = b.z - a.z, l2 = ex * ex + ez * ez; const t = clamp(((x - a.x) * ex + (z - a.z) * ez) / l2, 0, 1); const px = a.x + ex * t, pz = a.z + ez * t, off = Math.hypot(x - px, z - pz); if (off <= B.half + 1 && (!best || off < best.off)) best = { off, y: a.y + (b.y - a.y) * t, s: a.s + (b.s - a.s) * t, px, pz, ux: ex / Math.sqrt(l2), uz: ez / Math.sqrt(l2) }; } return best; };
+  const FOOT = 16;
+  const feet = new Map(out.map((B) => {
+    const pad = B.half + 1, cells = new Map();
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let m = 0; m < B.path.length - 1; m += 1) {
+      const a = B.path[m], b = B.path[m + 1];
+      const lx = Math.min(a.x, b.x) - pad, hx = Math.max(a.x, b.x) + pad, lz = Math.min(a.z, b.z) - pad, hz = Math.max(a.z, b.z) + pad;
+      x0 = Math.min(x0, lx); x1 = Math.max(x1, hx); z0 = Math.min(z0, lz); z1 = Math.max(z1, hz);
+      for (let i = Math.floor(lx / FOOT); i <= Math.floor(hx / FOOT); i += 1) for (let j = Math.floor(lz / FOOT); j <= Math.floor(hz / FOOT); j += 1) {
+        const key = i * 4096 + j;
+        if (!cells.has(key)) cells.set(key, []);
+        cells.get(key).push(m);
+      }
+    }
+    return [B, { cells, x0, x1, z0, z1 }];
+  }));
+  const footprint = (B, x, z) => {
+    const F = feet.get(B);
+    if (x < F.x0 || x > F.x1 || z < F.z0 || z > F.z1) return null;
+    const list = F.cells.get(Math.floor(x / FOOT) * 4096 + Math.floor(z / FOOT));
+    if (!list) return null;
+    let best = null;
+    for (const m of list) { const a = B.path[m], b = B.path[m + 1]; const ex = b.x - a.x, ez = b.z - a.z, l2 = ex * ex + ez * ez; const t = clamp(((x - a.x) * ex + (z - a.z) * ez) / l2, 0, 1); const px = a.x + ex * t, pz = a.z + ez * t, off = Math.hypot(x - px, z - pz); if (off <= B.half + 1 && (!best || off < best.off)) best = { off, y: a.y + (b.y - a.y) * t, s: a.s + (b.s - a.s) * t, px, pz, ux: ex / Math.sqrt(l2), uz: ez / Math.sqrt(l2) }; }
+    return best;
+  };
   const gaps = new Map(out.map((d) => [d, { left: [], right: [] }]));
   for (const d of out) {
     if (d.walls !== 'auto') continue;
@@ -5990,9 +6014,28 @@ function runsOf(a0, a1, cut) {
   }
   return out;
 }
-const onOtherRoad = (self, x, z) => OGANIRU_ROADS.some((q) => q !== self && q.kind !== 'cutting' && (q.along === 'z' ? z >= q.from - 0.5 && z <= q.to + 0.5 && Math.abs(x - q.c) <= roadWidthAt(q, z).half : x >= q.from - 0.5 && x <= q.to + 0.5 && Math.abs(z - q.c) <= roadWidthAt(q, x).half));
+let ROAD_CELLS = null;
+const NO_ROADS = Object.freeze([]);
+function roadsNear(x, z) {
+  if (!ROAD_CELLS) {
+    ROAD_CELLS = new Map();
+    OGANIRU_ROADS.forEach((q, n) => {
+      if (q.kind === 'cutting') return;
+      const half = Math.max(q.half, q.kind === 'flyover-road' && q.taper ? AVENUE.half : 0, q.flare ? q.flare.half : 0);
+      const a0 = Math.min(q.from, q.to) - 0.5, a1 = Math.max(q.from, q.to) + 0.5, c0 = q.c - half, c1 = q.c + half;
+      const [x0, x1, z0, z1] = q.along === 'z' ? [c0, c1, a0, a1] : [a0, a1, c0, c1];
+      for (let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i += 1) for (let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j += 1) {
+        const key = i * 4096 + j;
+        if (!ROAD_CELLS.has(key)) ROAD_CELLS.set(key, []);
+        ROAD_CELLS.get(key).push(q);
+      }
+    });
+  }
+  return ROAD_CELLS.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL)) || NO_ROADS;
+}
+const onOtherRoad = (self, x, z) => roadsNear(x, z).some((q) => q !== self && (q.along === 'z' ? z >= q.from - 0.5 && z <= q.to + 0.5 && Math.abs(x - q.c) <= roadWidthAt(q, z).half : x >= q.from - 0.5 && x <= q.to + 0.5 && Math.abs(z - q.c) <= roadWidthAt(q, x).half));
 const lowDeckAt = (x, z) => oganiruDecksAt(x, z).some((h) => h.y < 0.6 && h.deck.kind !== 'bridge');
-const inAnyRing = (x, z) => OGANIRU_ROUNDABOUTS.some((r) => Math.hypot(x - r.x, z - r.z) < r.outer + r.walk + 0.5);
+const inAnyRing = (x, z) => OGANIRU_ROUNDABOUTS.some((r) => { const R = r.outer + r.walk + 0.5, dx = x - r.x, dz = z - r.z; return Math.abs(dx) < R && Math.abs(dz) < R && Math.hypot(dx, dz) < R; });
 for (const r of OGANIRU_ROADS) {
   const span = (c0, c1, a0, a1) => (r.along === 'z' ? { x0: Math.min(c0, c1), x1: Math.max(c0, c1), z0: a0, z1: a1 } : { x0: a0, x1: a1, z0: Math.min(c0, c1), z1: Math.max(c0, c1) });
   const P = (lat, a) => (r.along === 'z' ? [r.c + lat, a] : [a, r.c + lat]);
@@ -6024,7 +6067,10 @@ for (const r of OGANIRU_ROADS) {
 }
 const OGANIRU_KERBED = KERBED;
 
-const tower = (id, name, kind, x, z, dx, dz, storeys, o = {}) => Object.freeze({ id, name, kind, x, z, dx, dz, storeys, height: storeys * 3.6 + (o.crown || 0), ...o });
+const tower = (id, name, kind, x, z, dx, dz, storeys, o = {}) => Object.freeze({ id, name, kind, x, z, dx, dz, storeys, ...o, height: storeys * 3.6 + (o.crown || 0), face: Object.freeze(o.face || [x > 0 ? -1 : 1, 0]), front: o.front !== undefined ? o.front : (x > 0 ? 1 : -1) * (10 + 3.5) });
+const WALK_AVENUE = 13.5, WALK_STREET = 11, WALK_FLYOVER = 19.5;
+const GATEWAY_FRONT = { face: [0, 1], front: -560 - WALK_AVENUE };
+const INDEPENDENCE_FRONT = { face: [0, 1], front: -780 - WALK_AVENUE };
 const OGANIRU_TOWERS = Object.freeze([
   tower('t1', 'Unity Tower', 'glass-blue', 72, -716, 30, 34, 34, { crown: 9, lobby: 'UNITY TOWER', shops: ['Ugo Pharmacy', 'Cool Corner Café'] }),
   tower('t2', 'Ivory Court', 'ribbed-white', 152, -722, 28, 28, 26, { crown: 4, lobby: 'IVORY COURT', shops: ['Ebube Fashion'] }),
@@ -6032,12 +6078,39 @@ const OGANIRU_TOWERS = Object.freeze([
   tower('t4', 'Rotunda House', 'round', -152, -720, 30, 30, 22, { crown: 3, lobby: 'ROTUNDA HOUSE', shops: ['Amara Salon'] }),
   tower('t5', 'Gateway Offices', 'office-teal', 72, -842, 26, 40, 10, { crown: 2, lobby: 'GATEWAY OFFICES', shops: ['Ndidi Travels', 'Akwa Phones'] }),
   tower('t6', 'Harmony Place', 'glass-grey', -72, -846, 30, 30, 40, { crown: 12, lobby: 'HARMONY PLACE', shops: ['Udo Bank', 'Mama Nkechi Foods'] }),
+  tower('t7', 'Obi Plaza', 'office-blue', -360, -616, 28, 30, 9, { crown: 2, lobby: 'OBI PLAZA', shops: ['Adaeze Bakery'], ...GATEWAY_FRONT }),
+  tower('t8', 'Azuka Tower', 'glass-teal', -288, -616, 32, 32, 28, { crown: 7, lobby: 'AZUKA TOWER', shops: ['Kelechi Phones', 'Nneka Fabrics'], ...GATEWAY_FRONT }),
+  tower('t9', 'Nkem House', 'stone', -190, -616, 32, 32, 36, { crown: 13, lobby: 'NKEM HOUSE', shops: ['Ifeoma Pharmacy'], ...GATEWAY_FRONT }),
+  tower('t10', 'Chiadi Court', 'office-grey', -120, -616, 40, 26, 8, { crown: 2, lobby: 'CHIADI COURT', shops: ['Uche Barbers', 'Obioma Tailors'], ...GATEWAY_FRONT }),
+  tower('t11', 'Gate Tower', 'glass-blue', -50, -616, 30, 30, 44, { crown: 11, lobby: 'GATE TOWER', shops: ['Chinwe Café', 'Ngozi Books'] }),
+  tower('t12', 'Ocha Tower', 'ribbed-white', 50, -616, 30, 30, 32, { crown: 5, lobby: 'OCHA TOWER', shops: ['Ike Hardware'] }),
+  tower('t13', 'Lagoon Court', 'glass-teal', 120, -616, 30, 30, 24, { crown: 4, lobby: 'LAGOON COURT', shops: ['Amaka Beauty', 'Okwu Electronics'], ...GATEWAY_FRONT }),
+  tower('t14', 'Commerce House', 'office-blue', 190, -616, 44, 26, 11, { crown: 2, lobby: 'COMMERCE HOUSE', shops: ['Ebuka Foods'], ...GATEWAY_FRONT }),
+  tower('t15', 'Niger House', 'glass-grey', 288, -616, 32, 32, 30, { crown: 6, lobby: 'NIGER HOUSE', shops: ['Ugo Supermarket'], ...GATEWAY_FRONT }),
+  tower('t16', 'Palmgrove Offices', 'office-teal', 360, -616, 28, 40, 7, { crown: 2, lobby: 'PALMGROVE OFFICES', shops: ['Nnamdi Printing', 'Oma Stationery'], ...GATEWAY_FRONT }),
+  tower('t17', 'Harmattan House', 'ribbed-white', -360, -724, 28, 28, 26, { crown: 4, lobby: 'HARMATTAN HOUSE', shops: ["Ada's Kitchen"], face: [-1, 0], front: -400 + WALK_STREET }),
+  tower('t18', 'Council Offices', 'office-grey', -288, -724, 40, 30, 12, { crown: 2, lobby: 'COUNCIL OFFICES', shops: ['Chidi Cleaners'], face: [1, 0], front: -240 - WALK_STREET }),
+  tower('t19', 'Charter House', 'stone', 288, -724, 34, 34, 40, { crown: 15, lobby: 'CHARTER HOUSE', shops: ['Igwe Jewellers', 'Nkiru Fashion'], face: [-1, 0], front: 240 + WALK_STREET }),
+  tower('t20', 'Udoka Tower', 'glass-blue', 360, -724, 26, 26, 18, { crown: 3, lobby: 'UDOKA TOWER', shops: ['Ifeanyi Opticians'], face: [1, 0], front: 400 - WALK_STREET }),
+  tower('t21', 'Independence House', 'glass-grey', -320, -831, 40, 30, 22, { crown: 5, lobby: 'INDEPENDENCE HOUSE', shops: ['Okafor Pharmacy'], ...INDEPENDENCE_FRONT }),
+  tower('t22', 'Kingfisher Tower', 'glass-teal', -170, -831, 28, 28, 30, { crown: 8, lobby: 'KINGFISHER TOWER', shops: ['Ebube Café'], face: [0, 1], front: -780 - WALK_FLYOVER }),
+  tower('t23', 'Halo Tower', 'round', 170, -831, 30, 30, 34, { crown: 6, lobby: 'HALO TOWER', shops: ['Nwando Gallery'], face: [0, 1], front: -780 - WALK_FLYOVER }),
+  tower('t24', 'Boulevard Offices', 'office-blue', 320, -831, 52, 28, 9, { crown: 2, lobby: 'BOULEVARD OFFICES', shops: ['Uzo Travels', 'Mma Florist'], ...INDEPENDENCE_FRONT }),
+  tower('t25', 'Ugwu Tower', 'stone', -320, -950, 34, 34, 45, { crown: 18, lobby: 'UGWU TOWER', shops: ['Chioma Boutique'], face: [-1, 0], front: -400 + WALK_STREET }),
+  tower('t26', 'Ijele Tower', 'glass-blue', -320, -1040, 32, 32, 38, { crown: 10, lobby: 'IJELE TOWER', shops: ['Obiageli Café'], face: [-1, 0], front: -400 + WALK_STREET }),
+  tower('t27', 'Oganiru Tower', 'glass-teal', 320, -950, 36, 36, 48, { crown: 14, lobby: 'OGANIRU TOWER', shops: ['Nkem Pharmacy', 'Ola Electronics'], face: [1, 0], front: 400 - WALK_STREET }),
+  tower('t28', 'Egret House', 'ribbed-white', 320, -1040, 30, 30, 30, { crown: 5, lobby: 'EGRET HOUSE', shops: ['Chinedu Books'], face: [1, 0], front: 400 - WALK_STREET }),
+  tower('t29', 'Parkview West', 'glass-grey', -210, -950, 30, 30, 26, { crown: 6, lobby: 'PARKVIEW WEST', shops: ['Ebele Café'], face: [0, 1], front: -880 - WALK_STREET }),
+  tower('t30', 'Parkview Offices', 'office-teal', 210, -950, 30, 30, 12, { crown: 2, lobby: 'PARKVIEW OFFICES', shops: ['Obi Couriers'], face: [0, 1], front: -880 - WALK_STREET }),
 ]);
 for (const t of OGANIRU_TOWERS) {
-  const side = t.x > 0 ? 1 : -1;
-  const nearX = side > 0 ? 10 + OGANIRU.walk : -(10 + OGANIRU.walk);
-  addKerbed({ x0: side > 0 ? nearX : t.x - t.dx / 2 - 6, x1: side > 0 ? t.x + t.dx / 2 + 6 : nearX, z0: t.z - t.dz / 2 - 6, z1: t.z + t.dz / 2 + 6, extra: { plaza: t.id } });
+  const [fx, fz] = t.face;
+  const b = { x0: t.x - t.dx / 2 - 6, x1: t.x + t.dx / 2 + 6, z0: t.z - t.dz / 2 - 6, z1: t.z + t.dz / 2 + 6 };
+  if (fx > 0) b.x1 = Math.max(b.x1, t.front); else if (fx < 0) b.x0 = Math.min(b.x0, t.front);
+  if (fz > 0) b.z1 = Math.max(b.z1, t.front); else if (fz < 0) b.z0 = Math.min(b.z0, t.front);
+  addKerbed({ ...b, extra: { plaza: t.id } });
 }
+const towerFront = (t, out = 0) => { const [fx, fz] = t.face; return { x: t.x + fx * (t.dx / 2 + out), z: t.z + fz * (t.dz / 2 + out), along: [Math.abs(fz), Math.abs(fx)], half: fx ? t.dz / 2 : t.dx / 2, heading: Math.atan2(fx, fz) }; };
 
 const KERB_CELLS = new Map();
 for (const b of KERBED) {
@@ -6207,8 +6280,8 @@ const OGANIRU_LAMPS = [];
     }
   }
   for (const t of OGANIRU_TOWERS) {
-    const front = t.x > 0 ? t.x - t.dx / 2 - 3 : t.x + t.dx / 2 + 3;
-    for (const k of [-1, 1]) OGANIRU_LAMPS.push({ kind: 'ornate', x: front, z: t.z + k * (t.dz / 2 - 2), y: KERB, heading: 0 });
+    const f = towerFront(t, 3);
+    for (const k of [-1, 1]) OGANIRU_LAMPS.push({ kind: 'ornate', x: f.x + f.along[0] * k * (f.half - 2), z: f.z + f.along[1] * k * (f.half - 2), y: KERB, heading: 0 });
   }
   for (const d of OGANIRU_DECKS) {
     if (d.kind === 'ground-ramp') continue;
@@ -6569,7 +6642,7 @@ const OGANIRU_TRAFFIC = (() => {
   return Object.freeze(roads.map((r) => Object.freeze(r)));
 })();
 
-return { OGANIRU, EXPRESSWAY_Z, OGANIRU_PLACES, OGANIRU_ROUNDABOUTS, expresswayY, OGANIRU_CUTTING, OGANIRU_ROADS, roadWidthAt, OGANIRU_JUNCTIONS, PEACE_RAMP_Z, OGANIRU_DECKS, oganiruDecksAt, OGANIRU_MEDIAN_GAPS, OGANIRU_KERBED, OGANIRU_TOWERS, oganiruGroundY, OGANIRU_AREAS, onOganiru, oganiruAway, nearOganiru, OGANIRU_EDGE_LINES, OGANIRU_CLOSURES, ofOganiru, OGANIRU_TREES, OGANIRU_LAMPS, OGANIRU_SIGNALS, STOP_LINE_OUT, OGANIRU_STOP_LINES, OGANIRU_PILLARS, OGANIRU_BILLBOARDS, OGANIRU_SOLIDS, OGANIRU_WALLS, oganiruBlocked, oganiruSurface, oganiruOnDeck, oganiruTar, oganiruStructureAt, oganiruTallAt, oganiruHold, OGANIRU_SIGNS, OGANIRU_MAP_LABELS, OGANIRU_TRAFFIC };
+return { OGANIRU, EXPRESSWAY_Z, OGANIRU_PLACES, OGANIRU_ROUNDABOUTS, expresswayY, OGANIRU_CUTTING, OGANIRU_ROADS, roadWidthAt, OGANIRU_JUNCTIONS, PEACE_RAMP_Z, OGANIRU_DECKS, oganiruDecksAt, OGANIRU_MEDIAN_GAPS, OGANIRU_KERBED, OGANIRU_TOWERS, towerFront, oganiruGroundY, OGANIRU_AREAS, onOganiru, oganiruAway, nearOganiru, OGANIRU_EDGE_LINES, OGANIRU_CLOSURES, ofOganiru, OGANIRU_TREES, OGANIRU_LAMPS, OGANIRU_SIGNALS, STOP_LINE_OUT, OGANIRU_STOP_LINES, OGANIRU_PILLARS, OGANIRU_BILLBOARDS, OGANIRU_SOLIDS, OGANIRU_WALLS, oganiruBlocked, oganiruSurface, oganiruOnDeck, oganiruTar, oganiruStructureAt, oganiruTallAt, oganiruHold, OGANIRU_SIGNS, OGANIRU_MAP_LABELS, OGANIRU_TRAFFIC };
 })();
 
 __modules["sim/zones/atani-town.js"] = (function () {
@@ -11862,7 +11935,7 @@ return { OKADA_RULES, MOTO, motoSpeedAt, okadaFare, createOkada };
 })();
 
 __modules["sim/city-walks.js"] = (function () {
-const { OGANIRU, OGANIRU_ROADS, OGANIRU_KERBED, OGANIRU_JUNCTIONS, OGANIRU_DECKS, OGANIRU_TOWERS, OGANIRU_ROUNDABOUTS, OGANIRU_PLACES, OGANIRU_CUTTING, EXPRESSWAY_Z, expresswayY, oganiruGroundY, onOganiru, roadWidthAt, zoneWalkable } = __modules["sim/zone.js"];
+const { OGANIRU, OGANIRU_ROADS, OGANIRU_KERBED, OGANIRU_JUNCTIONS, OGANIRU_DECKS, OGANIRU_TOWERS, towerFront, OGANIRU_ROUNDABOUTS, OGANIRU_PLACES, OGANIRU_CUTTING, EXPRESSWAY_Z, expresswayY, oganiruGroundY, onOganiru, roadWidthAt, zoneWalkable } = __modules["sim/zone.js"];
 const { walkLevel } = __modules["sim/levels.js"];
 
 const KERB = OGANIRU.kerb;
@@ -12026,11 +12099,12 @@ function* build() {
   const doors = [];
   for (const t of OGANIRU_TOWERS) {
     yield;
-    const facing = t.x > 0 ? -1 : 1;
-    const x = t.x + facing * (t.dx / 2 + 3.2), z = t.z;
+    const f = towerFront(t, 3.2);
+    const x = f.x, z = f.z;
+    const reach = Math.max(20, Math.abs(t.front - (t.face[0] ? x : z)) + 14);
     const k = add(x, z, KERB, true, 'door');
-    doors.push({ k, tower: t.id, name: t.name, x, z, h: facing > 0 ? Math.PI / 2 : -Math.PI / 2 });
-    for (const [o] of near(x, z, 20, (n, i) => n.foot && i !== k).slice(0, 6)) if (onKerb(x, z, nodes[o].x, nodes[o].z) && open(x, z, nodes[o].x, nodes[o].z, KERB)) link(k, o);
+    doors.push({ k, tower: t.id, name: t.name, x, z, h: f.heading });
+    for (const [o] of near(x, z, reach, (n, i) => n.foot && i !== k).slice(0, 6)) if (onKerb(x, z, nodes[o].x, nodes[o].z) && open(x, z, nodes[o].x, nodes[o].z, KERB)) link(k, o);
   }
   {
     const X = OGANIRU_PLACES.HOPE_X;
@@ -52908,6 +52982,9 @@ const FACADES = {
   round: { frame: '#d8dde0', glass: [84, 126, 160], spandrel: '#e2e5e6', ribs: 0, punched: false },
   'ribbed-white': { frame: '#f1efe9', glass: [70, 84, 96], spandrel: '#f1efe9', ribs: 1, punched: true },
   stone: { frame: '#cdbb9b', glass: [58, 70, 78], spandrel: '#c4b190', ribs: 0, punched: true },
+  'glass-teal': { frame: '#c3d1cf', glass: [46, 112, 114], spandrel: null, ribs: 0, punched: false },
+  'office-blue': { frame: '#e2e6e9', glass: [62, 102, 140], spandrel: '#e5e8ea', ribs: 0, punched: false },
+  'office-grey': { frame: '#c7cacb', glass: [80, 90, 98], spandrel: '#b8bcbe', ribs: 0, punched: false },
 };
 const BAYS = 9, STOREYS_IN = 4, TILE = 14.4;
 function facadeTexture(kind, size) {
@@ -53670,15 +53747,25 @@ function towerMaterial(kind, lite, textures) {
 }
 function addTowers(group, lite, textures, signs, M, list, materials, bandMaterial) {
   const crowns = [];
+  const bodies = new Map();
   for (const t of list) {
     if (!materials.has(t.kind)) materials.set(t.kind, towerMaterial(t.kind, lite, textures));
-    const mat = materials.get(t.kind);
-    const W = new Mesher();
+    if (!bodies.has(t.kind)) bodies.set(t.kind, new Mesher());
+    const W = bodies.get(t.kind);
     const lobby = 7.2, top = t.storeys * 3.6;
-    const facing = t.x > 0 ? -1 : 1;              // the side toward Unity Avenue (its lobby faces the avenue)
+    const round = t.kind === 'round';
+    const [fx, fz] = t.face;
+    const ax = fz, az = -fx;
+    const hw = fx ? t.dz / 2 : t.dx / 2;
+    const fx0 = t.x + fx * (t.dx / 2), fz0 = t.z + fz * (t.dz / 2);
+    const heading = Math.atan2(fx, fz);
+    const fbox = (Mx, depth, h, width, out, y, side, col, ...rest) => {
+      const cx = fx0 + fx * out + ax * side, cz = fz0 + fz * out + az * side;
+      if (fx) Mx.box(depth, h, width, cx, y, cz, col, ...rest); else Mx.box(width, h, depth, cx, y, cz, col, ...rest);
+    };
     const bodyTop = top;
     const col = 0xffffff;
-    if (t.kind === 'round') {
+    if (round) {
       const segs = lite ? 24 : 40, r = t.dx / 2;
       for (let i = 0; i < segs; i += 1) {
         const a0 = (i / segs) * Math.PI * 2, a1 = ((i + 1) / segs) * Math.PI * 2;
@@ -53690,28 +53777,38 @@ function addTowers(group, lite, textures, signs, M, list, materials, bandMateria
       const x0 = t.x - t.dx / 2, x1 = t.x + t.dx / 2, z0 = t.z - t.dz / 2, z1 = t.z + t.dz / 2;
       const face = (a, b, out) => { const len = Math.hypot(b[0] - a[0], b[1] - a[1]); W.quad([a[0], lobby, a[1]], [b[0], lobby, b[1]], [b[0], bodyTop, b[1]], [a[0], bodyTop, a[1]], col, [[0, lobby / TILE], [len / TILE, lobby / TILE], [len / TILE, bodyTop / TILE], [0, bodyTop / TILE]], out); };
       face([x0, z0], [x1, z0], [0, 0, -1]); face([x1, z0], [x1, z1], [1, 0, 0]); face([x1, z1], [x0, z1], [0, 0, 1]); face([x0, z1], [x0, z0], [-1, 0, 0]);
+      if (t.kind === 'ribbed-white') {
+        const every = 3.2, h = bodyTop - lobby, y = lobby + h / 2, rib = 0xf6f4ee;
+        for (let x = x0 + every; x < x1 - 0.8; x += every) for (const [z, out] of [[z0, -1], [z1, 1]]) M.solid.box(0.45, h, 0.5, x, y, z + out * 0.25, rib);
+        for (let z = z0 + every; z < z1 - 0.8; z += every) for (const [x, out] of [[x0, -1], [x1, 1]]) M.solid.box(0.5, h, 0.45, x + out * 0.25, y, z, rib);
+      }
     }
-    const body = W.build(mat);
-    body.name = `oganiru:${t.id}`;
-    body.userData.tower = true;
-    group.add(body);
-    const round = t.kind === 'round';
     const roofCol = t.kind === 'stone' ? 0xcdbb9b : t.kind === 'ribbed-white' ? 0xf1efe9 : 0x8a9096;
     if (round) M.solid.geo(new THREE.CylinderGeometry(t.dx / 2, t.dx / 2, 0.6, lite ? 24 : 40), place(t.x, top + 0.3, t.z), roofCol);
     else M.solid.box(t.dx + 0.4, 0.8, t.dz + 0.4, t.x, top + 0.4, t.z, roofCol);
+    if (t.kind === 'stone') M.solid.box(t.dx + 1.2, 0.7, t.dz + 1.2, t.x, top - 0.6, t.z, 0xbfae8e);
     const crown = t.crown || 0;
+    let y = top + 0.8;
     if (crown > 0) {
       const steps = t.kind === 'stone' ? 3 : 2;
-      let y = top + 0.8;
+      let cw = 0, cd = 0;
       for (let k = 0; k < steps; k += 1) {
         const shrink = 0.72 - k * 0.18, h = (crown * (k === steps - 1 ? 0.5 : 0.25));
-        const cw = (round ? t.dx : t.dx) * shrink, cd = (round ? t.dx : t.dz) * shrink;
+        cw = (round ? t.dx : t.dx) * shrink; cd = (round ? t.dx : t.dz) * shrink;
         if (round) M.solid.geo(new THREE.CylinderGeometry(cw / 2, cw / 2, h, lite ? 20 : 32), place(t.x, y + h / 2, t.z), roofCol);
         else M.solid.box(cw, h, cd, t.x, y + h / 2, t.z, roofCol);
+        if (t.kind === 'stone') {
+          M.solid.box(cw + 0.8, 0.45, cd + 0.8, t.x, y + h - 0.2, t.z, 0xbfae8e);
+          if (k < steps - 1) for (const cx of [-1, 1]) for (const cz of [-1, 1]) M.solid.geo(new THREE.ConeGeometry(0.55, 2.6, 4), place(t.x + cx * (cw / 2 - 0.4), y + h + 1.3, t.z + cz * (cd / 2 - 0.4), Math.PI / 4), 0xd6c6a6);
+        }
         y += h;
       }
       if (t.kind === 'stone') M.solid.geo(new THREE.ConeGeometry(t.dx * 0.18, crown * 0.3, 4), place(t.x, y + crown * 0.15, t.z, Math.PI / 4), 0x6f8f7a);
-      if (t.storeys >= 30) crowns.push({ t, y: y - 0.6, w: (round ? t.dx : t.dx) * (0.72 - (steps - 1) * 0.18) + 0.1, d: (round ? t.dx : t.dz) * (0.72 - (steps - 1) * 0.18) + 0.1, round });
+      if (t.storeys >= 30) crowns.push({ t, y: y - 0.6, w: cw + 0.1, d: cd + 0.1, round });
+    }
+    if (t.storeys >= 44 && t.kind !== 'stone') {
+      M.metal.geo(new THREE.CylinderGeometry(0.25, 0.45, 22, 8), place(t.x, y + 11, t.z), 0xb9bec4);
+      M.metal.geo(new THREE.CylinderGeometry(1.1, 1.1, 0.5, 12), place(t.x, y + 6, t.z), 0x8d9399);
     }
     M.solid.box(4, 2.2, 3, t.x + 3, top + 0.8 + (crown > 0 ? 0 : 1.1), t.z - 4, 0x9a9da0);
     const lx = round ? t.dx / 2 - 1 : t.dx / 2 - 1, lz = round ? t.dx / 2 - 1 : t.dz / 2 - 1;
@@ -53720,15 +53817,20 @@ function addTowers(group, lite, textures, signs, M, list, materials, bandMateria
     if (!round) for (const cx of [-1, 1]) for (const cz of [-1, 1]) M.solid.box(0.8, lobby, 0.8, t.x + cx * (t.dx / 2 - 0.4), lobby / 2 + KERB, t.z + cz * (t.dz / 2 - 0.4), 0xd9d6cf);
     if (round) M.solid.geo(new THREE.CylinderGeometry(t.dx / 2 + 0.15, t.dx / 2 + 0.15, 0.5, lite ? 24 : 40), place(t.x, lobby + KERB - 0.1, t.z), 0xd9d6cf);
     else M.solid.box(t.dx + 0.3, 0.5, t.dz + 0.3, t.x, lobby + KERB - 0.1, t.z, 0xd9d6cf);
-    const front = t.x + facing * (round ? t.dx / 2 : t.dx / 2);
-    M.solid.box(3.2, 0.25, 9, front + facing * 1.4, 4.4 + KERB, t.z, 0x2d3236);
-    for (const [out, hk] of [[2.7, 0.15], [1.8, 0.3], [0.9, 0.45]]) M.concrete.box(out, hk, 8, front + facing * (out / 2), KERB + hk / 2, t.z, 0xd8d3c8);
-    signs.push(signMesh([t.lobby], front + facing * 0.05 + facing * 2.95, 5.1 + KERB, t.z, facing > 0 ? Math.PI / 2 : -Math.PI / 2, 6.5, 0.55, ['#ffffff', 'rgba(20,24,28,0.92)']));
+    fbox(M.solid, 3.2, 0.25, 9, 1.4, 4.4 + KERB, 0, 0x2d3236);
+    for (const [out, hk] of [[2.7, 0.15], [1.8, 0.3], [0.9, 0.45]]) fbox(M.concrete, out, hk, 8, out / 2, KERB + hk / 2, 0, 0xd8d3c8);
+    signs.push(signMesh([t.lobby], fx0 + fx * 3.0, 5.1 + KERB, fz0 + fz * 3.0, heading, 6.5, 0.55, ['#ffffff', 'rgba(20,24,28,0.92)']));
     (t.shops || []).forEach((name, k) => {
-      const z = t.z + (k === 0 ? -1 : 1) * (round ? t.dx * 0.28 : t.dz * 0.3);
-      signs.push(signMesh([name.toUpperCase()], front + facing * 0.08, 3.3 + KERB, z, facing > 0 ? Math.PI / 2 : -Math.PI / 2, 5.2, 0.7, k === 0 ? ['#ffffff', '#1f5d3a'] : ['#1a1a1a', '#f2c200']));
-      M.solid.box(0.6, 0.12, 5.6, front + facing * 0.5, 2.85 + KERB, z, k === 0 ? 0x1f5d3a : 0xc59b2a);
+      const side = (k === 0 ? -1 : 1) * (round ? t.dx * 0.28 : hw * 0.6);
+      signs.push(signMesh([name.toUpperCase()], fx0 + fx * 0.08 + ax * side, 3.3 + KERB, fz0 + fz * 0.08 + az * side, heading, 5.2, 0.7, k === 0 ? ['#ffffff', '#1f5d3a'] : ['#1a1a1a', '#f2c200']));
+      fbox(M.solid, 0.6, 0.12, 5.6, 0.5, 2.85 + KERB, side, k === 0 ? 0x1f5d3a : 0xc59b2a);
     });
+  }
+  for (const [kind, W] of bodies) {
+    const body = W.build(materials.get(kind));
+    body.name = `oganiru:towers:${kind}`;
+    body.userData.tower = true;
+    group.add(body);
   }
   const band = new Mesher();
   for (const c of crowns) {

@@ -424,7 +424,34 @@ function buildDecks() {
   // walls: where each is more than a kerb above the ground under it, and not where another deck runs into it at the same
   // height (40 m or so on the side toward it, where the lanes run together)
   const raised = (q) => q.y > 0.35;
-  const footprint = (B, x, z) => { let best = null; for (let m = 0; m < B.path.length - 1; m += 1) { const a = B.path[m], b = B.path[m + 1]; const ex = b.x - a.x, ez = b.z - a.z, l2 = ex * ex + ez * ez; const t = clamp(((x - a.x) * ex + (z - a.z) * ez) / l2, 0, 1); const px = a.x + ex * t, pz = a.z + ez * t, off = Math.hypot(x - px, z - pz); if (off <= B.half + 1 && (!best || off < best.off)) best = { off, y: a.y + (b.y - a.y) * t, s: a.s + (b.s - a.s) * t, px, pz, ux: ex / Math.sqrt(l2), uz: ez / Math.sqrt(l2) }; } return best; };
+  // (each deck's pieces in squares of the grid, and the box round it, so that where a point is on it is found from the
+  // few pieces near the point, not all of them: 2 November 2026, a phone's first screen came a second or two later with
+  // Stage 2's decks; the same answers)
+  const FOOT = 16;
+  const feet = new Map(out.map((B) => {
+    const pad = B.half + 1, cells = new Map();
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let m = 0; m < B.path.length - 1; m += 1) {
+      const a = B.path[m], b = B.path[m + 1];
+      const lx = Math.min(a.x, b.x) - pad, hx = Math.max(a.x, b.x) + pad, lz = Math.min(a.z, b.z) - pad, hz = Math.max(a.z, b.z) + pad;
+      x0 = Math.min(x0, lx); x1 = Math.max(x1, hx); z0 = Math.min(z0, lz); z1 = Math.max(z1, hz);
+      for (let i = Math.floor(lx / FOOT); i <= Math.floor(hx / FOOT); i += 1) for (let j = Math.floor(lz / FOOT); j <= Math.floor(hz / FOOT); j += 1) {
+        const key = i * 4096 + j;
+        if (!cells.has(key)) cells.set(key, []);
+        cells.get(key).push(m);
+      }
+    }
+    return [B, { cells, x0, x1, z0, z1 }];
+  }));
+  const footprint = (B, x, z) => {
+    const F = feet.get(B);
+    if (x < F.x0 || x > F.x1 || z < F.z0 || z > F.z1) return null;
+    const list = F.cells.get(Math.floor(x / FOOT) * 4096 + Math.floor(z / FOOT));
+    if (!list) return null;
+    let best = null;
+    for (const m of list) { const a = B.path[m], b = B.path[m + 1]; const ex = b.x - a.x, ez = b.z - a.z, l2 = ex * ex + ez * ez; const t = clamp(((x - a.x) * ex + (z - a.z) * ez) / l2, 0, 1); const px = a.x + ex * t, pz = a.z + ez * t, off = Math.hypot(x - px, z - pz); if (off <= B.half + 1 && (!best || off < best.off)) best = { off, y: a.y + (b.y - a.y) * t, s: a.s + (b.s - a.s) * t, px, pz, ux: ex / Math.sqrt(l2), uz: ez / Math.sqrt(l2) }; }
+    return best;
+  };
   const gaps = new Map(out.map((d) => [d, { left: [], right: [] }]));
   for (const d of out) {
     if (d.walls !== 'auto') continue;
@@ -563,9 +590,31 @@ function runsOf(a0, a1, cut) {
   return out;
 }
 // on another road's carriageway, or under a slip road where it meets the ground: a walkway is cut there
-const onOtherRoad = (self, x, z) => OGANIRU_ROADS.some((q) => q !== self && q.kind !== 'cutting' && (q.along === 'z' ? z >= q.from - 0.5 && z <= q.to + 0.5 && Math.abs(x - q.c) <= roadWidthAt(q, z).half : x >= q.from - 0.5 && x <= q.to + 0.5 && Math.abs(z - q.c) <= roadWidthAt(q, x).half));
-const lowDeckAt = (x, z) => oganiruDecksAt(x, z).some((h) => h.y < 0.6 && h.deck.kind !== 'bridge');
-const inAnyRing = (x, z) => OGANIRU_ROUNDABOUTS.some((r) => Math.hypot(x - r.x, z - r.z) < r.outer + r.walk + 0.5);
+// (the roads in squares of the grid, each in those its carriageway at its widest may reach, so that only the few near a
+// point are looked at: 2 November 2026, as the decks' pieces above; the same answers)
+let ROAD_CELLS = null;
+const NO_ROADS = Object.freeze([]);
+function roadsNear(x, z) {
+  if (!ROAD_CELLS) {
+    ROAD_CELLS = new Map();
+    OGANIRU_ROADS.forEach((q, n) => {
+      if (q.kind === 'cutting') return;
+      const half = Math.max(q.half, q.kind === 'flyover-road' && q.taper ? AVENUE.half : 0, q.flare ? q.flare.half : 0);
+      const a0 = Math.min(q.from, q.to) - 0.5, a1 = Math.max(q.from, q.to) + 0.5, c0 = q.c - half, c1 = q.c + half;
+      const [x0, x1, z0, z1] = q.along === 'z' ? [c0, c1, a0, a1] : [a0, a1, c0, c1];
+      for (let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i += 1) for (let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j += 1) {
+        const key = i * 4096 + j;
+        if (!ROAD_CELLS.has(key)) ROAD_CELLS.set(key, []);
+        ROAD_CELLS.get(key).push(q);
+      }
+    });
+  }
+  return ROAD_CELLS.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL)) || NO_ROADS;
+}
+const onOtherRoad = (self, x, z) => roadsNear(x, z).some((q) => q !== self && (q.along === 'z' ? z >= q.from - 0.5 && z <= q.to + 0.5 && Math.abs(x - q.c) <= roadWidthAt(q, z).half : x >= q.from - 0.5 && x <= q.to + 0.5 && Math.abs(z - q.c) <= roadWidthAt(q, x).half));
+// (where no deck is near, none is looked for: most of the city's walkways)
+const lowDeckAt = (x, z) => DECK_CELLS.has(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL)) && oganiruDecksAt(x, z).some((h) => h.y < 0.6 && h.deck.kind !== 'bridge');
+const inRing = (rings, x, z) => rings.some((r) => { const R = r.outer + r.walk + 0.5, dx = x - r.x, dz = z - r.z; return Math.abs(dx) < R && Math.abs(dz) < R && Math.hypot(dx, dz) < R; });
 for (const r of OGANIRU_ROADS) {
   const span = (c0, c1, a0, a1) => (r.along === 'z' ? { x0: Math.min(c0, c1), x1: Math.max(c0, c1), z0: a0, z1: a1 } : { x0: a0, x1: a1, z0: Math.min(c0, c1), z1: Math.max(c0, c1) });
   const P = (lat, a) => (r.along === 'z' ? [r.c + lat, a] : [a, r.c + lat]);
@@ -586,8 +635,12 @@ for (const r of OGANIRU_ROADS) {
   if (walk > 0) {
     const varying = !!(r.taper || r.flare);
     const spans = r.flare ? [[Math.min(r.flare.narrow, r.flare.wide), Math.max(r.flare.narrow, r.flare.wide)]] : r.walks || [[r.from, r.to]];
+    // (the roundabouts its walkways may come to: those near it)
+    const wide = Math.max(r.half, r.flare ? r.flare.half : 0, r.kind === 'flyover-road' && r.taper ? AVENUE.half : 0) + walk;
+    const lo = Math.min(...spans.flat()), hi = Math.max(...spans.flat());
+    const rings = OGANIRU_ROUNDABOUTS.filter((g) => { const R = g.outer + g.walk + 0.5, lat = r.along === 'z' ? g.x - r.c : g.z - r.c, at = r.along === 'z' ? g.z : g.x; return Math.abs(lat) < R + wide + 1 && at > lo - R - 1 && at < hi + R + 1; });
     for (const k of [-1, 1]) {
-      const cut = (a) => { const half = roadWidthAt(r, a).half; const [x, z] = P(k * (half + walk / 2), a); return onOtherRoad(r, x, z) || lowDeckAt(x, z) || inAnyRing(x, z) || inCutting(x, z); };
+      const cut = (a) => { const half = roadWidthAt(r, a).half; const [x, z] = P(k * (half + walk / 2), a); return onOtherRoad(r, x, z) || lowDeckAt(x, z) || (rings.length > 0 && inRing(rings, x, z)) || inCutting(x, z); };
       for (const [from, to] of spans) for (const [a0, a1] of runsOf(from, to, cut)) {
         if (!varying) { addKerbed({ ...span(r.c + k * r.half, r.c + k * (r.half + walk), a0, a1), extra: { walk: r.id, side: k } }); continue; }
         for (let a = a0; a < a1 - 1e-6; a += 4) {
@@ -601,10 +654,18 @@ for (const r of OGANIRU_ROADS) {
 // the plazas in front of the towers (filled in below, once the towers are placed)
 export const OGANIRU_KERBED = KERBED;
 
-// The towers (Stage 1: the six at Unity Avenue and Independence Boulevard; Stage 3 places the rest of downtown).
+// The towers (Stage 1: the six at Unity Avenue and Independence Boulevard; Stage 3, 2 November 2026: the rest of
+// downtown, Oganiru Central, on its blocks between Gateway Boulevard and the expressway and round Interchange Park).
 // Footprints in metres along x (`dx`) and z (`dz`); `storeys` of 3.6 m; what each is made of; the made-up names on their
-// lobbies. Solid; nobody goes in yet.
-const tower = (id, name, kind, x, z, dx, dz, storeys, o = {}) => Object.freeze({ id, name, kind, x, z, dx, dz, storeys, height: storeys * 3.6 + (o.crown || 0), ...o });
+// lobbies and their shops. `face`: the way its front looks, toward the street it stands on ([x, z]; Stage 1's look across
+// Unity Avenue); `front`: where that street's walkway ends, along that way (its plaza reaches out to it). Solid; nobody
+// goes in yet.
+const tower = (id, name, kind, x, z, dx, dz, storeys, o = {}) => Object.freeze({ id, name, kind, x, z, dx, dz, storeys, ...o, height: storeys * 3.6 + (o.crown || 0), face: Object.freeze(o.face || [x > 0 ? -1 : 1, 0]), front: o.front !== undefined ? o.front : (x > 0 ? 1 : -1) * (10 + 3.5) });
+// (where downtown's streets' walkways end: an avenue's or a boulevard's 10 m from its middle and 3.5 m of walkway, a
+// street's 7 m and 4 m, by the Independence Flyover 16 m and 3.5)
+const WALK_AVENUE = 13.5, WALK_STREET = 11, WALK_FLYOVER = 19.5;
+const GATEWAY_FRONT = { face: [0, 1], front: -560 - WALK_AVENUE };
+const INDEPENDENCE_FRONT = { face: [0, 1], front: -780 - WALK_AVENUE };
 export const OGANIRU_TOWERS = Object.freeze([
   tower('t1', 'Unity Tower', 'glass-blue', 72, -716, 30, 34, 34, { crown: 9, lobby: 'UNITY TOWER', shops: ['Ugo Pharmacy', 'Cool Corner Café'] }),
   tower('t2', 'Ivory Court', 'ribbed-white', 152, -722, 28, 28, 26, { crown: 4, lobby: 'IVORY COURT', shops: ['Ebube Fashion'] }),
@@ -612,13 +673,45 @@ export const OGANIRU_TOWERS = Object.freeze([
   tower('t4', 'Rotunda House', 'round', -152, -720, 30, 30, 22, { crown: 3, lobby: 'ROTUNDA HOUSE', shops: ['Amara Salon'] }),
   tower('t5', 'Gateway Offices', 'office-teal', 72, -842, 26, 40, 10, { crown: 2, lobby: 'GATEWAY OFFICES', shops: ['Ndidi Travels', 'Akwa Phones'] }),
   tower('t6', 'Harmony Place', 'glass-grey', -72, -846, 30, 30, 40, { crown: 12, lobby: 'HARMONY PLACE', shops: ['Udo Bank', 'Mama Nkechi Foods'] }),
+  // (Stage 3) along Gateway Boulevard, between it and Union Street; the two by Unity Avenue look across it
+  tower('t7', 'Obi Plaza', 'office-blue', -360, -616, 28, 30, 9, { crown: 2, lobby: 'OBI PLAZA', shops: ['Adaeze Bakery'], ...GATEWAY_FRONT }),
+  tower('t8', 'Azuka Tower', 'glass-teal', -288, -616, 32, 32, 28, { crown: 7, lobby: 'AZUKA TOWER', shops: ['Kelechi Phones', 'Nneka Fabrics'], ...GATEWAY_FRONT }),
+  tower('t9', 'Nkem House', 'stone', -190, -616, 32, 32, 36, { crown: 13, lobby: 'NKEM HOUSE', shops: ['Ifeoma Pharmacy'], ...GATEWAY_FRONT }),
+  tower('t10', 'Chiadi Court', 'office-grey', -120, -616, 40, 26, 8, { crown: 2, lobby: 'CHIADI COURT', shops: ['Uche Barbers', 'Obioma Tailors'], ...GATEWAY_FRONT }),
+  tower('t11', 'Gate Tower', 'glass-blue', -50, -616, 30, 30, 44, { crown: 11, lobby: 'GATE TOWER', shops: ['Chinwe Café', 'Ngozi Books'] }),
+  tower('t12', 'Ocha Tower', 'ribbed-white', 50, -616, 30, 30, 32, { crown: 5, lobby: 'OCHA TOWER', shops: ['Ike Hardware'] }),
+  tower('t13', 'Lagoon Court', 'glass-teal', 120, -616, 30, 30, 24, { crown: 4, lobby: 'LAGOON COURT', shops: ['Amaka Beauty', 'Okwu Electronics'], ...GATEWAY_FRONT }),
+  tower('t14', 'Commerce House', 'office-blue', 190, -616, 44, 26, 11, { crown: 2, lobby: 'COMMERCE HOUSE', shops: ['Ebuka Foods'], ...GATEWAY_FRONT }),
+  tower('t15', 'Niger House', 'glass-grey', 288, -616, 32, 32, 30, { crown: 6, lobby: 'NIGER HOUSE', shops: ['Ugo Supermarket'], ...GATEWAY_FRONT }),
+  tower('t16', 'Palmgrove Offices', 'office-teal', 360, -616, 28, 40, 7, { crown: 2, lobby: 'PALMGROVE OFFICES', shops: ['Nnamdi Printing', 'Oma Stationery'], ...GATEWAY_FRONT }),
+  // between Union Street and Independence Boulevard, on Exchange, Council, Charter and Commerce Streets
+  tower('t17', 'Harmattan House', 'ribbed-white', -360, -724, 28, 28, 26, { crown: 4, lobby: 'HARMATTAN HOUSE', shops: ["Ada's Kitchen"], face: [-1, 0], front: -400 + WALK_STREET }),
+  tower('t18', 'Council Offices', 'office-grey', -288, -724, 40, 30, 12, { crown: 2, lobby: 'COUNCIL OFFICES', shops: ['Chidi Cleaners'], face: [1, 0], front: -240 - WALK_STREET }),
+  tower('t19', 'Charter House', 'stone', 288, -724, 34, 34, 40, { crown: 15, lobby: 'CHARTER HOUSE', shops: ['Igwe Jewellers', 'Nkiru Fashion'], face: [-1, 0], front: 240 + WALK_STREET }),
+  tower('t20', 'Udoka Tower', 'glass-blue', 360, -724, 26, 26, 18, { crown: 3, lobby: 'UDOKA TOWER', shops: ['Ifeanyi Opticians'], face: [1, 0], front: 400 - WALK_STREET }),
+  // along Independence Boulevard, between it and Tower Street (by its flyover, its walkway further out)
+  tower('t21', 'Independence House', 'glass-grey', -320, -831, 40, 30, 22, { crown: 5, lobby: 'INDEPENDENCE HOUSE', shops: ['Okafor Pharmacy'], ...INDEPENDENCE_FRONT }),
+  tower('t22', 'Kingfisher Tower', 'glass-teal', -170, -831, 28, 28, 30, { crown: 8, lobby: 'KINGFISHER TOWER', shops: ['Ebube Café'], face: [0, 1], front: -780 - WALK_FLYOVER }),
+  tower('t23', 'Halo Tower', 'round', 170, -831, 30, 30, 34, { crown: 6, lobby: 'HALO TOWER', shops: ['Nwando Gallery'], face: [0, 1], front: -780 - WALK_FLYOVER }),
+  tower('t24', 'Boulevard Offices', 'office-blue', 320, -831, 52, 28, 9, { crown: 2, lobby: 'BOULEVARD OFFICES', shops: ['Uzo Travels', 'Mma Florist'], ...INDEPENDENCE_FRONT }),
+  // beyond Tower Street, facing the expressway: on Exchange and Commerce Streets, and round Interchange Park
+  tower('t25', 'Ugwu Tower', 'stone', -320, -950, 34, 34, 45, { crown: 18, lobby: 'UGWU TOWER', shops: ['Chioma Boutique'], face: [-1, 0], front: -400 + WALK_STREET }),
+  tower('t26', 'Ijele Tower', 'glass-blue', -320, -1040, 32, 32, 38, { crown: 10, lobby: 'IJELE TOWER', shops: ['Obiageli Café'], face: [-1, 0], front: -400 + WALK_STREET }),
+  tower('t27', 'Oganiru Tower', 'glass-teal', 320, -950, 36, 36, 48, { crown: 14, lobby: 'OGANIRU TOWER', shops: ['Nkem Pharmacy', 'Ola Electronics'], face: [1, 0], front: 400 - WALK_STREET }),
+  tower('t28', 'Egret House', 'ribbed-white', 320, -1040, 30, 30, 30, { crown: 5, lobby: 'EGRET HOUSE', shops: ['Chinedu Books'], face: [1, 0], front: 400 - WALK_STREET }),
+  tower('t29', 'Parkview West', 'glass-grey', -210, -950, 30, 30, 26, { crown: 6, lobby: 'PARKVIEW WEST', shops: ['Ebele Café'], face: [0, 1], front: -880 - WALK_STREET }),
+  tower('t30', 'Parkview Offices', 'office-teal', 210, -950, 30, 30, 12, { crown: 2, lobby: 'PARKVIEW OFFICES', shops: ['Obi Couriers'], face: [0, 1], front: -880 - WALK_STREET }),
 ]);
-// each tower's plaza: paved, a kerb above the road, from the walkway to a few metres round the tower
+// each tower's plaza: paved, a kerb above the road, a few metres round the tower and out to its street's walkway
 for (const t of OGANIRU_TOWERS) {
-  const side = t.x > 0 ? 1 : -1;
-  const nearX = side > 0 ? 10 + OGANIRU.walk : -(10 + OGANIRU.walk);
-  addKerbed({ x0: side > 0 ? nearX : t.x - t.dx / 2 - 6, x1: side > 0 ? t.x + t.dx / 2 + 6 : nearX, z0: t.z - t.dz / 2 - 6, z1: t.z + t.dz / 2 + 6, extra: { plaza: t.id } });
+  const [fx, fz] = t.face;
+  const b = { x0: t.x - t.dx / 2 - 6, x1: t.x + t.dx / 2 + 6, z0: t.z - t.dz / 2 - 6, z1: t.z + t.dz / 2 + 6 };
+  if (fx > 0) b.x1 = Math.max(b.x1, t.front); else if (fx < 0) b.x0 = Math.min(b.x0, t.front);
+  if (fz > 0) b.z1 = Math.max(b.z1, t.front); else if (fz < 0) b.z0 = Math.min(b.z0, t.front);
+  addKerbed({ ...b, extra: { plaza: t.id } });
 }
+// (where a tower's front is: the middle of the face it looks out of, `out` metres out from it; and the way along that face)
+export const towerFront = (t, out = 0) => { const [fx, fz] = t.face; return { x: t.x + fx * (t.dx / 2 + out), z: t.z + fz * (t.dz / 2 + out), along: [Math.abs(fz), Math.abs(fx)], half: fx ? t.dz / 2 : t.dx / 2, heading: Math.atan2(fx, fz) }; };
 
 const KERB_CELLS = new Map();
 for (const b of KERBED) {
@@ -832,8 +925,8 @@ export const OGANIRU_LAMPS = [];
     }
   }
   for (const t of OGANIRU_TOWERS) {
-    const front = t.x > 0 ? t.x - t.dx / 2 - 3 : t.x + t.dx / 2 + 3;
-    for (const k of [-1, 1]) OGANIRU_LAMPS.push({ kind: 'ornate', x: front, z: t.z + k * (t.dz / 2 - 2), y: KERB, heading: 0 });
+    const f = towerFront(t, 3);
+    for (const k of [-1, 1]) OGANIRU_LAMPS.push({ kind: 'ornate', x: f.x + f.along[0] * k * (f.half - 2), z: f.z + f.along[1] * k * (f.half - 2), y: KERB, heading: 0 });
   }
   // along the decks' walls: single-armed, every 36 m, alternately each side on a ramp, both sides on the expressway and
   // the flyovers; where the deck is above the ground (not on its first, low metres)
