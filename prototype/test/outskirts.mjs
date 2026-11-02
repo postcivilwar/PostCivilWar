@@ -85,10 +85,12 @@ await page.keyboard.down('Shift'); await walk(4000); await page.keyboard.up('Shi
 const after = await at();
 check('a player walks out of town onto the Onitsha road', after.x < before.x - 5 && after.x < -240, { before, after });
 await shot('1-onitsha-road');
-await go(-1170, -40, -Math.PI / 2, { dist: 14, pitch: 0.2 });
+// (since 1 November 2026, Oganiru City's Stage 2, the road goes on past where its road works were, to the city's
+// Southgate Roundabout; its road works are past the roundabout, on the way on to Kwale)
+await go(-1340, -40, -Math.PI / 2, { dist: 14, pitch: 0.2 });
 await page.waitForTimeout(1500);
 const end = await walkUntil(() => false);
-check('the road works at the end stop anyone going further', end.x > -1186 && end.x < -1180, end);
+check('the road works at the end, past the Southgate Roundabout, stop anyone going further', end.x > -1386 && end.x < -1380, end);
 await shot('2-roadworks');
 
 // the airport: the car park, the terminal's doors, the hall inside, the gate to the apron
