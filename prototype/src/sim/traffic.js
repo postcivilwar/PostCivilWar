@@ -351,6 +351,9 @@ const THROUGH = (() => {
   const on = (id, z0, z1) => NET.stops.filter((s) => NET.roads[s.road].id === id && s.z > z0 && s.z < z1);
   return Object.freeze({ south: on('harmony-2', -1240, -1020), north: on('peace-2', -1170, -990), road: NET.roads.findIndex((r) => r.id === 'expressway') });
 })();
+// While nobody is out in the city, a place at the roadside in it counts as this much further off for one of the town's
+// cars (they keep to the town, where the players are; 2 November 2026)
+const CITY_EMPTY = 2000;
 
 // The junction ahead of something at `along` on road `ri` going `dir`; -1 where there is none.
 function nodeAhead(ri, along, dir) {
@@ -698,10 +701,11 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     const start = from ? startOf(from) : null;
     if (from && !start) return -1;
     const R = start ? search(start) : null;
+    const someoneInCity = Object.values(players).some((q) => inCity(q.x, q.z));
     // (while a player is out in the city, one in five of the cars already in it drive the length of its expressway, from
     // the avenue by the interchange at one end to the avenue by the one at the other, as an expressway's through traffic
     // does: 1 November 2026, the expressway had been driven only by the few going across the whole city)
-    if (from && NET.roads[from.road].city && c.n % 5 === 0 && Object.values(players).some((q) => inCity(q.x, q.z))) {
+    if (from && NET.roads[from.road].city && c.n % 5 === 0 && someoneInCity) {
       const ends = c.x > -300 ? THROUGH.south : THROUGH.north;
       const k0 = Math.floor(hash(c.n * 17 + 3, c.trips) * ends.length);
       for (let k = 0; k < ends.length; k += 1) {
@@ -711,7 +715,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     }
     // (no further than a fair drive in the town; from the city, across it: along its expressway, over its flyovers; and
     // from the town to a player out in the city, as far as that is)
-    const farthest = from && (NET.roads[from.road].city || (near && Object.values(players).some((q) => inCity(q.x, q.z)))) ? TRAFFIC.cityFar : 1100;
+    const farthest = from && (NET.roads[from.road].city || (near && someoneInCity)) ? TRAFFIC.cityFar : 1100;
     let best = -1, bestScore = Infinity;
     for (const s of NET.stops) {
       if (taken.has(s.id) || s.id === c.to) continue;
@@ -724,6 +728,10 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
       // (a way past a player: the one passing nearest, give or take a little; to one: near one, give or take more)
       let score = hash(c.n * 31 + s.id, c.trips + 1) * (past ? 120 : 400);
       if (near) score += Math.min(600, past ? passing(R, s) : nearestPlayer(s.x, s.z));
+      // (while nobody is out in the city, the town's cars keep to the town, where the players are, and those in the city
+      // come back to it: 2 November 2026, with the city's roads joined to the town's, the town had fewer of its cars about
+      // a player than before)
+      if (!someoneInCity && NET.roads[s.road].city) score += CITY_EMPTY;
       if (score < bestScore) { bestScore = score; best = s.id; }
     }
     return best;
@@ -762,12 +770,13 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
   // onto the roads, at a place at the roadside out of every player's sight
   function comeOut(c) {
     const taken = busy();
+    const someoneInCity = Object.values(players).some((q) => inCity(q.x, q.z));
     let best = null, bestScore = Infinity;
     for (const s of NET.stops) {
       if (taken.has(s.id)) continue;
       const d = nearestPlayer(s.x, s.z);
       if (d < TRAFFIC.apart) continue;
-      const score = hash(c.n * 17 + s.id, c.trips) * 500 + (anyPlayers() ? Math.min(800, d) : 0);
+      const score = hash(c.n * 17 + s.id, c.trips) * 500 + (anyPlayers() ? Math.min(800, d) : 0) + (NET.roads[s.road].city && !someoneInCity ? CITY_EMPTY : 0);
       if (score < bestScore) { bestScore = score; best = s; }
     }
     if (!best) return false;
