@@ -823,6 +823,26 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     return out;
   }
 
+  // Would this car, moved `need` to its left (to its right, less than nothing), stand clear of everything beside it (but
+  // `skip`, what it is going round)? Its body and each thing's as boxes turned their ways, a hand's breadth between.
+  function besideClear(c, s, need, obstacles, skip) {
+    const cx = c.x + Math.cos(c.h) * need, cz = c.z - Math.sin(c.h) * need;
+    const axes = (h) => [[Math.sin(h), Math.cos(h)], [Math.cos(h), -Math.sin(h)]];
+    for (const o of obstacles) {
+      if (o.car === c.n || o === skip) continue;
+      if (Math.abs(o.x - cx) > 9 || Math.abs(o.z - cz) > 9) continue;
+      if (Number.isFinite(o.y) && Number.isFinite(c.y) && Math.abs(o.y - c.y) > 2.5) continue;
+      const A = { x: cx, z: cz, h: c.h, hl: s.length / 2 + 0.1, hw: s.width / 2 + 0.1 }, B = { x: o.x, z: o.z, h: o.h || 0, hl: o.hl, hw: o.hw };
+      let apart = false;
+      for (const [ax, az] of [...axes(A.h), ...axes(B.h)]) {
+        const reach = (q) => { const [fx, fz] = axes(q.h)[0], [lx, lz] = axes(q.h)[1]; return Math.abs(fx * ax + fz * az) * q.hl + Math.abs(lx * ax + lz * az) * q.hw; };
+        if (Math.abs((B.x - A.x) * ax + (B.z - A.z) * az) > reach(A) + reach(B)) { apart = true; break; }
+      }
+      if (!apart) return false;
+    }
+    return true;
+  }
+
   // How far ahead (bumper to bumper) the nearest thing in this car's way is, along the way it is going (round a
   // corner, the way round it, not straight on), and how fast that thing goes the same way. `shift`: as if the car kept
   // that far to the left of its way (going round something, below); `skip`: something not to count; `look`: how far.
@@ -994,6 +1014,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     // (and however long the step, it is not taken past where it must stop: `upTo`, metres it may go this step)
     let upTo = Infinity;
     if (line < Infinity && !((c.v * c.v) / (2 * TRAFFIC.hard) > line + 0.05)) { const v = Math.sqrt(2 * TRAFFIC.brake * Math.max(0, line - 0.6)); upTo = Math.max(0, line - 0.6 - (c.v * c.v) / (2 * TRAFFIC.hard)); if (v < want) { want = v; why = 'light'; } }
+    const redHeld = upTo < Infinity;
     // whatever is in its way: it keeps its distance behind, and stops for anyone on foot
     const front = c.d + s.length / 2;
     // going round something standing in its way: as if its way were that far to the left until it is past it
@@ -1040,7 +1061,10 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     // car less far from its way (on the left, across the middle of the road, only with the other side clear well
     // ahead); back to its own side once past it.
     const standing = way.o && way.speed < 0.3 && !(way.car >= 0 && cars[way.car].mode === 'drive') && way.gap < 14;
-    if (standing && c.v < 1 && !c.passing) {
+    // (not while it is held at a red light: whoever is in front of it there, people crossing say, it waits for with the
+    // light; 2 November 2026, a car at the light on Registry Road went round the people crossing in front of it, into the
+    // car standing at the kerb beside it)
+    if (standing && c.v < 1 && !c.passing && !redHeld) {
       c.facing = (c.facing || 0) + dt;
       const road = NET.roads[c.road];
       if (c.facing > 2 && road) {
@@ -1058,12 +1082,14 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
         const junctionNear = w.junctions.some((j) => j.leave > front - 1 && j.enter < past + 8);
         for (const need of sides) {
           if (need > 0.5 && junctionNear) continue;
+          // (and nothing beside it where it would move over to: what is ahead of it is looked at from its front on)
+          if (!besideClear(c, s, need, obstacles, way.o)) continue;
           // (round on the left: nothing coming for a good way; on the right, along the kerb: nothing there)
           const clear = ahead(c, w, obstacles, need, way.o, need > 0.5 ? 70 : past - c.d + 4, need > 0.5 ? Infinity : past + 2);
           if (clear.gap > past - front + (need > 0.5 ? 30 : 1)) { c.passing = { need, past }; c.facing = 0; book.passed = (book.passed || 0) + 1; break; }
         }
       }
-    } else if (!standing) c.facing = 0;
+    } else if (!standing || redHeld) c.facing = 0;
     let blocked = false;
     if (way.gap < Infinity && !ghost) {
       const room = way.gap - TRAFFIC.gap;

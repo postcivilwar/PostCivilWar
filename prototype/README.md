@@ -4563,25 +4563,29 @@ player on the viaduct); by the town's traffic browser test: with the city's road
 town's cars were always off in the city, even with nobody there, and the town had fewer of them about a player than
 before (two within 150 m of one beside Market Road where three are looked for): now, while nobody is out in the city,
 the town's cars keep to the town and those in it come back (`traffic.js`; headless, beside Market Road for ten minutes:
-on average 10.8 within 150 m, the live build 10.3, before this 9.1); by the headless tests: someone of the town's going
-along a long stretch of the city's pavement (an officer going back to her beat from the Peace Interchange, say) went to
-and fro on it for minutes, since each time they asked the way again (every second or two, on the move) it began at the
-stretch's nearer end, behind them: now someone part way along a stretch goes on along it (`city-walks.js`); by the city
-browser test and the checks after it: the camera behind a car down in the expressway's cutting stayed up at the land's
-height (a floor of half a metre everywhere), inside the Hope Avenue bridge over it: now it may go down into the cutting
-as far as its road (`camera.js` `floor`); three of Peace Avenue's verge trees and a lamp stood on the Peace
-Interchange's slip roads where they cross the verges (now nothing grows or stands on a deck's footprint, even where it
-is still on the ground; a headless test looks at every trunk, lamp, signal and billboard leg in the city against every
-carriageway and slip road); the zebras and stop lines under the flyovers ran over the paving between the carriageways;
-the lines painted on the expressway on the ground and in the cutting were not where its traffic drives; a phone put down
-in the middle of the city (and anyone faster than its pieces are built) saw the sky's dome below the horizon where the
-pieces were not built yet, a white plain by day and a grey one at night in rain (now the coarse land under the city,
-above); the city's hills beyond its fence, since Stage 2 come round north of the town, reached over the habitation's
-south end round its boiling river (now under the habitation's own ground there), and between the town's ground and the
-habitation a strip was left to the town's ground, which stops at the habitation's edge (a hole); in ten minutes beside
-or up on the expressway no town car came by (the through traffic, above); an edit took out the line pairing the
-viaduct's pillars and the city stopped being built in a browser (found by TypeScript's checker for names never declared,
-now run over the game's code before each build).
+on average 10.8 within 150 m, the live build 10.3, before this 9.1); by the town's headless traffic test after that: a
+car held at the red light on Registry Road went round the townspeople crossing in front of it, over towards the kerb and
+into a car standing there (a way of going round something the town's cars have had since October, met now that more of
+them are about the town): a car held at a red light now waits there with the light, and one going round something first
+looks beside it as well as ahead (`traffic.js`); by the headless tests: someone of the town's going along a long stretch
+of the city's pavement (an officer going back to her beat from the Peace Interchange, say) went to and fro on it for
+minutes, since each time they asked the way again (every second or two, on the move) it began at the stretch's nearer
+end, behind them: now someone part way along a stretch goes on along it (`city-walks.js`); by the city browser test and
+the checks after it: the camera behind a car down in the expressway's cutting stayed up at the land's height (a floor of
+half a metre everywhere), inside the Hope Avenue bridge over it: now it may go down into the cutting as far as its road
+(`camera.js` `floor`); three of Peace Avenue's verge trees and a lamp stood on the Peace Interchange's slip roads where
+they cross the verges (now nothing grows or stands on a deck's footprint, even where it is still on the ground; a
+headless test looks at every trunk, lamp, signal and billboard leg in the city against every carriageway and slip road);
+the zebras and stop lines under the flyovers ran over the paving between the carriageways; the lines painted on the
+expressway on the ground and in the cutting were not where its traffic drives; a phone put down in the middle of the
+city (and anyone faster than its pieces are built) saw the sky's dome below the horizon where the pieces were not built
+yet, a white plain by day and a grey one at night in rain (now the coarse land under the city, above); the city's hills
+beyond its fence, since Stage 2 come round north of the town, reached over the habitation's south end round its boiling
+river (now under the habitation's own ground there), and between the town's ground and the habitation a strip was left
+to the town's ground, which stops at the habitation's edge (a hole); in ten minutes beside or up on the expressway no
+town car came by (the through traffic, above); an edit took out the line pairing the viaduct's pillars and the city
+stopped being built in a browser (found by TypeScript's checker for names never declared, now run over the game's code
+before each build).
 
 **Files.** `src/sim/zones/oganiru.js` (the whole road network: roads, decks, junctions, signals, stop lines, gaps,
 roundabouts, billboards, the traffic's roads), `src/sim/traffic.js` (roads along a line or a path, at a level; ways by
