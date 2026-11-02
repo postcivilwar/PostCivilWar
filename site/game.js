@@ -6034,8 +6034,8 @@ function roadsNear(x, z) {
   return ROAD_CELLS.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL)) || NO_ROADS;
 }
 const onOtherRoad = (self, x, z) => roadsNear(x, z).some((q) => q !== self && (q.along === 'z' ? z >= q.from - 0.5 && z <= q.to + 0.5 && Math.abs(x - q.c) <= roadWidthAt(q, z).half : x >= q.from - 0.5 && x <= q.to + 0.5 && Math.abs(z - q.c) <= roadWidthAt(q, x).half));
-const lowDeckAt = (x, z) => oganiruDecksAt(x, z).some((h) => h.y < 0.6 && h.deck.kind !== 'bridge');
-const inAnyRing = (x, z) => OGANIRU_ROUNDABOUTS.some((r) => { const R = r.outer + r.walk + 0.5, dx = x - r.x, dz = z - r.z; return Math.abs(dx) < R && Math.abs(dz) < R && Math.hypot(dx, dz) < R; });
+const lowDeckAt = (x, z) => DECK_CELLS.has(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL)) && oganiruDecksAt(x, z).some((h) => h.y < 0.6 && h.deck.kind !== 'bridge');
+const inRing = (rings, x, z) => rings.some((r) => { const R = r.outer + r.walk + 0.5, dx = x - r.x, dz = z - r.z; return Math.abs(dx) < R && Math.abs(dz) < R && Math.hypot(dx, dz) < R; });
 for (const r of OGANIRU_ROADS) {
   const span = (c0, c1, a0, a1) => (r.along === 'z' ? { x0: Math.min(c0, c1), x1: Math.max(c0, c1), z0: a0, z1: a1 } : { x0: a0, x1: a1, z0: Math.min(c0, c1), z1: Math.max(c0, c1) });
   const P = (lat, a) => (r.along === 'z' ? [r.c + lat, a] : [a, r.c + lat]);
@@ -6053,8 +6053,11 @@ for (const r of OGANIRU_ROADS) {
   if (walk > 0) {
     const varying = !!(r.taper || r.flare);
     const spans = r.flare ? [[Math.min(r.flare.narrow, r.flare.wide), Math.max(r.flare.narrow, r.flare.wide)]] : r.walks || [[r.from, r.to]];
+    const wide = Math.max(r.half, r.flare ? r.flare.half : 0, r.kind === 'flyover-road' && r.taper ? AVENUE.half : 0) + walk;
+    const lo = Math.min(...spans.flat()), hi = Math.max(...spans.flat());
+    const rings = OGANIRU_ROUNDABOUTS.filter((g) => { const R = g.outer + g.walk + 0.5, lat = r.along === 'z' ? g.x - r.c : g.z - r.c, at = r.along === 'z' ? g.z : g.x; return Math.abs(lat) < R + wide + 1 && at > lo - R - 1 && at < hi + R + 1; });
     for (const k of [-1, 1]) {
-      const cut = (a) => { const half = roadWidthAt(r, a).half; const [x, z] = P(k * (half + walk / 2), a); return onOtherRoad(r, x, z) || lowDeckAt(x, z) || inAnyRing(x, z) || inCutting(x, z); };
+      const cut = (a) => { const half = roadWidthAt(r, a).half; const [x, z] = P(k * (half + walk / 2), a); return onOtherRoad(r, x, z) || lowDeckAt(x, z) || (rings.length > 0 && inRing(rings, x, z)) || inCutting(x, z); };
       for (const [from, to] of spans) for (const [a0, a1] of runsOf(from, to, cut)) {
         if (!varying) { addKerbed({ ...span(r.c + k * r.half, r.c + k * (r.half + walk), a0, a1), extra: { walk: r.id, side: k } }); continue; }
         for (let a = a0; a < a1 - 1e-6; a += 4) {
@@ -12043,11 +12046,13 @@ function* build() {
     yield;
     run += 1;
     const grid = new Map();
-    for (let x = b.x0 + 1.5; x <= b.x1 - 1.5; x += 12) for (let z = b.z0 + 1.5; z <= b.z1 - 1.5; z += 12) {
+    const ni = Math.max(1, Math.ceil((b.x1 - b.x0 - 3) / 12)), nj = Math.max(1, Math.ceil((b.z1 - b.z0 - 3) / 12));
+    for (let i = 0; i <= ni; i += 1) for (let j = 0; j <= nj; j += 1) {
+      const x = b.x0 + 1.5 + ((b.x1 - b.x0 - 3) * i) / ni, z = b.z0 + 1.5 + ((b.z1 - b.z0 - 3) * j) / nj;
       if (!zoneWalkable(x, z, [], 0.6, KERB)) continue;
       const k = add(x, z, KERB, true, 'walk');
       runOf[k] = run; ends.push(k);
-      grid.set(`${Math.round((x - b.x0) / 12)},${Math.round((z - b.z0) / 12)}`, k);
+      grid.set(`${i},${j}`, k);
     }
     for (const [key, k] of grid) { const [i, j] = key.split(',').map(Number); for (const [di, dj] of [[1, 0], [0, 1], [1, 1], [1, -1]]) { const o = grid.get(`${i + di},${j + dj}`); if (o !== undefined && open(nodes[k].x, nodes[k].z, nodes[o].x, nodes[o].z, KERB)) link(k, o); } }
   }
@@ -45404,7 +45409,7 @@ return { createLoadingCard };
 
 __modules["client/radar.js"] = (function () {
 
-const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, HABITATION_PATHS, HABITATION_DECKS } = __modules["sim/zone.js"];
+const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, HABITATION_PATHS, HABITATION_DECKS, OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_TOWERS, OGANIRU_ROUNDABOUTS } = __modules["sim/zone.js"];
 const { trueToGrid } = __modules["sim/geo.js"];
 
 const PX = 2;                       // pixels of the town picture to a metre
@@ -45415,6 +45420,11 @@ const RADAR_COLOURS = Object.freeze({
   closed: '#e8382f', fence: 'rgba(232,56,47,0.75)',
   sand: '#cdbb8a', stone: '#9a968c', deck: '#8a6a48',
 });
+
+const CITY_ROADS = OGANIRU_ROADS.filter((r) => r.kind !== 'cutting').map((r) => { const half = r.kind === 'approach' ? 7 : r.half; return Object.freeze(r.along === 'z' ? { x0: r.c - half, x1: r.c + half, z0: Math.min(r.from, r.to), z1: Math.max(r.from, r.to) } : { x0: Math.min(r.from, r.to), x1: Math.max(r.from, r.to), z0: r.c - half, z1: r.c + half }); });
+const CITY_DECKS = [...OGANIRU_DECKS].sort((a, b) => a.path.reduce((m, q) => m + q.y, 0) / a.path.length - b.path.reduce((m, q) => m + q.y, 0) / b.path.length).map((d) => Object.freeze({ d, x0: Math.min(...d.path.map((q) => q.x)) - d.half, x1: Math.max(...d.path.map((q) => q.x)) + d.half, z0: Math.min(...d.path.map((q) => q.z)) - d.half, z1: Math.max(...d.path.map((q) => q.z)) + d.half }));
+const CITY_TOWERS = OGANIRU_TOWERS.map((t) => Object.freeze({ t, x0: t.x - t.dx / 2, x1: t.x + t.dx / 2, z0: t.z - t.dz / 2, z1: t.z + t.dz / 2 }));
+const CITY_BOX = { x0: OGANIRU.bounds.x0, x1: OGANIRU.bounds.x1, z0: OGANIRU.bounds.z0, z1: OGANIRU.bounds.z1 };
 
 function drawTownPicture(owned) {
   const b = ZONE.bounds;
@@ -45498,6 +45508,30 @@ function createRadar(canvas) {
         for (const w of HABITATION_WATERS) for (const isle of w.islands || []) poly(isle.outline);
         for (const p of HABITATION_PATHS) line(p.line, Math.max(2.4, p.width), p.surface === 'sand' ? RADAR_COLOURS.sand : p.surface === 'stone' ? RADAR_COLOURS.stone : RADAR_COLOURS.laterite);
         for (const d of HABITATION_DECKS) line(d.line, Math.max(2, d.width), RADAR_COLOURS.deck);
+      }
+    }
+    if (near(CITY_BOX)) {
+      g.fillStyle = RADAR_COLOURS.asphalt;
+      for (const r of CITY_ROADS) if (near(r)) shape(r);
+      for (const rb of OGANIRU_ROUNDABOUTS) {
+        if (!near({ x0: rb.x - rb.outer, x1: rb.x + rb.outer, z0: rb.z - rb.outer, z1: rb.z + rb.outer })) continue;
+        g.fillStyle = RADAR_COLOURS.asphalt; g.beginPath(); g.arc(rb.x - s.x, rb.z - s.z, rb.outer, 0, Math.PI * 2); g.fill();
+        g.fillStyle = RADAR_COLOURS.land; g.beginPath(); g.arc(rb.x - s.x, rb.z - s.z, rb.island, 0, Math.PI * 2); g.fill();
+      }
+      g.lineCap = 'butt'; g.lineJoin = 'round';
+      for (const { d, ...box } of CITY_DECKS) {
+        if (!near(box)) continue;
+        for (const [colour, extra] of [['rgba(0,0,0,0.35)', 1.6], [RADAR_COLOURS.asphalt, 0]]) {
+          g.strokeStyle = colour; g.lineWidth = d.half * 2 + extra;
+          g.beginPath();
+          d.path.forEach((q, i) => (i ? g.lineTo(q.x - s.x, q.z - s.z) : g.moveTo(q.x - s.x, q.z - s.z)));
+          g.stroke();
+        }
+      }
+      g.fillStyle = RADAR_COLOURS.building;
+      for (const { t, ...box } of CITY_TOWERS) {
+        if (!near(box)) continue;
+        if (t.kind === 'round') { g.beginPath(); g.arc(t.x - s.x, t.z - s.z, t.dx / 2, 0, Math.PI * 2); g.fill(); } else shape(box);
       }
     }
     const nearLine = (l) => Math.min(l.a.x, l.b.x) < s.x + range * 1.5 && Math.max(l.a.x, l.b.x) > s.x - range * 1.5 && Math.min(l.a.z, l.b.z) < s.z + range * 1.5 && Math.max(l.a.z, l.b.z) > s.z - range * 1.5;
@@ -52854,9 +52888,60 @@ function createStreetLamps(scene, { lite = false, now = () => performance.now() 
 return { createStreetLamps };
 })();
 
+__modules["client/render-mesher.js"] = (function () {
+const { place, linear, letGoOnceSent } = __modules["client/render-kit.js"];
+
+class Mesher {
+  constructor() { this.p = []; this.n = []; this.c = []; this.u = []; }
+  get empty() { return this.p.length === 0; }
+  vert(x, y, z, nx, ny, nz, col, u, v) { this.p.push(x, y, z); this.n.push(nx, ny, nz); this.c.push(col.r, col.g, col.b); this.u.push(u, v); }
+  quad(a, b, c, d, col, uv = Q_UV, facing = null) {
+    const ux = c[0] - a[0], uy = c[1] - a[1], uz = c[2] - a[2], vx = d[0] - b[0], vy = d[1] - b[1], vz = d[2] - b[2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+    if (facing && nx * facing[0] + ny * facing[1] + nz * facing[2] < 0) { this.quad(a, d, c, b, col, [uv[0], uv[3], uv[2], uv[1]], null); return; }
+    const C = col.isColor ? col : linear(col);
+    this.vert(...a, nx, ny, nz, C, ...uv[0]); this.vert(...b, nx, ny, nz, C, ...uv[1]); this.vert(...c, nx, ny, nz, C, ...uv[2]);
+    this.vert(...a, nx, ny, nz, C, ...uv[0]); this.vert(...c, nx, ny, nz, C, ...uv[2]); this.vert(...d, nx, ny, nz, C, ...uv[3]);
+  }
+  geo(geometry, matrix, col, mode = 'wall', scale = 4) {
+    const g = geometry.index ? geometry.toNonIndexed() : geometry.clone();
+    g.applyMatrix4(matrix);
+    if (!g.attributes.normal) g.computeVertexNormals();
+    const P = g.attributes.position.array, N = g.attributes.normal.array, T = g.attributes.uv ? g.attributes.uv.array : null;
+    const C = col.isColor ? col : linear(col);
+    for (let i = 0, k = 0; i < P.length; i += 3, k += 2) {
+      const u = mode === 'plan' ? P[i] / scale : mode === 'own' && T ? T[k] : (P[i] + P[i + 2]) / scale;
+      const v = mode === 'plan' ? P[i + 2] / scale : mode === 'own' && T ? T[k + 1] : P[i + 1] / scale;
+      this.vert(P[i], P[i + 1], P[i + 2], N[i], N[i + 1], N[i + 2], C, u, v);
+    }
+    g.dispose(); geometry.dispose();
+  }
+  box(w, h, d, x, y, z, col, ry = 0, mode = 'wall', scale = 4) { this.geo(new THREE.BoxGeometry(w, h, d), place(x, y, z, ry), col, mode, scale); }
+  build(material, { shadows = true, receive = true } = {}) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(this.u, 2));
+    g.computeBoundingSphere();
+    letGoOnceSent(g);
+    this.p = this.n = this.c = this.u = null;
+    const mesh = new THREE.Mesh(g, material);
+    mesh.castShadow = shadows; mesh.receiveShadow = receive;
+    return mesh;
+  }
+}
+const Q_UV = [[0, 0], [1, 0], [1, 1], [0, 1]];
+
+return { Mesher, Q_UV };
+})();
+
 __modules["client/render-oganiru.js"] = (function () {
 const { OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_KERBED, OGANIRU_MEDIAN_GAPS, OGANIRU_TOWERS, OGANIRU_TREES, OGANIRU_PILLARS, OGANIRU_SIGNALS, OGANIRU_SIGNS, OGANIRU_JUNCTIONS, OGANIRU_ROUNDABOUTS, OGANIRU_CUTTING, OGANIRU_STOP_LINES, OGANIRU_PLACES, EXPRESSWAY_Z, oganiruAway, expresswayY, roadWidthAt, ZONE, signalState, HABITATION_MODELS, HABITATION, habitationGroundAt, ofOganiru } = __modules["sim/zone.js"];
-const { Batch, place, linear, noise, smoothNoise, grassTexture, textTexture, surface, buildingKit, letGoOnceSent } = __modules["client/render-kit.js"];
+const { Batch, place, linear, noise, smoothNoise, grassTexture, surface, buildingKit, letGoOnceSent } = __modules["client/render-kit.js"];
+const { Mesher, Q_UV } = __modules["client/render-mesher.js"];
+const { letPaintedGo } = __modules["client/painted.js"];
 const { addTree, CITY_FLAT } = __modules["client/render-world.js"];
 const { Foliage, foliageMaterials } = __modules["client/render-foliage.js"];
 const { reflects, weathers } = __modules["client/render-finish.js"];
@@ -52951,19 +53036,6 @@ function soffitTexture(size) {
     for (let k = 1; k < 4; k += 1) { g.beginPath(); g.moveTo((k * n) / 4, 0); g.lineTo((k * n) / 4, n); g.stroke(); }
   });
 }
-function lobbyTexture(size, lit = false) {
-  return canvasOf(size, (g, n) => {
-    const m = n / 8;
-    g.fillStyle = lit ? '#000' : '#c9cdd0'; g.fillRect(0, 0, n, n);
-    for (let i = 0; i < 4; i += 1) for (const [y0, y1] of [[0.6, 3.7], [3.85, 7.0]]) {
-      const top = n - y1 * m, h = (y1 - y0) * m;
-      if (lit) { g.fillStyle = y0 < 1 ? '#fff4e0' : '#d8cdb8'; g.fillRect(i * 2 * m + m * 0.06, top, 2 * m - m * 0.12, h); continue; }
-      const grad = g.createLinearGradient(0, top, 0, top + h);
-      grad.addColorStop(0, '#5d7487'); grad.addColorStop(0.6, '#3e5160'); grad.addColorStop(1, '#2f3b45');
-      g.fillStyle = grad; g.fillRect(i * 2 * m + m * 0.06, top, 2 * m - m * 0.12, h);
-    }
-  });
-}
 function paverTexture(size) {
   return canvasOf(size, (g, n) => {
     const cells = 5, c = n / cells;
@@ -52975,92 +53047,7 @@ function paverTexture(size) {
     }
   });
 }
-const FACADES = {
-  'glass-blue': { frame: '#c9d2da', glass: [62, 108, 150], spandrel: null, ribs: 0, punched: false },
-  'glass-grey': { frame: '#8c9399', glass: [92, 102, 112], spandrel: null, ribs: 0, punched: false },
-  'office-teal': { frame: '#dfe5e6', glass: [52, 120, 122], spandrel: '#e8ecea', ribs: 0, punched: false },
-  round: { frame: '#d8dde0', glass: [84, 126, 160], spandrel: '#e2e5e6', ribs: 0, punched: false },
-  'ribbed-white': { frame: '#f1efe9', glass: [70, 84, 96], spandrel: '#f1efe9', ribs: 1, punched: true },
-  stone: { frame: '#cdbb9b', glass: [58, 70, 78], spandrel: '#c4b190', ribs: 0, punched: true },
-  'glass-teal': { frame: '#c3d1cf', glass: [46, 112, 114], spandrel: null, ribs: 0, punched: false },
-  'office-blue': { frame: '#e2e6e9', glass: [62, 102, 140], spandrel: '#e5e8ea', ribs: 0, punched: false },
-  'office-grey': { frame: '#c7cacb', glass: [80, 90, 98], spandrel: '#b8bcbe', ribs: 0, punched: false },
-};
-const BAYS = 9, STOREYS_IN = 4, TILE = 14.4;
-function facadeTexture(kind, size) {
-  const f = FACADES[kind];
-  return canvasOf(size, (g, n) => {
-    g.fillStyle = f.frame; g.fillRect(0, 0, n, n);
-    const bw = n / BAYS, sh = n / STOREYS_IN;
-    for (let j = 0; j < STOREYS_IN; j += 1) for (let i = 0; i < BAYS; i += 1) {
-      const k = 0.82 + rnd(i * 11 + j, 31) * 0.3;
-      const [r, gg, b] = f.glass.map((c) => Math.round(Math.min(255, c * k)));
-      g.fillStyle = `rgb(${r},${gg},${b})`;
-      if (f.punched) {
-        const wide = f.ribs && i % 2 ? 0.5 : 0.62;
-        g.fillRect(i * bw + bw * (1 - wide) / 2, j * sh + sh * 0.2, bw * wide, sh * 0.6);
-      } else {
-        g.fillRect(i * bw + bw * 0.04, j * sh + sh * 0.06, bw * 0.92, sh * (f.spandrel ? 0.62 : 0.86));
-        if (f.spandrel) { g.fillStyle = f.spandrel; g.fillRect(i * bw, j * sh + sh * 0.7, bw, sh * 0.3); }
-      }
-    }
-  });
-}
-function litTexture(punched, size) {
-  return canvasOf(size, (g, n) => {
-    g.fillStyle = '#000'; g.fillRect(0, 0, n, n);
-    const bw = n / BAYS, sh = n / STOREYS_IN;
-    for (let j = 0; j < STOREYS_IN; j += 1) for (let i = 0; i < BAYS; i += 1) {
-      const order = Math.round(rnd(i * 13 + j * 5, 41) * 255), warm = 170 + Math.round(rnd(i, j + 50) * 85);
-      g.fillStyle = `rgb(${warm},${order},0)`;
-      if (punched) g.fillRect(i * bw + bw * 0.22, j * sh + sh * 0.22, bw * 0.56, sh * 0.56);
-      else g.fillRect(i * bw + bw * 0.06, j * sh + sh * 0.08, bw * 0.88, sh * 0.6);
-    }
-  }, true);
-}
 
-class Mesher {
-  constructor() { this.p = []; this.n = []; this.c = []; this.u = []; }
-  get empty() { return this.p.length === 0; }
-  vert(x, y, z, nx, ny, nz, col, u, v) { this.p.push(x, y, z); this.n.push(nx, ny, nz); this.c.push(col.r, col.g, col.b); this.u.push(u, v); }
-  quad(a, b, c, d, col, uv = Q_UV, facing = null) {
-    const ux = c[0] - a[0], uy = c[1] - a[1], uz = c[2] - a[2], vx = d[0] - b[0], vy = d[1] - b[1], vz = d[2] - b[2];
-    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
-    const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
-    if (facing && nx * facing[0] + ny * facing[1] + nz * facing[2] < 0) { this.quad(a, d, c, b, col, [uv[0], uv[3], uv[2], uv[1]], null); return; }
-    const C = col.isColor ? col : linear(col);
-    this.vert(...a, nx, ny, nz, C, ...uv[0]); this.vert(...b, nx, ny, nz, C, ...uv[1]); this.vert(...c, nx, ny, nz, C, ...uv[2]);
-    this.vert(...a, nx, ny, nz, C, ...uv[0]); this.vert(...c, nx, ny, nz, C, ...uv[2]); this.vert(...d, nx, ny, nz, C, ...uv[3]);
-  }
-  geo(geometry, matrix, col, mode = 'wall', scale = 4) {
-    const g = geometry.index ? geometry.toNonIndexed() : geometry.clone();
-    g.applyMatrix4(matrix);
-    if (!g.attributes.normal) g.computeVertexNormals();
-    const P = g.attributes.position.array, N = g.attributes.normal.array, T = g.attributes.uv ? g.attributes.uv.array : null;
-    const C = col.isColor ? col : linear(col);
-    for (let i = 0, k = 0; i < P.length; i += 3, k += 2) {
-      const u = mode === 'plan' ? P[i] / scale : mode === 'own' && T ? T[k] : (P[i] + P[i + 2]) / scale;
-      const v = mode === 'plan' ? P[i + 2] / scale : mode === 'own' && T ? T[k + 1] : P[i + 1] / scale;
-      this.vert(P[i], P[i + 1], P[i + 2], N[i], N[i + 1], N[i + 2], C, u, v);
-    }
-    g.dispose(); geometry.dispose();
-  }
-  box(w, h, d, x, y, z, col, ry = 0, mode = 'wall', scale = 4) { this.geo(new THREE.BoxGeometry(w, h, d), place(x, y, z, ry), col, mode, scale); }
-  build(material, { shadows = true, receive = true } = {}) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
-    g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(this.u, 2));
-    g.computeBoundingSphere();
-    letGoOnceSent(g);
-    this.p = this.n = this.c = this.u = null;
-    const mesh = new THREE.Mesh(g, material);
-    mesh.castShadow = shadows; mesh.receiveShadow = receive;
-    return mesh;
-  }
-}
-const Q_UV = [[0, 0], [1, 0], [1, 1], [0, 1]];
 const UP = [0, 1, 0], DOWN = [0, -1, 0];
 const shade = (hex, k) => linear(hex).multiplyScalar(k);
 
@@ -53718,139 +53705,139 @@ function signsTile(M, T, signs) {
       for (const k of [-1, 1]) M.metal.box(0.35, 7.2, 0.35, s.x, y + 3.6, EZ + k * across, 0x7c8288);
       M.metal.box(0.5, 0.5, s.across - 0.3, s.x, y + 7.0, EZ, 0x7c8288);
       M.metal.box(0.3, 0.3, s.across - 0.3, s.x, y + 6.2, EZ, 0x7c8288);
-      signs.push(signMesh(s.lines, s.x + Math.sin(s.facing) * 0.3, y + 6.0, s.z, s.facing, s.width, s.height, [fg, bg]));
+      signs.add(s.lines, s.x + Math.sin(s.facing) * 0.3, y + 6.0, s.z, s.facing, s.width, s.height, [fg, bg]);
       continue;
     }
     const w = s.width, h = s.height;
     for (const k of [-1, 1]) M.metal.box(0.1, h + 2.2, 0.1, s.x + Math.cos(s.facing) * k * (w / 2 - 0.3), (h + 2.2) / 2, s.z - Math.sin(s.facing) * k * (w / 2 - 0.3), 0x6d7177, s.facing);
-    signs.push(signMesh(s.lines, s.x + Math.sin(s.facing) * 0.06, 2.2 + h / 2, s.z + Math.cos(s.facing) * 0.06, s.facing, w, h, [fg, bg]));
+    signs.add(s.lines, s.x + Math.sin(s.facing) * 0.06, 2.2 + h / 2, s.z + Math.cos(s.facing) * 0.06, s.facing, w, h, [fg, bg]);
   }
 }
 
-function towerMaterial(kind, lite, textures) {
-  const punched = FACADES[kind].punched;
-  const glass = !punched;
-  const m = surface({ map: textures.facade(kind), emissiveMap: textures.lit(punched), emissive: linear(0xffd59a), emissiveIntensity: 0, roughness: glass ? 0.14 : 0.62, metalness: glass ? 0.55 : 0.08 });
-  if (glass) reflects(m, 0.9); else weathers(m, { darken: 0.15 });
-  const lit = { value: 0.5 };
-  m.userData.lit = lit;
-  m.onBeforeCompile = (shader) => {
-    shader.uniforms.uLit = lit;
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uLit;').replace('#include <emissivemap_fragment>', `#ifdef USE_EMISSIVEMAP
-        vec4 litWin = texture2D(emissiveMap, vEmissiveMapUv);
-        totalEmissiveRadiance *= litWin.r * step(litWin.g, uLit);
-      #endif`);
-  };
-  m.customProgramCacheKey = () => 'pcw-tower-windows';
-  m.userData.kind = kind;
-  return m;
-}
-function addTowers(group, lite, textures, signs, M, list, materials, bandMaterial) {
-  const crowns = [];
-  const bodies = new Map();
+const towerSeed = (t) => { let h = 7; for (const ch of t.id) h = (h * 31 + ch.charCodeAt(0)) % 9973; return h; };
+function addTowers(signs, M, list) {
   for (const t of list) {
-    if (!materials.has(t.kind)) materials.set(t.kind, towerMaterial(t.kind, lite, textures));
-    if (!bodies.has(t.kind)) bodies.set(t.kind, new Mesher());
-    const W = bodies.get(t.kind);
     const lobby = 7.2, top = t.storeys * 3.6;
-    const round = t.kind === 'round';
+    const round = t.kind === 'round', r = t.dx / 2;
     const [fx, fz] = t.face;
     const ax = fz, az = -fx;
-    const hw = fx ? t.dz / 2 : t.dx / 2;
-    const fx0 = t.x + fx * (t.dx / 2), fz0 = t.z + fz * (t.dz / 2);
+    const hw = round ? r : fx ? t.dz / 2 : t.dx / 2;
+    const fx0 = t.x + fx * (round ? r : t.dx / 2), fz0 = t.z + fz * (round ? r : t.dz / 2);
     const heading = Math.atan2(fx, fz);
-    const fbox = (Mx, depth, h, width, out, y, side, col, ...rest) => {
-      const cx = fx0 + fx * out + ax * side, cz = fz0 + fz * out + az * side;
-      if (fx) Mx.box(depth, h, width, cx, y, cz, col, ...rest); else Mx.box(width, h, depth, cx, y, cz, col, ...rest);
-    };
-    const bodyTop = top;
-    const col = 0xffffff;
-    if (round) {
-      const segs = lite ? 24 : 40, r = t.dx / 2;
-      for (let i = 0; i < segs; i += 1) {
-        const a0 = (i / segs) * Math.PI * 2, a1 = ((i + 1) / segs) * Math.PI * 2;
-        const p0 = [t.x + Math.sin(a0) * r, lobby, t.z + Math.cos(a0) * r], p1 = [t.x + Math.sin(a1) * r, lobby, t.z + Math.cos(a1) * r];
-        const u0 = (a0 * r) / TILE, u1 = (a1 * r) / TILE;
-        W.quad(p0, p1, [p1[0], bodyTop, p1[2]], [p0[0], bodyTop, p0[2]], col, [[u0, lobby / TILE], [u1, lobby / TILE], [u1, bodyTop / TILE], [u0, bodyTop / TILE]], [Math.sin((a0 + a1) / 2), 0, Math.cos((a0 + a1) / 2)]);
+    const obox = (Mx, width, h, depth, out, y, side, col) => Mx.box(width, h, depth, fx0 + fx * out + ax * side, y, fz0 + fz * out + az * side, col, heading);
+    const seed = towerSeed(t);
+    const canopy = [0x2d3236, 0x6b5a45, 0x3c4a52, 0xd9d6cf][seed % 4];
+    if (!round) for (const cx of [-1, 1]) for (const cz of [-1, 1]) M.solid.box(0.9, lobby, 0.9, t.x + cx * t.dx / 2, lobby / 2 + KERB, t.z + cz * t.dz / 2, 0xd9d6cf);
+    obox(M.solid, 9, 0.25, 3.2, 1.6, 4.4 + KERB, 0, canopy);
+    for (const k of [-1, 1]) obox(M.metal, 0.25, 3.3, 0.3, 0.12, KERB + 1.65, k * 2.2, 0x23272b);
+    obox(M.metal, 4.65, 0.3, 0.3, 0.12, KERB + 3.3, 0, 0x23272b);
+    for (const [out, hk] of [[2.7, 0.15], [1.8, 0.3], [0.9, 0.45]]) obox(M.concrete, 8, hk, out + 1.2, out / 2 - 0.6, KERB + hk / 2, 0, 0xd8d3c8);
+    signs.add([t.lobby], fx0 + fx * 3.25, 5.1 + KERB, fz0 + fz * 3.25, heading, 6.5, 0.55, ['#ffffff', 'rgba(20,24,28,0.92)']);
+    for (const k of [-1, 1]) obox(M.metal, 0.08, 0.32, 0.08, 3.12, 4.69 + KERB, k * 2.6, 0x23272b);
+    (t.shops || []).forEach((name, k) => {
+      const side = (k === 0 ? -1 : 1) * (round ? r * 0.56 : hw * 0.6);
+      const strip = [0x1f5d3a, 0xc59b2a, 0x8a2f2f, 0x2f4f8a, 0x5a3d7a][(seed + k * 3) % 5];
+      const words = [['#ffffff', '#1f5d3a'], ['#1a1a1a', '#f2c200'], ['#ffffff', '#8a2f2f'], ['#ffffff', '#2f4f8a'], ['#ffffff', '#5a3d7a']][(seed + k * 3) % 5];
+      if (round) {
+        const th = Math.asin(Math.max(-1, Math.min(1, side / r))), dx = Math.cos(th) * fx + Math.sin(th) * ax, dz = Math.cos(th) * fz + Math.sin(th) * az, h = Math.atan2(dx, dz);
+        signs.add([name.toUpperCase()], t.x + dx * (r + 0.08), 3.3 + KERB, t.z + dz * (r + 0.08), h, 5.2, 0.7, words);
+        M.solid.box(5.6, 0.12, 0.6, t.x + dx * (r + 0.3), 2.85 + KERB, t.z + dz * (r + 0.3), strip, h);
+        return;
       }
-    } else {
+      signs.add([name.toUpperCase()], fx0 + fx * 0.08 + ax * side, 3.3 + KERB, fz0 + fz * 0.08 + az * side, heading, 5.2, 0.7, words);
+      obox(M.solid, 5.6, 0.12, 0.6, 0.3, 2.85 + KERB, side, strip);
+    });
+    if (t.kind === 'ribbed-white') {
       const x0 = t.x - t.dx / 2, x1 = t.x + t.dx / 2, z0 = t.z - t.dz / 2, z1 = t.z + t.dz / 2;
-      const face = (a, b, out) => { const len = Math.hypot(b[0] - a[0], b[1] - a[1]); W.quad([a[0], lobby, a[1]], [b[0], lobby, b[1]], [b[0], bodyTop, b[1]], [a[0], bodyTop, a[1]], col, [[0, lobby / TILE], [len / TILE, lobby / TILE], [len / TILE, bodyTop / TILE], [0, bodyTop / TILE]], out); };
-      face([x0, z0], [x1, z0], [0, 0, -1]); face([x1, z0], [x1, z1], [1, 0, 0]); face([x1, z1], [x0, z1], [0, 0, 1]); face([x0, z1], [x0, z0], [-1, 0, 0]);
-      if (t.kind === 'ribbed-white') {
-        const every = 3.2, h = bodyTop - lobby, y = lobby + h / 2, rib = 0xf6f4ee;
-        for (let x = x0 + every; x < x1 - 0.8; x += every) for (const [z, out] of [[z0, -1], [z1, 1]]) M.solid.box(0.45, h, 0.5, x, y, z + out * 0.25, rib);
-        for (let z = z0 + every; z < z1 - 0.8; z += every) for (const [x, out] of [[x0, -1], [x1, 1]]) M.solid.box(0.5, h, 0.45, x + out * 0.25, y, z, rib);
-      }
+      const every = 3.2, h = top - lobby, y = lobby + h / 2, rib = 0xf6f4ee;
+      for (let x = x0 + every; x < x1 - 0.8; x += every) for (const [z, out] of [[z0, -1], [z1, 1]]) M.solid.box(0.45, h, 0.5, x, y, z + out * 0.25, rib);
+      for (let z = z0 + every; z < z1 - 0.8; z += every) for (const [x, out] of [[x0, -1], [x1, 1]]) M.solid.box(0.5, h, 0.45, x + out * 0.25, y, z, rib);
     }
-    const roofCol = t.kind === 'stone' ? 0xcdbb9b : t.kind === 'ribbed-white' ? 0xf1efe9 : 0x8a9096;
-    if (round) M.solid.geo(new THREE.CylinderGeometry(t.dx / 2, t.dx / 2, 0.6, lite ? 24 : 40), place(t.x, top + 0.3, t.z), roofCol);
-    else M.solid.box(t.dx + 0.4, 0.8, t.dz + 0.4, t.x, top + 0.4, t.z, roofCol);
-    if (t.kind === 'stone') M.solid.box(t.dx + 1.2, 0.7, t.dz + 1.2, t.x, top - 0.6, t.z, 0xbfae8e);
     const crown = t.crown || 0;
-    let y = top + 0.8;
-    if (crown > 0) {
-      const steps = t.kind === 'stone' ? 3 : 2;
-      let cw = 0, cd = 0;
-      for (let k = 0; k < steps; k += 1) {
-        const shrink = 0.72 - k * 0.18, h = (crown * (k === steps - 1 ? 0.5 : 0.25));
-        cw = (round ? t.dx : t.dx) * shrink; cd = (round ? t.dx : t.dz) * shrink;
-        if (round) M.solid.geo(new THREE.CylinderGeometry(cw / 2, cw / 2, h, lite ? 20 : 32), place(t.x, y + h / 2, t.z), roofCol);
-        else M.solid.box(cw, h, cd, t.x, y + h / 2, t.z, roofCol);
-        if (t.kind === 'stone') {
-          M.solid.box(cw + 0.8, 0.45, cd + 0.8, t.x, y + h - 0.2, t.z, 0xbfae8e);
-          if (k < steps - 1) for (const cx of [-1, 1]) for (const cz of [-1, 1]) M.solid.geo(new THREE.ConeGeometry(0.55, 2.6, 4), place(t.x + cx * (cw / 2 - 0.4), y + h + 1.3, t.z + cz * (cd / 2 - 0.4), Math.PI / 4), 0xd6c6a6);
-        }
+    if (t.kind === 'stone') {
+      M.solid.box(t.dx + 1.2, 0.7, t.dz + 1.2, t.x, top - 0.6, t.z, 0xbfae8e);
+      let y = top + 0.8;
+      const steps = 3;
+      for (let k = 0; k < steps && crown > 0; k += 1) {
+        const shrink = 0.72 - k * 0.18, h = crown * (k === steps - 1 ? 0.5 : 0.25), cw = t.dx * shrink, cd = t.dz * shrink;
+        M.solid.box(cw + 0.8, 0.45, cd + 0.8, t.x, y + h - 0.2, t.z, 0xbfae8e);
+        if (k < steps - 1) for (const cx of [-1, 1]) for (const cz of [-1, 1]) M.solid.geo(new THREE.ConeGeometry(0.55, 2.6, 4), place(t.x + cx * (cw / 2 - 0.4), y + h + 1.3, t.z + cz * (cd / 2 - 0.4), Math.PI / 4), 0xd6c6a6);
         y += h;
       }
-      if (t.kind === 'stone') M.solid.geo(new THREE.ConeGeometry(t.dx * 0.18, crown * 0.3, 4), place(t.x, y + crown * 0.15, t.z, Math.PI / 4), 0x6f8f7a);
-      if (t.storeys >= 30) crowns.push({ t, y: y - 0.6, w: cw + 0.1, d: cd + 0.1, round });
     }
-    if (t.storeys >= 44 && t.kind !== 'stone') {
-      M.metal.geo(new THREE.CylinderGeometry(0.25, 0.45, 22, 8), place(t.x, y + 11, t.z), 0xb9bec4);
-      M.metal.geo(new THREE.CylinderGeometry(1.1, 1.1, 0.5, 12), place(t.x, y + 6, t.z), 0x8d9399);
+    if (!round) {
+      const cx = seed % 2 ? 1 : -1, cz = seed % 3 ? 1 : -1;
+      const px = t.x + cx * (t.dx / 2 - 2.0), pz = t.z + cz * (t.dz / 2 - 2.6);
+      M.solid.box(3, 2.2, 2.4, px, top + 0.8 + 1.1, pz, 0x9a9da0);
+      M.metal.geo(new THREE.CylinderGeometry(1.0, 1.0, 2.2, 10), place(px - cx * 3.4, top + 0.8 + 1.1, pz), 0x7f868c);
     }
-    M.solid.box(4, 2.2, 3, t.x + 3, top + 0.8 + (crown > 0 ? 0 : 1.1), t.z - 4, 0x9a9da0);
-    const lx = round ? t.dx / 2 - 1 : t.dx / 2 - 1, lz = round ? t.dx / 2 - 1 : t.dz / 2 - 1;
-    if (round) M.lobby.geo(new THREE.CylinderGeometry(lx, lx, lobby, lite ? 24 : 40, 1, true), place(t.x, lobby / 2 + KERB, t.z), 0xffffff, 'wall', 8);
-    else M.lobby.box(lx * 2, lobby, lz * 2, t.x, lobby / 2 + KERB, t.z, 0xffffff, 0, 'wall', 8);
-    if (!round) for (const cx of [-1, 1]) for (const cz of [-1, 1]) M.solid.box(0.8, lobby, 0.8, t.x + cx * (t.dx / 2 - 0.4), lobby / 2 + KERB, t.z + cz * (t.dz / 2 - 0.4), 0xd9d6cf);
-    if (round) M.solid.geo(new THREE.CylinderGeometry(t.dx / 2 + 0.15, t.dx / 2 + 0.15, 0.5, lite ? 24 : 40), place(t.x, lobby + KERB - 0.1, t.z), 0xd9d6cf);
-    else M.solid.box(t.dx + 0.3, 0.5, t.dz + 0.3, t.x, lobby + KERB - 0.1, t.z, 0xd9d6cf);
-    fbox(M.solid, 3.2, 0.25, 9, 1.4, 4.4 + KERB, 0, 0x2d3236);
-    for (const [out, hk] of [[2.7, 0.15], [1.8, 0.3], [0.9, 0.45]]) fbox(M.concrete, out, hk, 8, out / 2, KERB + hk / 2, 0, 0xd8d3c8);
-    signs.push(signMesh([t.lobby], fx0 + fx * 3.0, 5.1 + KERB, fz0 + fz * 3.0, heading, 6.5, 0.55, ['#ffffff', 'rgba(20,24,28,0.92)']));
-    (t.shops || []).forEach((name, k) => {
-      const side = (k === 0 ? -1 : 1) * (round ? t.dx * 0.28 : hw * 0.6);
-      signs.push(signMesh([name.toUpperCase()], fx0 + fx * 0.08 + ax * side, 3.3 + KERB, fz0 + fz * 0.08 + az * side, heading, 5.2, 0.7, k === 0 ? ['#ffffff', '#1f5d3a'] : ['#1a1a1a', '#f2c200']));
-      fbox(M.solid, 0.6, 0.12, 5.6, 0.5, 2.85 + KERB, side, k === 0 ? 0x1f5d3a : 0xc59b2a);
-    });
   }
-  for (const [kind, W] of bodies) {
-    const body = W.build(materials.get(kind));
-    body.name = `oganiru:towers:${kind}`;
-    body.userData.tower = true;
-    group.add(body);
-  }
-  const band = new Mesher();
-  for (const c of crowns) {
-    if (c.round) { const g = new THREE.CylinderGeometry(c.w / 2 + 0.05, c.w / 2 + 0.05, 0.5, 40, 1, true); band.geo(g, place(c.t.x, c.y, c.t.z), 0xfff4dc, 'own'); }
-    else band.box(c.w, 0.5, c.d, c.t.x, c.y, c.t.z, 0xfff4dc);
-  }
-  const bandMesh = band.empty ? null : band.build(bandMaterial, { shadows: false });
-  if (bandMesh) { bandMesh.name = 'oganiru:crowns'; bandMesh.userData.tower = true; }
-  return bandMesh;
 }
 
 let SIGN_WIDTH = 1024;
-function signMesh(lines, x, y, z, facing, w, h, [fg, bg]) {
-  const W = SIGN_WIDTH, k = W / 1024;
-  const tex = textTexture(lines, { width: W, height: Math.max(Math.round(96 * k), Math.round(W * (h / w))), background: bg, colour: fg, size: Math.min(Math.round(110 * k), Math.round(760 * k * (h / w) / Math.max(1, lines.length))) });
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, metalness: 0.05 }));
-  mesh.position.set(x, y, z);
-  mesh.rotation.y = facing;
-  mesh.name = 'oganiru:sign';
-  return mesh;
+const SIGN_TALLEST = 4096, SIGN_GAP = 8;
+const SIGN_FONT = '"Arial Narrow", "Roboto Condensed", Impact, sans-serif';
+class SignAtlas {
+  constructor() { this.list = []; }
+  get empty() { return this.list.length === 0; }
+  add(lines, x, y, z, facing, w, h, [fg, bg]) { this.list.push({ lines, x, y, z, facing, w, h, fg, bg }); }
+  build(name, lite) {
+    const W = SIGN_WIDTH, k = W / 1024, scale = lite ? 0.5 : 1;
+    const sheets = [];
+    let sheet = null;
+    for (const s of this.list) {
+      s.px = Math.max(Math.round(96 * k), Math.round(W * (s.h / s.w)));
+      s.size = Math.min(Math.round(110 * k), Math.round(760 * k * (s.h / s.w) / Math.max(1, s.lines.length)));
+      if (!sheet || sheet.height + s.px + SIGN_GAP > SIGN_TALLEST) { sheet = { signs: [], height: 0 }; sheets.push(sheet); }
+      s.top = sheet.height + SIGN_GAP / 2;
+      sheet.height += s.px + SIGN_GAP;
+      sheet.signs.push(s);
+    }
+    return sheets.map((S) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(W * scale)); canvas.height = Math.max(1, Math.round(S.height * scale));
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
+      const draw = () => {
+        const g = canvas.getContext('2d');
+        g.setTransform(scale, 0, 0, scale, 0, 0);
+        g.clearRect(0, 0, W, S.height);
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        for (const s of S.signs) {
+          g.fillStyle = s.bg; g.fillRect(0, s.top - SIGN_GAP / 2, W, s.px + SIGN_GAP);
+          g.fillStyle = s.fg;
+          s.lines.forEach((text, i) => {
+            let px = s.size;
+            g.font = `800 ${px}px ${SIGN_FONT}`;
+            while (g.measureText(text).width > W - 36 && px > 14) { px -= 2; g.font = `800 ${px}px ${SIGN_FONT}`; }
+            g.fillText(text, W / 2, s.top + (s.px * (i + 0.5)) / s.lines.length + 2);
+          });
+        }
+        texture.needsUpdate = true;
+      };
+      draw();
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { draw(); letPaintedGo(texture, () => draw()); }).catch(() => {});
+      else letPaintedGo(texture, () => draw());
+      const n = S.signs.length, P = new Float32Array(n * 18), N = new Float32Array(n * 18), U = new Float32Array(n * 12);
+      S.signs.forEach((s, i) => {
+        const rx = Math.cos(s.facing), rz = -Math.sin(s.facing), nx = Math.sin(s.facing), nz = Math.cos(s.facing);
+        const hw = s.w / 2, hh = s.h / 2;
+        const c = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([a, b]) => [s.x + rx * a, s.y + b, s.z + rz * a]);
+        const v0 = 1 - (s.top + s.px) / S.height, v1 = 1 - s.top / S.height;
+        const uv = [[0, v0], [1, v0], [1, v1], [0, v1]];
+        [0, 1, 2, 0, 2, 3].forEach((q, j) => { P.set(c[q], i * 18 + j * 3); N.set([nx, 0, nz], i * 18 + j * 3); U.set(uv[q], i * 12 + j * 2); });
+      });
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(P, 3));
+      geometry.setAttribute('normal', new THREE.BufferAttribute(N, 3));
+      geometry.setAttribute('uv', new THREE.BufferAttribute(U, 2));
+      geometry.computeBoundingSphere();
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6, metalness: 0.05 }));
+      mesh.name = name;
+      mesh.userData.signs = n;
+      return mesh;
+    });
+  }
 }
 
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
@@ -53970,11 +53957,11 @@ function treeBoards(group, model, copies, renderer, lite) {
 }
 
 function* buildTile(T, S) {
-  const { lite, materials, textures, towerMaterials, bandMaterial } = S;
+  const { lite, materials } = S;
   const group = new THREE.Group(); group.name = `oganiru:${T.key}`;
-  const M = { tar: new Mesher(), rampTar: new Mesher(), wear: new Mesher(), paint: new Mesher(), kerb: new Mesher(), grass: new Mesher(), pave: new Mesher(), concrete: new Mesher(), soffit: new Mesher(), stain: new Mesher(), solid: new Mesher(), metal: new Mesher(), lit: new Mesher(), lobby: new Mesher() };
+  const M = { tar: new Mesher(), rampTar: new Mesher(), wear: new Mesher(), paint: new Mesher(), kerb: new Mesher(), grass: new Mesher(), pave: new Mesher(), concrete: new Mesher(), soffit: new Mesher(), stain: new Mesher(), solid: new Mesher(), metal: new Mesher(), lit: new Mesher() };
   const shadeSolid = new Batch(), foliage = new Foliage();
-  const fixedLights = [], signs = [];
+  const fixedLights = [], signs = new SignAtlas();
   const ground = groundTile(T, lite);
   if (ground) { const mesh = new THREE.Mesh(ground, materials.ground); mesh.receiveShadow = true; mesh.name = `oganiru:ground:${T.key}`; group.add(mesh); }
   yield;
@@ -53993,7 +53980,7 @@ function* buildTile(T, S) {
   signsTile(M, T, signs);
   yield;
   const towers = OGANIRU_TOWERS.filter((t) => inTile(T, t.x, t.z));
-  const crowns = towers.length ? addTowers(group, lite, textures, signs, M, towers, towerMaterials, bandMaterial) : null;
+  if (towers.length) addTowers(signs, M, towers);
   yield;
   let n = 0;
   for (const t of OGANIRU_TREES) {
@@ -54016,12 +54003,11 @@ function* buildTile(T, S) {
   build('stain', materials.stain, false);
   build('solid', materials.solid, true);
   build('metal', materials.metal, true);
-  build('lit', materials.lit, false);
-  build('lobby', materials.lobby, false); yield;
+  build('lit', materials.lit, false); yield;
   if (!shadeSolid.empty) { const m = shadeSolid.build(materials.solid); m.castShadow = true; m.receiveShadow = true; m.name = `oganiru:trunks:${T.key}`; group.add(m); }
   for (const mesh of foliage.build(foliageMaterials())) { mesh.name = `oganiru:leaves:${T.key}`; group.add(mesh); }
-  for (const s of signs) group.add(s);
-  if (crowns) group.add(crowns);
+  if (!signs.empty) for (const mesh of signs.build(`oganiru:signs:${T.key}`, lite)) group.add(mesh);
+  if (towers.length) group.userData.towers = towers.length;
   return { group, fixedLights };
 }
 
@@ -54030,10 +54016,7 @@ function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = null, cam
   SIGN_WIDTH = lite ? 512 : 1024;
   const size = lite ? 512 : 1024;
   const textures = {
-    asphalt: asphaltTexture(size), concrete: concreteTexture(lite ? 256 : 512), soffit: soffitTexture(lite ? 128 : 256), lobby: lobbyTexture(lite ? 128 : 512), lobbyLit: lobbyTexture(lite ? 64 : 128, true), pavers: paverTexture(lite ? 128 : 256),
-    facades: new Map(), lits: new Map(),
-    facade(kind) { if (!this.facades.has(kind)) this.facades.set(kind, facadeTexture(kind, lite ? 256 : 1024)); return this.facades.get(kind); },
-    lit(punched) { if (!this.lits.has(punched)) { const t = litTexture(punched, lite ? 128 : 256); t.colorSpace = THREE.NoColorSpace; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; this.lits.set(punched, t); } return this.lits.get(punched); },
+    asphalt: asphaltTexture(size), concrete: concreteTexture(lite ? 256 : 512), soffit: soffitTexture(lite ? 128 : 256), pavers: paverTexture(lite ? 128 : 256),
   };
   yield;
   const kit = buildingKit();
@@ -54051,13 +54034,10 @@ function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = null, cam
     soffit: weathers(surface({ vertexColors: true, map: textures.soffit, roughness: 0.92, metalness: 0 }), { darken: 0.1 }),
     stain: new THREE.MeshLambertMaterial({ color: linear(0x2d2a24), transparent: true, opacity: 0.28, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     metal: reflects(surface({ vertexColors: true, roughness: 0.45, metalness: 0.55 }), 0.6, 'metal'),
-    lobby: reflects(new THREE.MeshStandardMaterial({ vertexColors: true, map: textures.lobby, emissiveMap: textures.lobbyLit, emissive: linear(0xffe2b0), emissiveIntensity: 0, roughness: 0.12, metalness: 0.35 }), 0.8),
     kerb: weathers(surface({ map: kerbTexture(lite ? 256 : 512), roughness: 0.8, metalness: 0 }), { darken: 0.2 }),
     solid: kit.solid,
     lit: glowMaterial || new THREE.MeshBasicMaterial({ color: 0xfff1c9 }),
   };
-  const towerMaterials = new Map();
-  const bandMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0xb9bcc0), emissive: linear(0xfff0d0), emissiveIntensity: 0, roughness: 0.6 });
   yield;
   const disc = new THREE.CircleGeometry(0.105, 16);
   const COLOURS = { red: 0xff2a1a, amber: 0xffa31a, green: 0x2dff6a };
@@ -54086,7 +54066,7 @@ function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = null, cam
   scene.add(group);
 
   const near = lite ? TILE_NEAR.lite : TILE_NEAR.full;
-  const S = { lite, materials, textures, towerMaterials, bandMaterial };
+  const S = { lite, materials, textures };
   const pieces = new Map();             // key -> { T, state: 'queued' | 'building' | 'built', steps, group, fixedLights, ready }
   let building = null;
   let compiled = false;
@@ -54133,7 +54113,7 @@ function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = null, cam
     g.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
       const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-      for (const m of mats) { if (shared.has(m) || towerMaterials.has(m.userData.kind) && towerMaterials.get(m.userData.kind) === m || m === bandMaterial) continue; if (m.map) m.map.dispose(); m.dispose(); }
+      for (const m of mats) { if (shared.has(m)) continue; if (m.map) m.map.dispose(); m.dispose(); }
     });
   }
 
@@ -54155,11 +54135,6 @@ function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = null, cam
       if (changed) S2.mesh.instanceColor.needsUpdate = true;
     }
     nowLit.clear();
-    const h = ((hour % 24) + 24) % 24;
-    const share = h >= 18 ? 0.55 - (h - 18) * 0.05 : h < 5 ? 0.25 - h * 0.035 : h < 7 ? 0.12 + (h - 5) * 0.1 : 0.4;
-    for (const m of towerMaterials.values()) { m.emissiveIntensity = night * 1.6; m.userData.lit.value = Math.max(0.08, share); }
-    bandMaterial.emissiveIntensity = night * 2.2;
-    materials.lobby.emissiveIntensity = night * 0.45;
     trees.update(eye, storm);
     closures.update(dt, night, eye ? eye.position : null);
   }
@@ -54174,7 +54149,7 @@ function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = null, cam
       p.d = d;
       if (d > near.go && p.state !== 'queued') { letGoPiece(p); continue; }
       if (d > near.go && p.state === 'queued') { pieces.delete(T.key); continue; }
-      if (p.group) p.group.visible = d < reach || p.group.children.some((c) => c.userData.tower) && d < reach * 2.2;
+      if (p.group) p.group.visible = d < reach;
     }
     return shownAll;
   }
@@ -54187,8 +54162,8 @@ function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = null, cam
     closures.dispose();
     for (const S2 of signalMeshes) { S2.mesh.dispose(); S2.mesh.material.dispose(); }
     disc.dispose();
-    for (const m of [...Object.values(materials), ...towerMaterials.values(), bandMaterial]) { if (keep.has(m)) continue; m.dispose(); }
-    for (const t of [groundMap, materials.kerb.map, materials.grass.map, textures.asphalt, textures.concrete, textures.soffit, textures.lobby, textures.lobbyLit, textures.pavers, ...textures.facades.values(), ...textures.lits.values()]) if (t) t.dispose();
+    for (const m of Object.values(materials)) { if (keep.has(m)) continue; m.dispose(); }
+    for (const t of [groundMap, materials.kerb.map, materials.grass.map, textures.asphalt, textures.concrete, textures.soffit, textures.pavers]) if (t) t.dispose();
     if (lamps) for (const T of OGANIRU_TILES) lamps.dropFixed(`city:${T.key}`);
   }
   function buildAround(x, z) {
@@ -54211,6 +54186,262 @@ const TILE_HAS = new Map(OGANIRU_TILES.map((T) => {
 const tileHasCity = (T) => TILE_HAS.get(T.key);
 
 return { PIECE, OGANIRU_TILES, oganiruSteps };
+})();
+
+__modules["client/render-skyline.js"] = (function () {
+
+const { OGANIRU_TOWERS } = __modules["sim/zone.js"];
+const { place, linear, noise, surface } = __modules["client/render-kit.js"];
+const { reflects, weathers } = __modules["client/render-finish.js"];
+const { Mesher } = __modules["client/render-mesher.js"];
+const { programsReady } = __modules["client/program-ready.js"];
+
+function canvasOf(size, paint) {
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  paint(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 4;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const rnd = (i, k) => noise(i * 1.37 + k * 17.1, k * 3.7 + i * 0.13);
+
+const FACADES = Object.freeze({
+  'glass-blue': { frame: '#c9d2da', glass: [62, 108, 150], spandrel: null, ribs: 0, punched: false },
+  'glass-grey': { frame: '#8c9399', glass: [92, 102, 112], spandrel: null, ribs: 0, punched: false },
+  'office-teal': { frame: '#dfe5e6', glass: [52, 120, 122], spandrel: '#e8ecea', ribs: 0, punched: false },
+  round: { frame: '#d8dde0', glass: [84, 126, 160], spandrel: '#e2e5e6', ribs: 0, punched: false },
+  'ribbed-white': { frame: '#f1efe9', glass: [70, 84, 96], spandrel: '#f1efe9', ribs: 1, punched: true },
+  stone: { frame: '#cdbb9b', glass: [58, 70, 78], spandrel: '#c4b190', ribs: 0, punched: true },
+  'glass-teal': { frame: '#c3d1cf', glass: [46, 112, 114], spandrel: null, ribs: 0, punched: false },
+  'office-blue': { frame: '#e2e6e9', glass: [62, 102, 140], spandrel: '#e5e8ea', ribs: 0, punched: false },
+  'office-grey': { frame: '#c7cacb', glass: [80, 90, 98], spandrel: '#b8bcbe', ribs: 0, punched: false },
+});
+const BAYS = 9, STOREYS_IN = 4;
+const TILE = 14.4;
+function facadeTexture(kind, size) {
+  const f = FACADES[kind];
+  return canvasOf(size, (g, n) => {
+    g.fillStyle = f.frame; g.fillRect(0, 0, n, n);
+    const bw = n / BAYS, sh = n / STOREYS_IN;
+    for (let j = 0; j < STOREYS_IN; j += 1) for (let i = 0; i < BAYS; i += 1) {
+      const k = 0.82 + rnd(i * 11 + j, 31) * 0.3;
+      const [r, gg, b] = f.glass.map((c) => Math.round(Math.min(255, c * k)));
+      g.fillStyle = `rgb(${r},${gg},${b})`;
+      if (f.punched) {
+        const wide = f.ribs && i % 2 ? 0.5 : 0.62;
+        g.fillRect(i * bw + bw * (1 - wide) / 2, j * sh + sh * 0.2, bw * wide, sh * 0.6);
+      } else {
+        g.fillRect(i * bw + bw * 0.04, j * sh + sh * 0.06, bw * 0.92, sh * (f.spandrel ? 0.62 : 0.86));
+        if (f.spandrel) { g.fillStyle = f.spandrel; g.fillRect(i * bw, j * sh + sh * 0.7, bw, sh * 0.3); }
+      }
+    }
+  });
+}
+function litTexture(punched, size) {
+  const t = canvasOf(size, (g, n) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, n, n);
+    const bw = n / BAYS, sh = n / STOREYS_IN;
+    for (let j = 0; j < STOREYS_IN; j += 1) for (let i = 0; i < BAYS; i += 1) {
+      const order = Math.round(rnd(i * 13 + j * 5, 41) * 255), warm = 170 + Math.round(rnd(i, j + 50) * 85), cool = rnd(i * 7 + j * 3, 61) < 0.34 ? 255 : 0;
+      g.fillStyle = `rgb(${warm},${order},${cool})`;
+      if (punched) g.fillRect(i * bw + bw * 0.22, j * sh + sh * 0.22, bw * 0.56, sh * 0.56);
+      else g.fillRect(i * bw + bw * 0.06, j * sh + sh * 0.08, bw * 0.88, sh * 0.6);
+    }
+  });
+  t.colorSpace = THREE.NoColorSpace; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  return t;
+}
+function lobbyTexture(size, lit = false) {
+  return canvasOf(size, (g, n) => {
+    const m = n / 8;
+    g.fillStyle = lit ? '#000' : '#c9cdd0'; g.fillRect(0, 0, n, n);
+    for (let i = 0; i < 4; i += 1) for (const [y0, y1] of [[0.6, 3.7], [3.85, 7.0]]) {
+      const top = n - y1 * m, h = (y1 - y0) * m;
+      if (lit) { g.fillStyle = y0 < 1 ? '#fff4e0' : '#d8cdb8'; g.fillRect(i * 2 * m + m * 0.06, top, 2 * m - m * 0.12, h); continue; }
+      const grad = g.createLinearGradient(0, top, 0, top + h);
+      grad.addColorStop(0, '#5d7487'); grad.addColorStop(0.6, '#3e5160'); grad.addColorStop(1, '#2f3b45');
+      g.fillStyle = grad; g.fillRect(i * 2 * m + m * 0.06, top, 2 * m - m * 0.12, h);
+    }
+  });
+}
+
+const HAZE_VERTEX = ['#include <fog_vertex>', '#include <fog_vertex>\n\tvPcwSkyY = ( modelMatrix * vec4( transformed, 1.0 ) ).y;'];
+const HAZE_LINE = 'float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );';
+const HAZE_CAP = 'float fogFactor = min( smoothstep( fogNear, fogFar, vFogDepth ), mix( 1.0, mix( 0.5, 0.86, smoothstep( fogFar, fogFar * 3.5, vFogDepth ) ), smoothstep( 8.0, 110.0, vPcwSkyY ) ) );';
+function hazed(shader) {
+  const fog = THREE.ShaderChunk.fog_fragment;
+  if (typeof fog !== 'string' || fog.split(HAZE_LINE).length !== 2) return;
+  shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying float vPcwSkyY;').replace(...HAZE_VERTEX);
+  shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vPcwSkyY;').replace('#include <fog_fragment>', () => fog.replace(HAZE_LINE, HAZE_CAP));
+}
+const SKYLINE_HAZE = Object.freeze({ low: 8, high: 110, near: 0.5, far: 0.86, reach: 3.5 });
+
+function towerMaterial(kind, lite, textures) {
+  const punched = FACADES[kind].punched;
+  const glass = !punched;
+  const m = surface({ vertexColors: true, map: textures.facade(kind), emissiveMap: textures.lit(punched), emissive: linear(0xffd59a), emissiveIntensity: 0, roughness: glass ? 0.14 : 0.62, metalness: glass ? 0.55 : 0.08 });
+  if (glass) reflects(m, 0.9); else weathers(m, { darken: 0.15 });
+  const lit = { value: 0.5 };
+  m.userData.lit = lit;
+  m.userData.kind = kind;
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uLit = lit;
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uLit;').replace('#include <emissivemap_fragment>', `#ifdef USE_EMISSIVEMAP
+        vec4 litWin = texture2D(emissiveMap, vEmissiveMapUv);
+        float litShift = fract(sin(dot(floor(vEmissiveMapUv), vec2(12.9898, 78.233))) * 43758.5453);
+        totalEmissiveRadiance *= litWin.r * step(fract(litWin.g + litShift), uLit) * mix(vec3(1.0), vec3(0.8, 0.95, 1.3), litWin.b);
+      #endif`);
+    hazed(shader);
+  };
+  m.customProgramCacheKey = () => 'pcw-tower-windows-haze';
+  return m;
+}
+function hazeMaterial(m) {
+  m.onBeforeCompile = (shader) => hazed(shader);
+  m.customProgramCacheKey = () => 'pcw-skyline-haze';
+  return m;
+}
+
+const LOBBY = 7.2, STOREY = 3.6;
+const SHADOWS_WITHIN = 250;
+const towerSeed = (t) => { let h = 7; for (const ch of t.id) h = (h * 31 + ch.charCodeAt(0)) % 9973; return h; };
+function tintOf(t) {
+  const h = towerSeed(t), a = (h % 97) / 96, b = (h % 89) / 88;
+  return new THREE.Color(0.9 + 0.1 * a, 0.9 + 0.1 * (0.5 * a + 0.5 * b), 0.9 + 0.1 * b);
+}
+function shapeTower(t, lite, W, L, T, bands) {
+  const top = t.storeys * STOREY;
+  const round = t.kind === 'round';
+  const col = tintOf(t);
+  const seed = towerSeed(t);
+  const segs = lite ? 24 : 40;
+  if (round) {
+    const r = t.dx / 2, u0 = (seed % 11) * 7;
+    for (let i = 0; i < segs; i += 1) {
+      const a0 = (i / segs) * Math.PI * 2, a1 = ((i + 1) / segs) * Math.PI * 2;
+      const s0 = Math.sin(a0) * r, c0 = Math.cos(a0) * r, s1 = Math.sin(a1) * r, c1 = Math.cos(a1) * r;
+      const out = [Math.sin((a0 + a1) / 2), 0, Math.cos((a0 + a1) / 2)];
+      const u = u0 + (a0 * r) / TILE, v = u0 + (a1 * r) / TILE;
+      W.quad([t.x + s0, LOBBY, t.z + c0], [t.x + s1, LOBBY, t.z + c1], [t.x + s1, top, t.z + c1], [t.x + s0, top, t.z + c0], col, [[u, LOBBY / TILE], [v, LOBBY / TILE], [v, top / TILE], [u, top / TILE]], out);
+      const lu = (a0 * r) / 8, lv = (a1 * r) / 8;
+      L.quad([t.x + s0, 0, t.z + c0], [t.x + s1, 0, t.z + c1], [t.x + s1, LOBBY, t.z + c1], [t.x + s0, LOBBY, t.z + c0], 0xffffff, [[lu, 0], [lv, 0], [lv, LOBBY / 8], [lu, LOBBY / 8]], out);
+    }
+  } else {
+    const x0 = t.x - t.dx / 2, x1 = t.x + t.dx / 2, z0 = t.z - t.dz / 2, z1 = t.z + t.dz / 2;
+    const face = (a, b, out, k) => {
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]), u0 = ((seed + k * 5) % 13) * 3;
+      W.quad([a[0], LOBBY, a[1]], [b[0], LOBBY, b[1]], [b[0], top, b[1]], [a[0], top, a[1]], col, [[u0, LOBBY / TILE], [u0 + len / TILE, LOBBY / TILE], [u0 + len / TILE, top / TILE], [u0, top / TILE]], out);
+      L.quad([a[0], 0, a[1]], [b[0], 0, b[1]], [b[0], LOBBY, b[1]], [a[0], LOBBY, a[1]], 0xffffff, [[0, 0], [len / 8, 0], [len / 8, LOBBY / 8], [0, LOBBY / 8]], out);
+    };
+    face([x0, z0], [x1, z0], [0, 0, -1], 0); face([x1, z0], [x1, z1], [1, 0, 0], 1); face([x1, z1], [x0, z1], [0, 0, 1], 2); face([x0, z1], [x0, z0], [-1, 0, 0], 3);
+  }
+  if (round) T.geo(new THREE.CylinderGeometry(t.dx / 2 + 0.2, t.dx / 2 + 0.2, 0.5, segs), place(t.x, LOBBY + 0.05, t.z), 0xd9d6cf);
+  else T.box(t.dx + 0.4, 0.5, t.dz + 0.4, t.x, LOBBY + 0.05, t.z, 0xd9d6cf);
+  const roofCol = t.kind === 'stone' ? 0xcdbb9b : t.kind === 'ribbed-white' ? 0xf1efe9 : 0x8a9096;
+  if (round) T.geo(new THREE.CylinderGeometry(t.dx / 2, t.dx / 2, 0.6, segs), place(t.x, top + 0.3, t.z), roofCol);
+  else T.box(t.dx + 0.4, 0.8, t.dz + 0.4, t.x, top + 0.4, t.z, roofCol);
+  const crown = t.crown || 0;
+  let y = top + 0.8, cw = 0, cd = 0;
+  if (crown > 0) {
+    const steps = t.kind === 'stone' ? 3 : 2;
+    for (let k = 0; k < steps; k += 1) {
+      const shrink = 0.72 - k * 0.18, h = crown * (k === steps - 1 ? 0.5 : 0.25);
+      cw = t.dx * shrink; cd = (round ? t.dx : t.dz) * shrink;
+      if (round) T.geo(new THREE.CylinderGeometry(cw / 2, cw / 2, h, lite ? 20 : 32), place(t.x, y + h / 2, t.z), roofCol);
+      else T.box(cw, h, cd, t.x, y + h / 2, t.z, roofCol);
+      y += h;
+    }
+    if (t.kind === 'stone') T.geo(new THREE.ConeGeometry(t.dx * 0.18, crown * 0.3, 4), place(t.x, y + crown * 0.15, t.z, Math.PI / 4), 0x6f8f7a);
+    if (t.storeys >= 30) bands.push({ t, y: y - 0.6, w: cw + 0.1, d: cd + 0.1, round });
+  }
+  if (t.storeys >= 44 && t.kind !== 'stone') {
+    T.geo(new THREE.CylinderGeometry(0.25, 0.45, 22, 8), place(t.x, y + 11, t.z), 0xb9bec4);
+    T.geo(new THREE.CylinderGeometry(1.1, 1.1, 0.5, 12), place(t.x, y + 6, t.z), 0x8d9399);
+  }
+}
+function towerTop(t) {
+  let y = t.storeys * STOREY + 0.8;
+  const crown = t.crown || 0;
+  if (crown > 0) y += crown * (t.kind === 'stone' ? 1 : 0.75);
+  if (crown > 0 && t.kind === 'stone') y += crown * 0.3;
+  if (t.storeys >= 44 && t.kind !== 'stone') y += 22;
+  return y;
+}
+
+function* skylineSteps(scene, { lite = false, renderer = null, camera = null, towers = OGANIRU_TOWERS } = {}) {
+  const group = new THREE.Group(); group.name = 'oganiru:skyline';
+  const textures = {
+    facades: new Map(), lits: new Map(),
+    lobby: lobbyTexture(lite ? 128 : 512), lobbyLit: lobbyTexture(lite ? 64 : 128, true),
+    facade(kind) { if (!this.facades.has(kind)) this.facades.set(kind, facadeTexture(kind, lite ? 256 : 1024)); return this.facades.get(kind); },
+    lit(punched) { if (!this.lits.has(punched)) this.lits.set(punched, litTexture(punched, lite ? 128 : 256)); return this.lits.get(punched); },
+  };
+  const materials = new Map();
+  const lobby = reflects(new THREE.MeshStandardMaterial({ vertexColors: true, map: textures.lobby, emissiveMap: textures.lobbyLit, emissive: linear(0xffe2b0), emissiveIntensity: 0, roughness: 0.12, metalness: 0.35 }), 0.8);
+  const tops = hazeMaterial(weathers(surface({ vertexColors: true, roughness: 0.85, metalness: 0 }), { darken: 0.2 }));
+  const band = hazeMaterial(new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0xb9bcc0), emissive: linear(0xfff0d0), emissiveIntensity: 0, roughness: 0.6 }));
+  yield;
+  const walls = new Map(), L = new Mesher(), T = new Mesher(), bands = [];
+  let n = 0;
+  for (const t of towers) {
+    if (!walls.has(t.kind)) { walls.set(t.kind, new Mesher()); materials.set(t.kind, towerMaterial(t.kind, lite, textures)); }
+    shapeTower(t, lite, walls.get(t.kind), L, T, bands);
+    if ((n += 1) % 8 === 0) yield;
+  }
+  for (const [kind, W] of walls) {
+    const mesh = W.build(materials.get(kind));
+    mesh.name = `oganiru:towers:${kind}`; mesh.userData.tower = true;
+    group.add(mesh);
+  }
+  const lobbies = L.build(lobby, { shadows: false }); lobbies.name = 'oganiru:lobbies'; group.add(lobbies);
+  const topsMesh = T.build(tops); topsMesh.name = 'oganiru:tops'; group.add(topsMesh);
+  if (bands.length) {
+    const B = new Mesher();
+    for (const c of bands) {
+      if (c.round) B.geo(new THREE.CylinderGeometry(c.w / 2 + 0.05, c.w / 2 + 0.05, 0.5, 40, 1, true), place(c.t.x, c.y, c.t.z), 0xfff4dc, 'own');
+      else B.box(c.w, 0.5, c.d, c.t.x, c.y, c.t.z, 0xfff4dc);
+    }
+    const mesh = B.build(band, { shadows: false }); mesh.name = 'oganiru:crowns'; group.add(mesh);
+  }
+  yield;
+  if (renderer && camera) {
+    const ready = programsReady(renderer, group, camera, scene);
+    while (!ready.step(6)) { if ((yield 'waiting') === 'now') break; }
+  }
+  scene.add(group);
+
+  function update(dt, { night = 0, hour = 12 } = {}) {
+    const h = ((hour % 24) + 24) % 24;
+    const share = h >= 18 ? 0.55 - (h - 18) * 0.05 : h < 5 ? 0.25 - h * 0.035 : h < 7 ? 0.12 + (h - 5) * 0.1 : 0.4;
+    for (const m of materials.values()) { m.emissiveIntensity = night * 1.6; m.userData.lit.value = Math.max(0.08, share); }
+    band.emissiveIntensity = night * 2.2;
+    lobby.emissiveIntensity = night * 0.45;
+  }
+  function show(on) { if (group.visible !== !!on) group.visible = !!on; }
+  const box = towers.reduce((b, t) => ({ x0: Math.min(b.x0, t.x - t.dx / 2), x1: Math.max(b.x1, t.x + t.dx / 2), z0: Math.min(b.z0, t.z - t.dz / 2), z1: Math.max(b.z1, t.z + t.dz / 2) }), { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity });
+  let shadows = null;
+  function see(x, z) {
+    const away = Math.hypot(Math.max(box.x0 - x, 0, x - box.x1), Math.max(box.z0 - z, 0, z - box.z1));
+    const want = away < SHADOWS_WITHIN;
+    if (want === shadows) return;
+    shadows = want;
+    for (const m of group.children) if (m.name !== 'oganiru:lobbies' && m.name !== 'oganiru:crowns') m.castShadow = want;
+  }
+  function letGo() {
+    scene.remove(group);
+    group.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    for (const m of [...materials.values(), lobby, tops, band]) m.dispose();
+    for (const t of [...textures.facades.values(), ...textures.lits.values(), textures.lobby, textures.lobbyLit]) t.dispose();
+  }
+  const stats = () => ({ towers: towers.length, kinds: walls.size, meshes: group.children.length, bands: bands.length, shown: group.visible });
+  see(Infinity, Infinity);
+  return { group, update, show, see, letGo, stats, materials };
+}
+
+return { FACADES, TILE, SKYLINE_HAZE, SHADOWS_WITHIN, towerTop, skylineSteps };
 })();
 
 __modules["client/gun-model.js"] = (function () {
@@ -56250,6 +56481,7 @@ const { createTorchBeams } = __modules["client/torch-beams.js"];
 const { HEADLAMP_LIGHT, TORCH_LIGHT } = __modules["client/light.js"];
 const { createStreetLamps } = __modules["client/render-lamps.js"];
 const { oganiruSteps } = __modules["client/render-oganiru.js"];
+const { skylineSteps } = __modules["client/render-skyline.js"];
 const { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LOW, levelSetting, memoryLimitMB, autoStart, autoCeiling, remembered, remember, levelOf } = __modules["client/graphics.js"];
 const { showSoftPatches, softPatchesShown, softPatchOpacity } = __modules["client/soft-patch.js"];
 const { fallTime, flightAt } = __modules["client/falls.js"];
@@ -56428,6 +56660,7 @@ function start(carried) {
     cityBoards = null;
   }
   function buildCity() {
+    buildSkyline();
     if (city.ready) return;
     if (!cityJob) cityJob = citySteps(false);
     while (!cityJob.next('now').done) { /* all of it, now */ }
@@ -56457,6 +56690,29 @@ function start(carried) {
     cityBegun = false;
     cityStats.letGo += 1;
     return true;
+  }
+  let skyline = null, skylineJob = null, skylineBegun = false;
+  const skylineStats = { steps: 0, frames: 0, longestMs: 0, workMs: 0 };
+  function buildSkyline() {
+    if (skyline) return;
+    if (!skylineJob) skylineJob = skylineSteps(scene, { lite: LITE });
+    let step;
+    while (!(step = skylineJob.next('now')).done) { /* all of it, now */ }
+    skyline = step.value; skylineJob = null;
+  }
+  function stepSkyline(budgetMs = 6) {
+    if (skyline) { skylineJob = null; return; }
+    if (!skylineJob) skylineJob = skylineSteps(scene, { lite: LITE, renderer, camera });
+    const t0 = performance.now();
+    skylineStats.frames += 1;
+    for (;;) {
+      const s0 = performance.now();
+      const step = skylineJob.next();
+      const took = performance.now() - s0;
+      skylineStats.steps += 1; skylineStats.workMs += took; skylineStats.longestMs = Math.max(skylineStats.longestMs, took);
+      if (step.done) { skyline = step.value; skylineJob = null; return; }
+      if (step.value === 'waiting' || performance.now() - t0 >= budgetMs) return;
+    }
   }
   const beyondStats = { steps: 0, frames: 0, longestMs: 0, workMs: 0, builds: 0, letGo: 0, shapesLetGo: 0 };
   function stepBeyond(budgetMs = 6) {
@@ -60180,6 +60436,7 @@ blood.update(dt, view.blood || []);
     world.waterMaterial.color.copy(linear(ZONE_PROPS.water.day)).lerp(linear(ZONE_PROPS.water.night), night * 0.8).lerp(linear(ZONE_PROPS.water.dull), skyState.dull * 0.5);
     streetLamps.update(dt, { night, wet: groundWet, camera, hall: !!hall, target: cam.target, reach: lampReach });
     if (city.ready && cityShown && !habitationBusy()) { if (habitationKit && habitationKit.plants) city.trees.use(habitationKit.plants); else if (!habitationKit && playing && !cityOnDisk && performance.now() > habitationRetryAt) habitationCodeOf().catch(() => { habitationRetryAt = performance.now() + 30000; }); city.update(dt, { night, hour, camera, storm: weather.kind === 'storm' ? 1 : weather.wet ? 0.4 : 0 }); }
+    if (skyline) skyline.update(dt, { night, hour });
     markerMaterial.opacity = 0.55 + Math.sin(clock * 3) * 0.3;
 
     monitor.mark('sound and sight');
@@ -60208,6 +60465,8 @@ blood.update(dt, view.blood || []);
       if (LITE && playing && outskirts.ready && predicted.x > BEYOND_PHONE.go && predicted.z <= 150) letGoBeyond();
       outskirts.see(cam.target.x, cam.target.z, reach, outdoors);
       if (!city.ready && playing && cityWanted(predicted.x, predicted.z)) { if (oganiruAway(predicted.x, predicted.z) < 60) buildCity(); else if (warm.stage >= 5) cityBegun = true; }
+      if (!skyline && playing && warm.stage >= 5) skylineBegun = true;
+      if (skyline) { skyline.show(!hall && habitationAway(cam.target.x, cam.target.z) > 0); skyline.see(cam.target.x, cam.target.z); }
       if (LITE && playing && city.ready && oganiruAway(predicted.x, predicted.z) > CITY_PHONE.go) letGoCity();
       if (city.ready) { cityShown = city.see(cam.target.x, cam.target.z, reach * 1.25) !== false; streetLamps.show({ city: cityShown }); }
       lampReach = reach * 1.25;
@@ -60229,6 +60488,7 @@ blood.update(dt, view.blood || []);
     if (!NO_DRAW) warmStep();
     if (clock - programsPinnedAt > 2) { programsPinnedAt = clock; warmUp.pin(); }
     if (beyondBegun && !outskirts.ready && playing) stepBeyond();
+    else if (skylineBegun && !skyline && playing && !habitationBusy()) stepSkyline();
     else if (cityBegun && !city.ready && playing && !habitationBusy()) stepCity();
     monitor.mark('drawing');
     const covered = !playing && startEl && !startEl.hidden;
@@ -60376,7 +60636,7 @@ blood.update(dt, view.blood || []);
     walkable: (x, z) => zoneWalkable(x, z, structureBoxes()),
     saveNow() { writeStored(SAVE_KEY, { host: host.save(), playerId }); },
     get lite() { return LITE; }, get going() { return going; }, get me() { return me; },
-    get beyond() { return outskirts.ready; }, get city() { return city; }, buildCity: () => buildCity(), letGoCity: () => letGoCity(), get cityStats() { return { ...cityStats }; }, get streetLamps() { return streetLamps; }, get closures() { return closures; }, get billboards() { return billboards; }, get cityBoards() { return cityBoards; }, adBoard, buildBeyond: () => buildBeyond(), beginBeyond: () => { beyondBegun = true; }, get beyondSteps() { return { ...beyondStats }; },
+    get beyond() { return outskirts.ready; }, get city() { return city; }, buildCity: () => buildCity(), letGoCity: () => letGoCity(), get cityStats() { return { ...cityStats }; }, get skyline() { return skyline; }, buildSkyline: () => buildSkyline(), get skylineStats() { return { ...skylineStats, ...(skyline ? skyline.stats() : {}) }; }, get streetLamps() { return streetLamps; }, get closures() { return closures; }, get billboards() { return billboards; }, get cityBoards() { return cityBoards; }, adBoard, buildBeyond: () => buildBeyond(), beginBeyond: () => { beyondBegun = true; }, get beyondSteps() { return { ...beyondStats }; },
     bikePreview(on) { bikePreview = !!on; showControls(); return controls.shown; },
     bikeAudio: { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz }, get bikeInput() { return controls.bike(); },
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },
