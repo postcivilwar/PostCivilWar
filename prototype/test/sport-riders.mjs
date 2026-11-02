@@ -283,13 +283,16 @@ const bell = await page.evaluate(() => {
   const r = sr.riders().filter((q) => q.item === 'bicycle' && q.mode === 'ride' && q.v > 2).sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z))[0];
   if (!r) return null;
   // the player stood in the road ahead of them, in their line
-  for (const d of [12, 14, 16, 10]) { const x = r.x + Math.sin(r.h) * d, z = r.z + Math.cos(r.h) * d; if (n.walkable(x, z)) { n.place(x, z); n.face(r.h + Math.PI); return { n: r.n, rang: r.bellAt, heard: n.bellsHeard }; } }
+  for (const d of [12, 14, 16, 10]) { const x = r.x + Math.sin(r.h) * d, z = r.z + Math.cos(r.h) * d; if (n.walkable(x, z)) { n.place(x, z); n.face(r.h + Math.PI); return { n: r.n, rang: r.bellAt, heard: n.bellsHeard, t0: g.state.real, d, at: [x, z] }; } }
   return null;
 });
 if (bell) {
-  await page.waitForFunction((b) => { const r = window.__nlw.host.game.internals.sportRiders.riders()[b.n]; return r.bellAt > b.rang; }, bell, { timeout: 120000 }).catch(() => {});
+  // (waited for by the town's clock, half a minute of it, not the wall's: here, drawn in software, a frame can take
+  // seconds while something is being built, and two minutes of the wall's were once less than the few seconds of the
+  // town's the cyclist needs; 2 November 2026)
+  await page.waitForFunction((b) => { const g = window.__nlw.host.game, r = g.internals.sportRiders.riders()[b.n]; return r.bellAt > b.rang || g.state.real - b.t0 > 30; }, bell, { timeout: 900000 }).catch(() => {});
   await page.waitForTimeout(1500);
-  const rang = await page.evaluate((b) => { const n = window.__nlw, r = n.host.game.internals.sportRiders.riders()[b.n]; return { rang: r.bellAt > b.rang, heard: n.bellsHeard - b.heard, v: r.v }; }, bell);
+  const rang = await page.evaluate((b) => { const n = window.__nlw, g = n.host.game, r = g.internals.sportRiders.riders()[b.n], p = g.state.players[n.playerId]; return { rang: r.bellAt > b.rang, heard: n.bellsHeard - b.heard, v: r.v, mode: r.mode, townSeconds: +(g.state.real - b.t0).toFixed(1), placed: b.d, rider: [+r.x.toFixed(1), +r.z.toFixed(1)], player: [+p.x.toFixed(1), +p.z.toFixed(1)], put: b.at.map((v) => +v.toFixed(1)) }; }, bell);
   check('G: a cyclist coming up behind someone on foot in the road rings the bell, and it is heard', rang.rang && rang.heard >= 1, rang);
 } else check('G: a cyclist to ring', false, null);
 
