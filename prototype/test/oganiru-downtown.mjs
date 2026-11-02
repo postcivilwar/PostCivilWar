@@ -80,7 +80,11 @@ const a = A.page, b = B.page;
 
 // ---- A: the skyline from the town, on the phone, before any of the city near it is built ----
 await at(b, 0, 20, Math.PI, undefined, { dist: 8, pitch: 0.02 });
-for (let k = 0; k < 240 && !(await b.evaluate(() => !!window.__nlw.skyline)); k += 1) await b.waitForTimeout(1000);
+// (the skyline is built once the town is warmed up: on a phone's settings here, drawn in software, that can take many
+// minutes, as the land beyond the town does: tools/measure/places.mjs waits up to fifteen for it)
+const skylineWait = Date.now();
+for (let k = 0; k < 900 && !(await b.evaluate(() => !!window.__nlw.skyline)); k += 1) await b.waitForTimeout(1000);
+console.log('the phone\'s skyline built after', Math.round((Date.now() - skylineWait) / 1000), 's', JSON.stringify(await b.evaluate(() => window.__nlw.skylineStats)));
 await settle(b, 8);
 const fromTown = await skyline(b);
 const wantKinds = new Set(OGANIRU_TOWERS.map((t) => t.kind)).size;
@@ -88,7 +92,7 @@ check('on the phone, in the middle of the town, the skyline is built (every towe
 check('and, looking west from there, it is in sight', !!fromTown && fromTown.shown && fromTown.meshes.filter((m) => m.name.startsWith('oganiru:towers:')).some((m) => m.inSight), fromTown && fromTown.meshes);
 await B.shot('skyline-from-the-town');
 await at(a, 0, -300, Math.PI, undefined, { dist: 8, pitch: 0.02 });
-for (let k = 0; k < 240 && !(await a.evaluate(() => !!window.__nlw.skyline)); k += 1) await a.waitForTimeout(1000);
+for (let k = 0; k < 900 && !(await a.evaluate(() => !!window.__nlw.skyline)); k += 1) await a.waitForTimeout(1000);
 await settle(a, 8);
 await A.shot('skyline-from-college-road');
 
