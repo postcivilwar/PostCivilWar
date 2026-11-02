@@ -12538,6 +12538,7 @@ const THROUGH = (() => {
   const on = (id, z0, z1) => NET.stops.filter((s) => NET.roads[s.road].id === id && s.z > z0 && s.z < z1);
   return Object.freeze({ south: on('harmony-2', -1240, -1020), north: on('peace-2', -1170, -990), road: NET.roads.findIndex((r) => r.id === 'expressway') });
 })();
+const CITY_EMPTY = 2000;
 
 function nodeAhead(ri, along, dir) {
   const l = NET.along[ri];
@@ -12837,7 +12838,8 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
     const start = from ? startOf(from) : null;
     if (from && !start) return -1;
     const R = start ? search(start) : null;
-    if (from && NET.roads[from.road].city && c.n % 5 === 0 && Object.values(players).some((q) => inCity(q.x, q.z))) {
+    const someoneInCity = Object.values(players).some((q) => inCity(q.x, q.z));
+    if (from && NET.roads[from.road].city && c.n % 5 === 0 && someoneInCity) {
       const ends = c.x > -300 ? THROUGH.south : THROUGH.north;
       const k0 = Math.floor(hash(c.n * 17 + 3, c.trips) * ends.length);
       for (let k = 0; k < ends.length; k += 1) {
@@ -12845,7 +12847,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
         if (!taken.has(s.id) && s.id !== c.to && alongExpressway(R, s)) return s.id;
       }
     }
-    const farthest = from && (NET.roads[from.road].city || (near && Object.values(players).some((q) => inCity(q.x, q.z)))) ? TRAFFIC.cityFar : 1100;
+    const farthest = from && (NET.roads[from.road].city || (near && someoneInCity)) ? TRAFFIC.cityFar : 1100;
     let best = -1, bestScore = Infinity;
     for (const s of NET.stops) {
       if (taken.has(s.id) || s.id === c.to) continue;
@@ -12857,6 +12859,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
       }
       let score = hash(c.n * 31 + s.id, c.trips + 1) * (past ? 120 : 400);
       if (near) score += Math.min(600, past ? passing(R, s) : nearestPlayer(s.x, s.z));
+      if (!someoneInCity && NET.roads[s.road].city) score += CITY_EMPTY;
       if (score < bestScore) { bestScore = score; best = s.id; }
     }
     return best;
@@ -12890,12 +12893,13 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
   }
   function comeOut(c) {
     const taken = busy();
+    const someoneInCity = Object.values(players).some((q) => inCity(q.x, q.z));
     let best = null, bestScore = Infinity;
     for (const s of NET.stops) {
       if (taken.has(s.id)) continue;
       const d = nearestPlayer(s.x, s.z);
       if (d < TRAFFIC.apart) continue;
-      const score = hash(c.n * 17 + s.id, c.trips) * 500 + (anyPlayers() ? Math.min(800, d) : 0);
+      const score = hash(c.n * 17 + s.id, c.trips) * 500 + (anyPlayers() ? Math.min(800, d) : 0) + (NET.roads[s.road].city && !someoneInCity ? CITY_EMPTY : 0);
       if (score < bestScore) { bestScore = score; best = s; }
     }
     if (!best) return false;
@@ -12933,6 +12937,24 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
     if (hub.sportRiders) for (const o of hub.sportRiders.obstacles()) out.push(o);
     if (hub.care && hub.care.box) { const b = hub.care.box(), along = b.x1 - b.x0 > b.z1 - b.z0; out.push({ x: (b.x0 + b.x1) / 2, z: (b.z0 + b.z1) / 2, h: along ? Math.PI / 2 : 0, hw: (along ? b.z1 - b.z0 : b.x1 - b.x0) / 2, hl: (along ? b.x1 - b.x0 : b.z1 - b.z0) / 2, v: 0 }); }
     return out;
+  }
+
+  function besideClear(c, s, need, obstacles, skip) {
+    const cx = c.x + Math.cos(c.h) * need, cz = c.z - Math.sin(c.h) * need;
+    const axes = (h) => [[Math.sin(h), Math.cos(h)], [Math.cos(h), -Math.sin(h)]];
+    for (const o of obstacles) {
+      if (o.car === c.n || o === skip) continue;
+      if (Math.abs(o.x - cx) > 9 || Math.abs(o.z - cz) > 9) continue;
+      if (Number.isFinite(o.y) && Number.isFinite(c.y) && Math.abs(o.y - c.y) > 2.5) continue;
+      const A = { x: cx, z: cz, h: c.h, hl: s.length / 2 + 0.1, hw: s.width / 2 + 0.1 }, B = { x: o.x, z: o.z, h: o.h || 0, hl: o.hl, hw: o.hw };
+      let apart = false;
+      for (const [ax, az] of [...axes(A.h), ...axes(B.h)]) {
+        const reach = (q) => { const [fx, fz] = axes(q.h)[0], [lx, lz] = axes(q.h)[1]; return Math.abs(fx * ax + fz * az) * q.hl + Math.abs(lx * ax + lz * az) * q.hw; };
+        if (Math.abs((B.x - A.x) * ax + (B.z - A.z) * az) > reach(A) + reach(B)) { apart = true; break; }
+      }
+      if (!apart) return false;
+    }
+    return true;
   }
 
   function ahead(c, w, obstacles, shift = 0, skip = null, look = TRAFFIC.look, until = Infinity) {
@@ -13081,6 +13103,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
     c.line = line < Infinity ? Math.round(line * 10) / 10 : -1;
     let upTo = Infinity;
     if (line < Infinity && !((c.v * c.v) / (2 * TRAFFIC.hard) > line + 0.05)) { const v = Math.sqrt(2 * TRAFFIC.brake * Math.max(0, line - 0.6)); upTo = Math.max(0, line - 0.6 - (c.v * c.v) / (2 * TRAFFIC.hard)); if (v < want) { want = v; why = 'light'; } }
+    const redHeld = upTo < Infinity;
     const front = c.d + s.length / 2;
     if (c.passing && c.d > c.passing.past) c.passing = null;
     const walkers = peopleNear(c, t);
@@ -13109,7 +13132,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
       if (v < want) { want = v; why = 'box'; }
     }
     const standing = way.o && way.speed < 0.3 && !(way.car >= 0 && cars[way.car].mode === 'drive') && way.gap < 14;
-    if (standing && c.v < 1 && !c.passing) {
+    if (standing && c.v < 1 && !c.passing && !redHeld) {
       c.facing = (c.facing || 0) + dt;
       const road = NET.roads[c.road];
       if (c.facing > 2 && road) {
@@ -13122,11 +13145,12 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
         const junctionNear = w.junctions.some((j) => j.leave > front - 1 && j.enter < past + 8);
         for (const need of sides) {
           if (need > 0.5 && junctionNear) continue;
+          if (!besideClear(c, s, need, obstacles, way.o)) continue;
           const clear = ahead(c, w, obstacles, need, way.o, need > 0.5 ? 70 : past - c.d + 4, need > 0.5 ? Infinity : past + 2);
           if (clear.gap > past - front + (need > 0.5 ? 30 : 1)) { c.passing = { need, past }; c.facing = 0; book.passed = (book.passed || 0) + 1; break; }
         }
       }
-    } else if (!standing) c.facing = 0;
+    } else if (!standing || redHeld) c.facing = 0;
     let blocked = false;
     if (way.gap < Infinity && !ghost) {
       const room = way.gap - TRAFFIC.gap;
