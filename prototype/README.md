@@ -4593,11 +4593,34 @@ time), `src/sim/city-walks.js` (the city's pavements, crossings and doors as a n
 `src/sim/city-strollers.js`, `src/client/render-oganiru.js` (in pieces), `src/client/render-city-adverts.js`. Tests:
 `test/oganiru-traffic.test.mjs` (headless: the city's roads as a network, ways over and under a flyover and through the
 cutting, a whole town day of traffic with four players in the city, half an hour with the browser test's two, a game
-saved and opened again, nothing standing on a carriageway),
-`test/oganiru-people.test.mjs` (headless: the townspeople out walking; one of them sent across the city on foot; the chase
-up the Independence Flyover; an officer under a deck; the chase up the Peace Interchange's slip road onto the viaduct), `test/oganiru-city.mjs` (in a browser, two players, one on a phone's settings: the city in pieces, both
-levels of the Harmony Interchange driven, the cutting under the Hope bridge, the camera under the Peace flyover, the
-town's cars and people at their heights, the billboards, downtown at night, the phone's graphics card at the new places).
+saved and opened again, nothing standing on a carriageway), `test/oganiru-people.test.mjs` (headless: the townspeople
+out walking; one of them sent across the city on foot; the chase up the Independence Flyover; an officer under a deck;
+the chase up the Peace Interchange's slip road onto the viaduct), `test/oganiru-city.mjs` (in a browser, two players,
+one on a phone's settings: the city in pieces, both levels of the Harmony Interchange driven, the cutting under the Hope
+bridge, the camera under the Peace flyover, the town's cars and people at their heights, the billboards, downtown at
+night, the phone's graphics card at the new places).
+
+**Tested** (on the release build, its page `e3c357df290f048f`): 596 headless (new: `oganiru-traffic.test.mjs` 6,
+`oganiru-people.test.mjs` 4), server 119. In a browser, one at a time, on this build: the city 12/12 (two players, a
+computer and a phone: the city in pieces, both levels of the Harmony Interchange and the avenue under them driven, the
+cutting under the Hope bridge, the camera under the Peace flyover, a town car going by up on the viaduct drawn up there,
+the townspeople on downtown's pavements, the ten billboards, downtown's lamps at night, a phone at Medium at the six new
+places 70 to 75 MB on its graphics card); the town's traffic 17/17 with a computer's settings and with a phone's; the
+stars 9/9; running people over 16/16 with each; the crowd 7/7 with each; the town's riders 30/30; the land beyond the
+town 12/12 (its check of the Kwale road's road works moved to where they now are, past the Southgate Roundabout); the
+billboards and the ADS app 17/17; the play-through, every session; the phone's memory 11/11; the street camera 18/18;
+the first city block 5/5; the habitation 46/49 (A, the habitation built after the walker reached its first sign, as on
+the live build; D, a phone in the garden 260 draws a frame where fewer than 260 are allowed: the same view counted on
+this build and on the live build alike, 243 each; L, the other player's jump seen late, as below); vehicle sync 10/12
+and 9/12, and the live build, run in turn the same morning, 9/12 alike (the watcher told late of the driver's keke, as
+on 28 October to 1 November). Stage 1's city test 13/13 on the build before the last two changes to the traffic, which
+touch only how the town's cars choose where to go and go round something.
+
+**Measured** (`tools/measure/places.mjs`, a phone at Medium, the processor slowed four times, by day and at 10 pm, this
+build): the six new places 87 to 181 draws, 0.11 to 0.64 million triangles, 68 to 75 MB on the graphics card; Stage 1's
+city places at most 293 draws (by the towers), and the city's gate at night, its heaviest, 264 draws, 1.2 million
+triangles and 102 MB, more than in Stage 1 (more of the city is in sight from there) but within the busiest place in the
+town, the PowerBike showroom (449 draws, 1.23 million triangles, 129 MB; the motor park 527 draws).
 
 ## Tests
 
