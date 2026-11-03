@@ -52,24 +52,48 @@ export const openingOver = () => { const i = document.querySelector('#intro'); r
 // Every picture handed to the graphics card, watched for one the page had already let go of (glb.js lets a picture's
 // own copy go once the card has it: handed over again after that, it is empty, and what it covers is drawn black).
 // Call on a browser context before its pages open; `lostPictures(page)` then gives how many there have been, and
-// `lostWhat(page)` what the first few were and where in the game each was handed over from (3 November 2026: the
-// graphics test found one, once, and no more could be told of it).
+// `lostWhat(page)` what the first few were: where in the game each was handed over from, where its picture was made
+// (`made`) and where it was let go (`letGo`). (3 November 2026: the graphics test found one, twice, handed over as
+// three.js drew the scene; a stack ten deep, the browser's own, ended inside three.js, so these go deeper.)
 export async function watchPictures(context) {
   await context.addInitScript(() => {
     window.__lostPictures = 0;
     window.__lostWhat = [];
-    const lost = (kind) => {
+    // (where the game is just now: past three.js's own steps, each run of which is shown by its first only)
+    const where = (skip) => {
+      const limit = Error.stackTraceLimit; Error.stackTraceLimit = 60;
+      const stack = String(new Error().stack || ''); Error.stackTraceLimit = limit;
+      const lines = stack.split('\n').slice(skip).map((l) => l.trim().replace(/^at /, '').replace(/https?:\/\/[^/]+\//, '').replace(/\?v=[0-9a-f]+/, ''));
+      return lines.filter((l, i) => !/three\.min\.js/.test(l) || !/three\.min\.js/.test(lines[i - 1] || '')).slice(0, 18).join(' < ');
+    };
+    const made = new WeakMap(), shut = new WeakMap();
+    if (typeof window.createImageBitmap === 'function') {
+      const make = window.createImageBitmap;
+      window.createImageBitmap = function (...args) {
+        const from = where(3);
+        return make.apply(this || window, args).then((b) => { try { made.set(b, from); } catch (error) { /* kept as it is */ } return b; });
+      };
+    }
+    if (typeof ImageBitmap !== 'undefined' && typeof ImageBitmap.prototype.close === 'function') {
+      const close = ImageBitmap.prototype.close;
+      ImageBitmap.prototype.close = function () {
+        if (this.width && !shut.has(this)) shut.set(this, { at: Math.round(performance.now() / 1000), from: where(3) });
+        return close.call(this);
+      };
+    }
+    const lost = (kind, image = null) => {
       window.__lostPictures += 1;
       if (window.__lostWhat.length >= 4) return;
-      const from = String(new Error().stack || '').split('\n').slice(3, 15).map((l) => l.trim().replace(/^at /, '').replace(/https?:\/\/[^/]+\//, '').replace(/\?v=[0-9a-f]+/, '')).join(' < ');
-      window.__lostWhat.push({ kind, at: Math.round(performance.now() / 1000), from });
+      const what = { kind, at: Math.round(performance.now() / 1000), from: where(4) };
+      if (image && typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap) { what.made = made.get(image) || '(not seen made: on a worker)'; what.letGo = shut.get(image) || null; }
+      window.__lostWhat.push(what);
     };
     for (const C of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
       if (!C) continue;
       for (const name of ['texImage2D', 'texSubImage2D']) {
         const orig = C.prototype[name];
         C.prototype[name] = function (...args) {
-          for (const a of args) if (typeof ImageBitmap !== 'undefined' && a instanceof ImageBitmap && (a.width === 0 || a.height === 0)) lost('a picture read from its file, its copy let go');
+          for (const a of args) if (typeof ImageBitmap !== 'undefined' && a instanceof ImageBitmap && (a.width === 0 || a.height === 0)) lost('a picture read from its file, its copy let go', a);
           // (a picture painted on a canvas whose pixels were let go once the card had it, painted.js, handed over again
           // without being painted again first)
           for (const a of args) if (typeof HTMLCanvasElement !== 'undefined' && a instanceof HTMLCanvasElement && a.__letGo) lost('a painted picture, its pixels let go');

@@ -11,6 +11,7 @@
 //  - on a phone, the owner's box truck drawn from 512 pictures from far off and at its own size near it, and the signs'
 //    pictures out of sight for half a minute let go from the graphics card.
 //   ../server/with-postgres.sh node test/graphics.mjs [shots folder]
+//   (GRAPHICS_ONLY=phone or =computer: that one alone)
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -81,7 +82,7 @@ function stage3(s, at) {
   const river = s.river && s.river.waves === at('waves') && s.river.foam === at('foam');
   return settings && sky && glow && ao && grade && river;
 }
-for (const kind of ['phone', 'computer']) {
+for (const kind of ['phone', 'computer'].filter((k) => !process.env.GRAPHICS_ONLY || process.env.GRAPHICS_ONLY === k)) {
   const p = await player(kind);
   const { page } = p;
   const gpu = await page.evaluate(() => { const gl = window.__nlw.renderer.getContext(); const i = gl.getExtension('WEBGL_debug_renderer_info'); return i ? gl.getParameter(i.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); });
