@@ -11,7 +11,7 @@
 // replaced by any of them (tools/vehicles/bikes.py and smaller.py make the sets).
 import { softPatch } from './soft-patch.js';
 import { BIKE_PARTS } from './bike-parts.js';
-import { surface } from './render-kit.js';
+import { surface, isLite } from './render-kit.js';
 import { fetchKept, letGoOnceDrawn, decodeAtMost } from './glb.js';
 import { deviceKind, PICTURES } from './budget.js';
 
@@ -127,7 +127,8 @@ async function partsOf(id, { base, tier, own = false, priority }) {
     const f = spec.files, sizes = SETS[tier] || SETS['2k'];
     // (a bike made with few triangles may come with its colour picture only: then it has no other to fetch)
     const file = (name, size) => { for (const k of LARGER.slice(LARGER.indexOf(size))) if (f[`${name}${k}`]) return f[`${name}${k}`]; return null; };
-    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => (file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own, priority) : null));
+    // (a phone draws its colour picture alone: its other two are not fetched, render-kit.js isLite)
+    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => ((k === 0 || !isLite()) && file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own, priority) : null));
     // (the market's viewer, with a renderer of its own, has a shape of its own too)
     let geometries;
     try { geometries = own ? await buildShape(base, spec, priority) : await shapeOf(id, base, spec, priority); } catch (error) { textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {})); throw error; }

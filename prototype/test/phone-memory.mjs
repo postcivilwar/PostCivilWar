@@ -20,7 +20,7 @@ let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
 const here = dirname(fileURLToPath(import.meta.url));
 const { createDevServer } = await import(resolve(here, '../../server/dev.mjs'));
-const { pastQuestion, enterTown, watchPictures, lostPictures } = await import(resolve(here, 'start.mjs'));
+const { pastQuestion, enterTown, watchPictures, lostPictures, lostWhat, inUseLetGo } = await import(resolve(here, 'start.mjs'));
 const { HABITATION_SHIFT } = await import(resolve(here, '../src/sim/zone.js'));
 const out = process.argv[2] || '/tmp/phone-memory-shots';
 mkdirSync(out, { recursive: true });
@@ -32,6 +32,9 @@ const origin = `http://localhost:${server.address().port}`;
 const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
 const context = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
 await watchPictures(context);
+// (every file a picture is fetched from, the page's and its worker's: on a phone only what it draws is fetched)
+const fetchedPictures = [];
+context.on('request', (r) => { const u = r.url(); if (/\.(webp|png|jpe?g)(\?|$)/.test(u)) fetchedPictures.push(u.replace(/^https?:\/\/[^/]+\//, '').replace(/\?.*$/, '')); });
 const page = await context.newPage();
 page.setDefaultTimeout(900000);
 const errors = [];
@@ -153,7 +156,13 @@ await shot('c-park-again');
 
 // ---- E
 const lost = await lostPictures(page);
-check('E: no picture handed to the graphics card after the page had let it go', lost === 0, { lost });
+check('E: no picture handed to the graphics card after the page had let it go', lost === 0, { lost, what: await lostWhat(page), inUse: await inUseLetGo(page) });
+// (a phone draws a car's, a motorcycle's and a figure's colour picture alone, render-kit.js isLite: their pictures of
+// how the surface is bent and how rough and metal it is are not fetched. 3 November 2026: they were, made, never drawn,
+// and so never let go, held whole in the page's memory as long as it was open)
+const undrawn = fetchedPictures.filter((u) => /^(cars|bikes)\/.*-(normal|rm)-/.test(u) || /^figures\/.*\.[nm]\d+\.webp$/.test(u));
+const drawnKinds = { cars: fetchedPictures.filter((u) => /^cars\/.*-color-/.test(u)).length, figures: fetchedPictures.filter((u) => /^figures\/.*\.c\d+\.webp$/.test(u)).length };
+check('E: on a phone only the colour pictures of the cars, motorcycles and figures fetched, none of the others it does not draw', undrawn.length === 0 && drawnKinds.cars + drawnKinds.figures > 0, { undrawn: undrawn.slice(0, 6), colour: drawnKinds });
 check('E: nothing in the console', errors.length === 0, errors.slice(0, 8));
 const passed = results.filter(Boolean).length;
 console.log(passed === results.length ? `All ${results.length} checks passed.` : `${passed} of ${results.length} checks passed.`);

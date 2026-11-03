@@ -724,6 +724,10 @@ export function addWindow(B, x, y, z, alongX, barred, w = 1.3, h = 1.15) {
 // with roughness and sheen; a phone's cannot do it for a whole town at once and hold its frame rate. On a
 // phone (see `lite` in main.js) the light is worked out at each corner of a face and spread across it:
 // the same colours, the same shadows, without the gloss. It is decided once, before anything is built.
+// (drawn so, a surface has its colour picture alone: whatever makes one for it does not fetch or make the others, of how
+// it is bent and how rough and metal it is, `isLite()`. 3 November 2026: on a phone a car's, a motorcycle's, a figure's
+// and the car showroom's villa's were all fetched and made, never drawn, and so never let go: each held whole in the
+// page's memory for as long as the page was open, a few megabytes more each time one of them was fetched again)
 let lite = false;
 export function setLite(on) { lite = !!on; buildingMaterials = null; }
 export function isLite() { return lite; }

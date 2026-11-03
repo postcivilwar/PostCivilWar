@@ -13,7 +13,7 @@
 import { parseGLB, parsedParts, modelFromGLB, figureLabels, boneName } from './glb.js';
 import { splitGLB } from './glb-read.js';
 import { gunzip } from './inflate.js';
-import { nameTexture, surface } from './render-kit.js';
+import { nameTexture, surface, isLite } from './render-kit.js';
 import { softShadowPicture, FIGURE_PATCH } from './soft-patch.js';
 import { SEAT_POSE } from './seat-pose.js';
 import { borrowedFor, seatFor, loadMoves } from './figure-moves.js';
@@ -261,7 +261,8 @@ const TOWN_PICTURE = 512;
 export function lightFiles(id, size = NPC_FIGURES[id] && !NPC_FIGURES[id].police && liteTexture() <= 1024 ? Math.min(liteTexture(), TOWN_PICTURE) : liteTexture()) {
   const entry = lightCopy(id);
   if (!entry) return null;
-  const pictures = entry.pictures.map((p) => {
+  // (a phone draws a figure's colour picture alone: its others are not fetched, render-kit.js isLite, glb.js modelFromGLB)
+  const pictures = entry.pictures.filter((p) => !isLite() || p.slot === 'colour').map((p) => {
     const sizes = Object.keys(p.sizes).map(Number).sort((a, b) => a - b);
     const pick = sizes.filter((n) => n <= size).pop() || sizes[0];
     const [url, bytes] = p.sizes[pick];
@@ -306,7 +307,7 @@ export function loadAnimated(id) {
         const arrived = performance.now();
         const pictures = [];
         for (const p of parts.pictures) pictures[p.index] = p;
-        const model = modelFromGLB(parsedParts(parts), { surface, pictures });
+        const model = modelFromGLB(parsedParts(parts), { surface, pictures, plain: isLite() });
         return model.ready.then(() => {
           logged({ id, bytes: files.bytes, size: files.pictures.length ? files.pictures[0].size : 0, arrivedMs: Math.round(arrived - began), readyMs: Math.round(performance.now() - began) });
           const words = figureLabels(model.clips.map((c) => c.name));
@@ -315,7 +316,7 @@ export function loadAnimated(id) {
       }, (error) => { jobs.delete(id); if (loading.get(id) === job) loading.delete(id); logged({ id, bytes: files.bytes, stopped: !!(error && error.stopped), failed: !(error && error.stopped), afterMs: Math.round(performance.now() - began) }); throw error; });
     } else {
       job = Promise.all([bytesOf(spec), loadMoves(spec.moves || spec.file)]).then(([buffer]) => {
-        const model = modelFromGLB(parseGLB(buffer), { surface, maxTexture: liteTexture() });
+        const model = modelFromGLB(parseGLB(buffer), { surface, maxTexture: liteTexture(), plain: isLite() });
         return model.ready.then(() => { const words = figureLabels(model.clips.map((c) => c.name)); return { spec, model, labels: model.clips.map((c, i) => ({ name: c.name, label: words[i] })) }; });
       });
     }

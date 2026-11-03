@@ -85,12 +85,38 @@ export async function watchPictures(context) {
     // over again (`needsUpdate`), as three.js is put on the page: three.min.js sets `THREE` once)
     const cardGone = new WeakMap(), marked = new WeakMap();
     const isBitmap = (image) => typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap;
+    // (and one let go from the graphics card, its own copy let go too, while something drawn in the town still uses it:
+    // drawn again so, it would be drawn black. Looked at a moment after, as glb.js gives one it makes again its new
+    // picture just after letting it go)
+    window.__inUseLetGo = [];
+    const usedBy = (texture) => {
+      const n = window.__nlw, scene = n && n.scene;
+      if (!scene) return null;
+      let found = null;
+      const walk = (o, shown) => {
+        if (found) return;
+        const v = shown && o.visible !== false;
+        const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+        if (v && mats.some((m) => m && m.visible !== false && Object.values(m).includes(texture))) { found = `${o.name || o.type}${o.parent ? ` in ${o.parent.name || o.parent.type}` : ''}`; return; }
+        for (const c of o.children) walk(c, v);
+      };
+      walk(scene, true);
+      return found;
+    };
     const watchThree = (T) => {
       const proto = T && T.Texture && T.Texture.prototype;
       if (!proto) return;
       const dispose = proto.dispose;
       proto.dispose = function () {
-        if (isBitmap(this.image)) cardGone.set(this.image, { at: Math.round(performance.now() / 1000), letGoAlready: this.image.width === 0, from: where(3) });
+        if (isBitmap(this.image)) {
+          const image = this.image, texture = this, from = where(3), at = Math.round(performance.now() / 1000);
+          cardGone.set(image, { at, letGoAlready: image.width === 0, from });
+          setTimeout(() => {
+            if (texture.image !== image || image.width !== 0 || window.__inUseLetGo.length >= 6) return;
+            const user = usedBy(texture);
+            if (user) window.__inUseLetGo.push({ at, by: user, size: texture.userData && texture.userData.drawn, from });
+          }, 0);
+        }
         return dispose.call(this);
       };
       const d = Object.getOwnPropertyDescriptor(proto, 'needsUpdate');
@@ -134,6 +160,7 @@ export async function watchPictures(context) {
 }
 export const lostPictures = (page) => page.evaluate(() => window.__lostPictures || 0);
 export const lostWhat = (page) => page.evaluate(() => window.__lostWhat || []);
+export const inUseLetGo = (page) => page.evaluate(() => window.__inUseLetGo || []);
 
 // A police officer of the town's brought to stand `metres` from (x, z), out in the open in sight of it, and kept
 // standing there (31 October 2026, the owner's word: only what an officer on the scene sees is a crime, justice.js;

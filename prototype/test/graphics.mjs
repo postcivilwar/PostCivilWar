@@ -21,7 +21,7 @@ let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
 const here = dirname(fileURLToPath(import.meta.url));
 const { createDevServer } = await import(resolve(here, '../../server/dev.mjs'));
-const { pastQuestion, enterTown, watchPictures, lostPictures, lostWhat } = await import(resolve(here, 'start.mjs'));
+const { pastQuestion, enterTown, watchPictures, lostPictures, lostWhat, inUseLetGo } = await import(resolve(here, 'start.mjs'));
 const { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LOW, levelSetting, autoStart } = await import(resolve(here, '../src/client/graphics.js'));
 const { SUPPLIED_VEHICLES } = await import(resolve(here, '../src/sim/zones/supplied-vehicles.js'));
 const out = process.argv[2] || '/tmp/graphics-shots';
@@ -215,7 +215,7 @@ for (const kind of ['phone', 'computer'].filter((k) => !process.env.GRAPHICS_ONL
       plane.geometry.dispose(); plane.material.dispose(); target.dispose();
       return { size: [t.image.width, t.image.height], onCardBefore: before, onCardAfter: after, litPixels: lit };
     });
-    check(`${kind}: signs and boards out of sight for half a minute let go from the graphics card, and one drawn again handed back as painted`, !!kept && kept.letGo > 0 && kept.MB > 0 && !!again2 && !again2.onCardBefore && again2.onCardAfter && again2.litPixels > 0 && (await lostPictures(page)) === 0, { kept, again: again2, lost: await lostPictures(page), lostWhat: await lostWhat(page) });
+    check(`${kind}: signs and boards out of sight for half a minute let go from the graphics card, and one drawn again handed back as painted`, !!kept && kept.letGo > 0 && kept.MB > 0 && !!again2 && !again2.onCardBefore && again2.onCardAfter && again2.litPixels > 0 && (await lostPictures(page)) === 0, { kept, again: again2, lost: await lostPictures(page), lostWhat: await lostWhat(page), inUse: await inUseLetGo(page) });
   }
   // ---- Auto lowers by itself when frames are slow. (This machine draws in software, a frame at Ultra in a second or
   // more, and the game takes a frame of more than two seconds for the page being hidden, not for the game being slow:
@@ -259,7 +259,7 @@ for (const kind of ['phone', 'computer'].filter((k) => !process.env.GRAPHICS_ONL
   const kept = await state(page);
   check(`${kind}: Auto keeps the level it settled at for this device's graphics card`, !!kept.stored && JSON.parse(kept.stored).gpu === gpu && Number.isInteger(JSON.parse(kept.stored).level), { stored: kept.stored });
   await page.screenshot({ path: resolve(out, `${kind}-auto.png`) });
-  check(`${kind}: no page error, never reloaded`, p.errors.length === 0 && p.loads() === 1, { errors: p.errors, loads: p.loads() });
+  check(`${kind}: no page error, never reloaded`, p.errors.length === 0 && p.loads() === 1, { errors: p.errors, loads: p.loads(), lost: await lostPictures(page), lostWhat: await lostWhat(page), inUse: await inUseLetGo(page) });
   await p.context.close();
 }
 await browser.close();

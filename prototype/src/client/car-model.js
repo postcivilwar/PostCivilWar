@@ -15,7 +15,7 @@
 // as a car's lacquer does; on a phone, the plain material every model there is drawn with.
 import { softPatch } from './soft-patch.js';
 import { CAR_PARTS } from './car-parts.js';
-import { surface } from './render-kit.js';
+import { surface, isLite } from './render-kit.js';
 import { fetchKept, letGoOnceDrawn, decodeAtMost } from './glb.js';
 import { vehicleEnvironment } from './vehicle-models.js';
 import { deviceKind, PICTURES } from './budget.js';
@@ -156,7 +156,8 @@ async function partsOf(id, { base, lite, tier, own = false, priority }) {
     // (a car made with few triangles comes with its colour picture only: then it has no other to fetch; a set its
     // files do not have is taken from the next larger)
     const file = (name, size) => { for (const k of LARGER.slice(LARGER.indexOf(size))) if (f[`${name}${k}`]) return f[`${name}${k}`]; return null; };
-    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => (file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own, priority) : null));
+    // (a phone draws its colour picture alone: its other two are not fetched, render-kit.js isLite)
+    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => ((k === 0 || !isLite()) && file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own, priority) : null));
     // (the market's viewer, with a renderer of its own, has a shape of its own too)
     let geometries;
     try { geometries = own ? await buildShape(base, spec, priority) : await shapeOf(id, base, spec, priority); } catch (error) { textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {})); throw error; }

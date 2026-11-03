@@ -10,7 +10,7 @@
 
 import { parseGLB, fetchKept, letGoOnceDrawn, rereadFile, pictureMost } from './glb.js';
 import { modelFile } from './budget.js';
-import { surface } from './render-kit.js';
+import { surface, isLite } from './render-kit.js';
 import { reflects } from './render-finish.js';
 
 // One large picture taken in at a time, whichever building or vehicle it is for. A model carries up to three pictures
@@ -41,7 +41,8 @@ export async function loadSuppliedMesh(named, { maxTexture, env = null, brand = 
   geometry.computeBoundingSphere();
   const mat = json.materials[prim.material || 0], pbr = mat.pbrMetallicRoughness || {};
   const pictureOf = async (info, colour, paint = null, kind = 'colour') => {
-    if (!info || maps[kind] === false) return null;
+    // (a phone draws its colour picture alone: the others are not made, render-kit.js isLite)
+    if (!info || maps[kind] === false || (kind !== 'colour' && isLite())) return null;
     const index = json.textures[info.index].source;
     const image = json.images[index];
     // (no larger than the graphics level's largest picture either, nor its own where it has one: glb.js, pictureMost)

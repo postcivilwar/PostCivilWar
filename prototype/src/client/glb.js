@@ -333,7 +333,9 @@ export function figureLabels(names) {
 // `pictures`, for a file whose pictures are files of their own (a light copy): by image, what the worker made of each,
 // { bitmap, blob } (a browser whose worker cannot decode pictures sends the blob alone, decoded here). Each picture's
 // own copy is let go once the graphics card has it, and made again from its blob should the card's copy be lost.
-export function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
+// `plain`: `surface` draws the colour picture alone (a phone's, render-kit.js isLite), and the others are neither asked
+// for nor made (3 November 2026: made, they were never drawn, so never let go, and held for as long as the page was open).
+export function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null, plain = false }) {
   // (`let`: the file's readers let go once the model is made, below)
   let { json, accessor, bytes } = parsed;
   if ((json.meshes || []).length !== 1 || json.meshes[0].primitives.length !== 1) throw new Error('one mesh with one part is read here');
@@ -400,9 +402,9 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null 
     return map;
   }
   const map = textureOf(pbr.baseColorTexture, true);
-  const normalMap = textureOf(mat.normalTexture, false);
+  const normalMap = plain ? null : textureOf(mat.normalTexture, false);
   // glTF keeps roughness in the green of this picture and metalness in its blue, which is how three.js reads both
-  const rough = textureOf(pbr.metallicRoughnessTexture, false);
+  const rough = plain ? null : textureOf(pbr.metallicRoughnessTexture, false);
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
   const options = { map, color: colour, roughness: pbr.roughnessFactor ?? 1, metalness: pbr.metallicFactor ?? 1, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide };
   if (normalMap) { options.normalMap = normalMap; if (mat.normalTexture.scale !== undefined) options.normalScale = new THREE.Vector2(mat.normalTexture.scale, mat.normalTexture.scale); }
