@@ -133,6 +133,24 @@ export async function watchPictures(context) {
         try { watchThree(value); } catch (error) { /* watched without it */ }
       } });
     } catch (error) { /* watched without it */ }
+    // (what in the town is drawn with it: each thing whose material has it, by its name and its parents', where it is,
+    // and whether all of it is shown)
+    const drawnOn = (image) => {
+      const n = window.__nlw, scene = n && n.scene, out = [];
+      if (!scene) return out;
+      const walk = (o, shown) => {
+        const v = shown && o.visible !== false;
+        const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+        if (out.length < 4 && mats.some((m) => m && Object.values(m).some((t) => t && t.isTexture && t.image === image))) {
+          const names = []; for (let p = o; p && names.length < 5; p = p.parent) names.push(p.name || p.type);
+          const w = o.getWorldPosition ? o.getWorldPosition(new o.position.constructor()) : null;
+          out.push({ names: names.join(' < '), shown: v, at: w ? [Math.round(w.x), Math.round(w.y), Math.round(w.z)] : null });
+        }
+        for (const c of o.children) walk(c, v);
+      };
+      try { walk(scene, true); } catch (error) { /* told without it */ }
+      return out;
+    };
     const lost = (kind, image = null) => {
       window.__lostPictures += 1;
       if (window.__lostWhat.length >= 4) return;
@@ -140,6 +158,9 @@ export async function watchPictures(context) {
       if (isBitmap(image)) {
         what.made = made.get(image) || '(not seen made: on a worker)'; what.letGo = shut.get(image) || null;
         what.cardLetGo = cardGone.get(image) || null; what.marked = marked.get(image) || null;
+        what.drawnOn = drawnOn(image);
+        const eye = window.__nlw && window.__nlw.cam && window.__nlw.camera ? window.__nlw.camera.position : null;
+        if (eye) what.eye = [Math.round(eye.x), Math.round(eye.z)];
       }
       window.__lostWhat.push(what);
     };
