@@ -233,9 +233,14 @@ for (const kind of ['phone', 'computer'].filter((k) => !process.env.GRAPHICS_ONL
   await page.evaluate(() => { const g = window.__nlw.governor; g.set(1, 'Auto: for the test'); g.hold(true); });
   await settled();
   const budget = await page.evaluate(() => ({ budget: window.__nlw.graphicsBudget, limit: window.__nlw.memoryLimit }));
-  await page.evaluate((limit) => { const n = window.__nlw, g = n.graphics; n.graphicsPretend.extraMB = Math.max(0, limit * 1.05 - (g.pictures + g.buffers) / 1048576); }, budget.limit);
-  await page.waitForFunction(() => window.__nlw.quality > 1, null, { timeout: 120000 }).catch(() => {});
-  await page.evaluate(() => { window.__nlw.graphicsPretend.extraMB = 0; window.__nlw.governor.hold(false); });
+  // (taken back in the page the moment the level is lowered, not from here a round trip later: 3 November 2026, page
+  // f3a0b29f6577c5ef, and once on the live build before it, the phone was lowered two steps, the second ten seconds
+  // after the first, while the page, busy making its pictures smaller, had not yet heard from the test)
+  await page.evaluate((limit) => new Promise((done) => {
+    const n = window.__nlw, g = n.graphics, t0 = performance.now();
+    n.graphicsPretend.extraMB = Math.max(0, limit * 1.05 - (g.pictures + g.buffers) / 1048576);
+    const look = setInterval(() => { if (n.quality > 1 || performance.now() - t0 > 120000) { clearInterval(look); n.graphicsPretend.extraMB = 0; n.governor.hold(false); done(); } }, 50);
+  }), budget.limit);
   const full = await state(page);
   check(`${kind}: the graphics card nearly full: the level lowered a step`, full.level === 2 && /nearly full/.test(JSON.stringify(full.changes.slice(-1))), { budget, level: full.level, changes: full.changes });
   // ---- the player told, once: "Graphics lowered to keep the game smooth", however many times the game lowered it by

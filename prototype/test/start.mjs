@@ -81,11 +81,40 @@ export async function watchPictures(context) {
         return close.call(this);
       };
     }
+    // (and where a picture read from its file was last let go from the graphics card (`dispose`), or marked to be handed
+    // over again (`needsUpdate`), as three.js is put on the page: three.min.js sets `THREE` once)
+    const cardGone = new WeakMap(), marked = new WeakMap();
+    const isBitmap = (image) => typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap;
+    const watchThree = (T) => {
+      const proto = T && T.Texture && T.Texture.prototype;
+      if (!proto) return;
+      const dispose = proto.dispose;
+      proto.dispose = function () {
+        if (isBitmap(this.image)) cardGone.set(this.image, { at: Math.round(performance.now() / 1000), letGoAlready: this.image.width === 0, from: where(3) });
+        return dispose.call(this);
+      };
+      const d = Object.getOwnPropertyDescriptor(proto, 'needsUpdate');
+      if (d && d.set) {
+        Object.defineProperty(proto, 'needsUpdate', { configurable: true, enumerable: d.enumerable, get: d.get, set(value) {
+          if (value === true && isBitmap(this.image) && this.image.width === 0) marked.set(this.image, { at: Math.round(performance.now() / 1000), from: where(3) });
+          d.set.call(this, value);
+        } });
+      }
+    };
+    try {
+      Object.defineProperty(window, 'THREE', { configurable: true, enumerable: true, get() { return undefined; }, set(value) {
+        Object.defineProperty(window, 'THREE', { value, writable: true, configurable: true, enumerable: true });
+        try { watchThree(value); } catch (error) { /* watched without it */ }
+      } });
+    } catch (error) { /* watched without it */ }
     const lost = (kind, image = null) => {
       window.__lostPictures += 1;
       if (window.__lostWhat.length >= 4) return;
       const what = { kind, at: Math.round(performance.now() / 1000), from: where(4) };
-      if (image && typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap) { what.made = made.get(image) || '(not seen made: on a worker)'; what.letGo = shut.get(image) || null; }
+      if (isBitmap(image)) {
+        what.made = made.get(image) || '(not seen made: on a worker)'; what.letGo = shut.get(image) || null;
+        what.cardLetGo = cardGone.get(image) || null; what.marked = marked.get(image) || null;
+      }
       window.__lostWhat.push(what);
     };
     for (const C of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
