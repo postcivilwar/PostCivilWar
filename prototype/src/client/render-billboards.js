@@ -430,6 +430,11 @@ export function buildBillboards(scene, { glowMaterial, lite = false, boards = ZO
         const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
         const m = new THREE.Mesh(plane, surface({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.12, roughness: 0.8, metalness: 0 }));
         m.matrixAutoUpdate = false; m.matrix.copy(b.faceMatrix).multiply(new THREE.Matrix4().makeTranslation(0, 0, 0.01));
+        // (shown only within its distance (`assign`) from the moment it is made: until 3 November 2026 a board far off had
+        // its picture drawn, and so sent to the graphics card, for the frame or two before it was next hidden, and a
+        // computer, which keeps what it has been sent, held it from then on: in the town the city's, 17 MB, none of them
+        // drawn from there)
+        m.visible = b.d !== undefined && b.d <= far + b.width;
         b.art = m; group.add(m);
       }, () => {});
     }

@@ -30,6 +30,7 @@ import { OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_KERBED, OGANIRU_MEDIAN_G
 import { Batch, place, linear, noise, smoothNoise, grassTexture, surface, buildingKit, letGoOnceSent } from './render-kit.js';
 import { Mesher, Q_UV } from './render-mesher.js';
 import { letPaintedGo } from './painted.js';
+import { sleepPicture, wakePicture, isAsleep } from './glb.js';
 import { addTree, CITY_FLAT } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
 import { reflects, weathers } from './render-finish.js';
@@ -1025,16 +1026,23 @@ function addTowers(signs, M, list) {
 // takes), each board a part of it, all of them drawn as one (2 November 2026: downtown's seventy-odd names, each its
 // own picture and mesh before). Each board stands `facing` (0: toward +z), its middle at (x, y, z), `w` by `h` metres;
 // its picture as wide as SIGN_WIDTH (a phone's half of it: it reads them from no nearer), as tall as its shape asks.
+// A computer's at that size only for someone within SIGNS_NEAR.near metres of the piece, and at a quarter of it once
+// they are further than SIGNS_NEAR.far (painted again, a picture a frame, as they come and go: `signsAt`): from there a
+// board of ten metres is a hundred pixels or so across on the screen, and what is drawn of its picture is its own
+// smaller sizes all the same. 3 November 2026: a computer in the town (the city's pieces are built for it from 820 m)
+// held downtown's signs at their own size, a picture of 1024 by 4096 pixels 21 MB on its graphics card, 94 MB in the
+// middle of the town; with the rest, at Ultra its card was counted nearly full there, and the level lowered a step.
 let SIGN_WIDTH = 1024;
 const SIGN_TALLEST = 4096, SIGN_GAP = 8;
 const SIGN_FONT = '"Arial Narrow", "Roboto Condensed", Impact, sans-serif';
+export const SIGNS_NEAR = Object.freeze({ near: 70, far: 110, small: 0.25 });
 class SignAtlas {
   constructor() { this.list = []; }
   get empty() { return this.list.length === 0; }
   add(lines, x, y, z, facing, w, h, [fg, bg]) { this.list.push({ lines, x, y, z, facing, w, h, fg, bg }); }
-  // the meshes (one for each picture), `name`d
-  build(name, lite) {
-    const W = SIGN_WIDTH, k = W / 1024, scale = lite ? 0.5 : 1;
+  // the meshes (one for each picture), `name`d; a computer's made at their own size if `near`, else at the smaller
+  build(name, lite, near = true) {
+    const W = SIGN_WIDTH, k = W / 1024;
     // each board's place on a picture
     const sheets = [];
     let sheet = null;
@@ -1047,33 +1055,39 @@ class SignAtlas {
       sheet.signs.push(s);
     }
     return sheets.map((S) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(W * scale)); canvas.height = Math.max(1, Math.round(S.height * scale));
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
-      const draw = () => {
-        const g = canvas.getContext('2d');
-        g.setTransform(scale, 0, 0, scale, 0, 0);
-        g.clearRect(0, 0, W, S.height);
-        g.textAlign = 'center'; g.textBaseline = 'middle';
-        for (const s of S.signs) {
-          // (its ground carried a little above and below it, so that its edges stay its own colour far off)
-          g.fillStyle = s.bg; g.fillRect(0, s.top - SIGN_GAP / 2, W, s.px + SIGN_GAP);
-          g.fillStyle = s.fg;
-          s.lines.forEach((text, i) => {
-            let px = s.size;
-            g.font = `800 ${px}px ${SIGN_FONT}`;
-            while (g.measureText(text).width > W - 36 && px > 14) { px -= 2; g.font = `800 ${px}px ${SIGN_FONT}`; }
-            g.fillText(text, W / 2, s.top + (s.px * (i + 0.5)) / s.lines.length + 2);
-          });
-        }
-        texture.needsUpdate = true;
+      // (its picture, painted at `scale` of the sheet's own size)
+      const paint = (scale) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(W * scale)); canvas.height = Math.max(1, Math.round(S.height * scale));
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
+        texture.userData.scale = scale;
+        const draw = () => {
+          const g = canvas.getContext('2d');
+          g.setTransform(scale, 0, 0, scale, 0, 0);
+          g.clearRect(0, 0, W, S.height);
+          g.textAlign = 'center'; g.textBaseline = 'middle';
+          for (const s of S.signs) {
+            // (its ground carried a little above and below it, so that its edges stay its own colour far off)
+            g.fillStyle = s.bg; g.fillRect(0, s.top - SIGN_GAP / 2, W, s.px + SIGN_GAP);
+            g.fillStyle = s.fg;
+            s.lines.forEach((text, i) => {
+              let px = s.size;
+              g.font = `800 ${px}px ${SIGN_FONT}`;
+              while (g.measureText(text).width > W - 36 && px > 14) { px -= 2; g.font = `800 ${px}px ${SIGN_FONT}`; }
+              g.fillText(text, W / 2, s.top + (s.px * (i + 0.5)) / s.lines.length + 2);
+            });
+          }
+          texture.needsUpdate = true;
+        };
+        draw();
+        // (painted again once the fonts have come, if they had not; from then on, on a phone, its pixels let go once the
+        // graphics card has them, and painted again whenever they are wanted: painted.js)
+        if (document.fonts && document.fonts.ready && document.fonts.status !== 'loaded') document.fonts.ready.then(() => { draw(); letPaintedGo(texture, () => draw()); }).catch(() => {});
+        else letPaintedGo(texture, () => draw());
+        return texture;
       };
-      draw();
-      // (painted again once the fonts have come; from then on, on a phone, its pixels let go once the graphics card has
-      // them, and painted again whenever they are wanted: painted.js)
-      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { draw(); letPaintedGo(texture, () => draw()); }).catch(() => {});
-      else letPaintedGo(texture, () => draw());
+      const texture = paint(lite ? 0.5 : near ? 1 : SIGNS_NEAR.small);
       // the boards: one face each, its picture its part of the sheet
       const n = S.signs.length, P = new Float32Array(n * 18), N = new Float32Array(n * 18), U = new Float32Array(n * 12);
       S.signs.forEach((s, i) => {
@@ -1092,6 +1106,14 @@ class SignAtlas {
       const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6, metalness: 0.05 }));
       mesh.name = name;
       mesh.userData.signs = n;
+      // (a computer's: painted again at its own size (`true`) or the smaller, the picture it had let go; gives whether it was)
+      if (!lite) mesh.userData.signsAt = (wantNear) => {
+        const scale = wantNear ? 1 : SIGNS_NEAR.small, old = mesh.material.map;
+        if (old && old.userData.scale === scale) return false;
+        mesh.material.map = paint(scale);
+        if (old) old.dispose();
+        return true;
+      };
       return mesh;
     });
   }
@@ -1104,6 +1126,14 @@ const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (er
 // The slim trees down the middle strip: the habitation's slim tree, read from its file (the habitation's copy, made
 // from its owner's model and unchanged), drawn as copies of it; further off, a picture of it on two crossed boards.
 // (The reading of the model is the habitation's own code, in its script: `plants`, given once main.js has it.)
+// Its own pictures (a computer's leaves 2048 pixels across, 21 MB on the graphics card) let go from the card while no
+// copy has been drawn as the model for a while and none is near (`rest`), and made again from the file's bytes as one
+// comes within TREES_WAKE of being drawn so, the copies drawn as their pictures on the boards meanwhile (glb.js,
+// sleepPicture and wakePicture, as the habitation's own models: render-habitation.js, sleepModels). 3 November 2026:
+// on a computer in the town, where none of them is drawn as the model (they are 580 m and more off), the leaves were
+// held on its card all the same, from the moment the boards' picture of them was taken.
+const TREES_SLEEP_AFTER = 10, TREES_WAKE = 40, TREES_SLEEP = 60;
+const TREE_PICTURE_KEYS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'alphaMap', 'emissiveMap', 'aoMap', 'bumpMap'];
 function createSlimTrees(group, { lite, fetchFile, renderer }) {
   const info = HABITATION_MODELS.slimtree || { unit: 1, base: [0, 0, 0] };
   const copies = OGANIRU_TREES.filter((t) => t.kind === 'slim').map((t, i) => {
@@ -1147,11 +1177,18 @@ function createSlimTrees(group, { lite, fetchFile, renderer }) {
         state.meshes.push(mesh);
       }
       if (renderer) state.boards = treeBoards(group, model, copies, renderer, lite);
+      // (its own pictures: those of its parts' materials, the leaves' shadow's among them)
+      const pics = new Set();
+      for (const part of model.parts) for (const m of [part.material, part.depth]) if (m) for (const k of TREE_PICTURE_KEYS) if (m[k] && m[k].isTexture) pics.add(m[k]);
+      state.pics = [...pics];
+      state.drawnAt = performance.now() / 1000;
     } catch (error) { state.failed = String(error && error.message || error); }
   };
   const frustum = new THREE.Frustum(), vp = new THREE.Matrix4(), sphere = new THREE.Sphere();
   const NEAR = lite ? 110 : 190, MOST = lite ? 18 : 60;
   let drawn = 0;
+  const asleepNow = () => !!state.pics && state.pics.some(isAsleep);
+  const nearestTo = (x, z) => { let d = Infinity; for (const c of copies) d = Math.min(d, Math.hypot(c.x - x, c.z - z)); return d; };
   function update(camera, storm) {
     state.amount.value = 0.012 * (1 + storm * 1.6);
     if (!state.meshes.length || !camera) return;
@@ -1159,29 +1196,56 @@ function createSlimTrees(group, { lite, fetchFile, renderer }) {
     vp.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     frustum.setFromProjectionMatrix(vp);
     const ex = camera.position.x, ez = camera.position.z;
+    // (its pictures let go meanwhile (`rest`): asked for again as a copy comes within TREES_WAKE of being drawn as the
+    // model, and until they are there every copy is drawn as its picture)
+    const sleeping = asleepNow();
     const near = [];
+    let nearest = Infinity;
     for (const c of copies) {
       const d = Math.hypot(c.x - ex, c.z - ez);
       sphere.center.set(c.x, c.y + c.height / 2, c.z); sphere.radius = c.height * 0.6 + 6;
       c.seen = frustum.intersectsSphere(sphere);
       c.d = d;
-      if (d < NEAR && c.seen) near.push(c);
+      nearest = Math.min(nearest, d);
+      if (d < NEAR && c.seen && !sleeping) near.push(c);
+    }
+    if (sleeping && !state.waking && nearest < NEAR + TREES_WAKE) {
+      state.waking = Promise.all(state.pics.map(wakePicture)).then(() => { state.waking = null; }, () => { state.waking = null; });
+      state.woken = (state.woken || 0) + 1;
     }
     near.sort((a, b) => a.d - b.d);
     const chosen = near.slice(0, MOST);
+    if (chosen.length) state.drawnAt = performance.now() / 1000;
     const set = new Set(chosen);
     chosen.forEach((c, n) => { for (const mesh of state.meshes) mesh.instanceMatrix.array.set(c.matrix, n * 16); });
     for (const mesh of state.meshes) { mesh.count = chosen.length; mesh.visible = chosen.length > 0; mesh.instanceMatrix.needsUpdate = true; }
     drawn = chosen.length;
     if (state.boards) state.boards.place(copies.filter((c) => !set.has(c) && c.seen && c.d < 700));
   }
+  // (looked at with the city's pieces, twice a second, whether or not the city is in sight: its pictures let go once no
+  // copy has been drawn as the model for TREES_SLEEP_AFTER seconds and the nearest is TREES_SLEEP past being drawn so;
+  // letting go twice does nothing)
+  function rest(x, z) {
+    if (!state.pics || state.waking || state.disposed) return;
+    const now = performance.now() / 1000;
+    if (now - (state.restAt || 0) < 3) return;
+    state.restAt = now;
+    if (now - (state.drawnAt || 0) < TREES_SLEEP_AFTER || nearestTo(x, z) < NEAR + TREES_SLEEP || asleepNow()) return;
+    let slept = 0;
+    for (const t of state.pics) if (sleepPicture(t)) slept += 1;
+    if (slept) state.slept = (state.slept || 0) + 1;
+  }
   return {
-    update,
+    update, rest,
     // the habitation's code for reading its plants, once main.js has it: the trees are read then
     use(plants) { if (P || !plants || state.disposed) return; P = plants; if (ON_DISK) { state.failed = 'opened from the disk'; return; } state.loading = load(); },
     get drawn() { return drawn; },
     get loaded() { return !!state.model; },
     get failed() { return state.failed; },
+    // (for the tests and the measuring: whether its pictures are let go now, how many times they were, and made again)
+    get asleep() { return asleepNow(); },
+    get slept() { return state.slept || 0; },
+    get woken() { return state.woken || 0; },
     count: copies.length,
     dispose() { state.disposed = true; for (const mesh of state.meshes) { group.remove(mesh); mesh.dispose(); } if (state.model) state.model.dispose(); if (state.boards) state.boards.dispose(); for (const p of state.pictures.values()) p.then((t) => t.dispose(), () => {}); state.pictures.clear(); },
   };
@@ -1225,8 +1289,8 @@ function treeBoards(group, model, copies, renderer, lite) {
 
 // --------------------------------------------------------------------------------------------- the whole --
 // One piece of the city, built: its steps (a few milliseconds each), at the end its group of meshes, its signs, the
-// fixed lights under its decks.
-function* buildTile(T, S) {
+// fixed lights under its decks. (`signsNear`: a computer's signs made at their own size, SIGNS_NEAR)
+function* buildTile(T, S, signsNear = true) {
   const { lite, materials } = S;
   const group = new THREE.Group(); group.name = `oganiru:${T.key}`;
   const M = { tar: new Mesher(), rampTar: new Mesher(), wear: new Mesher(), paint: new Mesher(), kerb: new Mesher(), grass: new Mesher(), pave: new Mesher(), concrete: new Mesher(), soffit: new Mesher(), stain: new Mesher(), solid: new Mesher(), metal: new Mesher(), lit: new Mesher() };
@@ -1277,7 +1341,10 @@ function* buildTile(T, S) {
   build('lit', materials.lit, false); yield;
   if (!shadeSolid.empty) { const m = shadeSolid.build(materials.solid); m.castShadow = true; m.receiveShadow = true; m.name = `oganiru:trunks:${T.key}`; group.add(m); }
   for (const mesh of foliage.build(foliageMaterials())) { mesh.name = `oganiru:leaves:${T.key}`; group.add(mesh); }
-  if (!signs.empty) for (const mesh of signs.build(`oganiru:signs:${T.key}`, lite)) group.add(mesh);
+  if (!signs.empty) {
+    group.userData.signMeshes = signs.build(`oganiru:signs:${T.key}`, lite, signsNear);
+    for (const mesh of group.userData.signMeshes) group.add(mesh);
+  }
   if (towers.length) group.userData.towers = towers.length;
   return { group, fixedLights };
 }
@@ -1364,7 +1431,9 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
         let best = null;
         for (const p of pieces.values()) if (p.state === 'queued' && (!best || p.d < best.d)) best = p;
         if (!best) return;
-        best.state = 'building'; best.steps = buildTile(best.T, S); building = best;
+        // (a computer's signs made at the size its distance asks for now: SIGNS_NEAR; `see` keeps it so)
+        best.signsNear = best.d < SIGNS_NEAR.far;
+        best.state = 'building'; best.steps = buildTile(best.T, S, best.signsNear); building = best;
         stats.building = best.T.key;
       }
       const s0 = performance.now();
@@ -1387,8 +1456,34 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
     group.add(p.group);
     if (lamps && p.fixedLights.length) lamps.addFixed(p.fixedLights);
     stats.built += 1;
+    // (the player may have come or gone while it was being built: its signs looked at again)
+    if (p.group.userData.signMeshes) signsToPaint.add(p);
+  }
+  // A computer's signs (SIGNS_NEAR): the pieces whose signs are to be painted again at the size their distance asks for,
+  // one picture at a time (`stepSigns`, each frame the city is drawn and each time it is looked at)
+  const signsToPaint = new Set();
+  const signTally = { painted: 0 };
+  function stepSigns() {
+    for (const p of signsToPaint) {
+      const meshes = p.group && p.group.userData.signMeshes;
+      if (!meshes || p.state !== 'built') { signsToPaint.delete(p); continue; }
+      for (const mesh of meshes) if (mesh.userData.signsAt && mesh.userData.signsAt(p.signsNear)) { signTally.painted += 1; return; }
+      signsToPaint.delete(p);
+    }
+  }
+  // (for the tests and the measuring: the pieces' signs' pictures, how wide each is now)
+  function signStats() {
+    const near = [], far = [];
+    for (const p of pieces.values()) {
+      const meshes = p.group && p.group.userData.signMeshes;
+      if (!meshes) continue;
+      // (by what it was painted at: on a phone, reading its picture would paint again one whose pixels were let go)
+      for (const mesh of meshes) (p.signsNear ? near : far).push({ key: p.T.key, d: Math.round(p.d), width: mesh.material.map ? Math.round(SIGN_WIDTH * mesh.material.map.userData.scale) : 0 });
+    }
+    return { lite, near, far, painted: signTally.painted, waiting: signsToPaint.size };
   }
   function letGoPiece(p) {
+    signsToPaint.delete(p);
     if (p.group) { group.remove(p.group); disposeGroup(p.group); p.group = null; }
     if (lamps) lamps.dropFixed(`city:${p.T.key}`);
     if (p.state === 'building') { p.state = 'dropped'; } else pieces.delete(p.T.key);
@@ -1411,6 +1506,7 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
     // the pieces being built, a few milliseconds a frame; the first one's programs made ready
     for (const p of pieces.values()) if (p.state === 'compiling' && p.ready.step(4)) { compiled = true; show(p); }
     stepPieces();
+    stepSigns();
     // the signals: each lamp lit or dark by its phase and its junction's offset in the cycle
     for (const S2 of signalMeshes) {
       let changed = false;
@@ -1445,7 +1541,15 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
       // (the towers themselves are the skyline's, seen from anywhere: render-skyline.js; what is at their feet, with the rest
       // of the piece, from as near as the rest)
       if (p.group) p.group.visible = d < reach;
+      // (a computer's signs at their own size within SIGNS_NEAR.near of the piece, smaller beyond SIGNS_NEAR.far)
+      if (!lite && p.group && p.group.userData.signMeshes) {
+        const wantNear = d < SIGNS_NEAR.near ? true : d > SIGNS_NEAR.far ? false : p.signsNear;
+        if (wantNear !== p.signsNear) { p.signsNear = wantNear; signsToPaint.add(p); }
+      }
     }
+    stepSigns();
+    // (the slim trees' own pictures let go while none of them is near: createSlimTrees, rest)
+    trees.rest(x, z);
     return shownAll;
   }
   // (shared with the town, and not let go with the city: the town's own materials, its leaves')
@@ -1473,7 +1577,7 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
     group, update, see, letGo, trees, buildAround,
     // (for the tests and the measuring: the pieces and what is in them)
     pieces: () => [...pieces.values()].map((p) => ({ key: p.T.key, state: p.state, d: Math.round(p.d) })),
-    stats: () => ({ pieces: { ...stats, now: [...pieces.values()].filter((p) => p.state === 'built').length, queued: [...pieces.values()].filter((p) => p.state === 'queued').length }, trees: { drawn: trees.drawn, loaded: trees.loaded, failed: trees.failed, of: trees.count } }),
+    stats: () => ({ pieces: { ...stats, now: [...pieces.values()].filter((p) => p.state === 'built').length, queued: [...pieces.values()].filter((p) => p.state === 'queued').length }, trees: { drawn: trees.drawn, loaded: trees.loaded, failed: trees.failed, of: trees.count, asleep: trees.asleep, slept: trees.slept, woken: trees.woken }, signs: signStats() }),
   };
 }
 // Is any of the city in this piece (its roads, decks, roundabouts, kerbs, trees; or the land round it, near enough to

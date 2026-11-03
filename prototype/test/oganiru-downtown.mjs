@@ -4,7 +4,10 @@
 //      own built at all): every tower, one mesh for each kind of wall, its lobbies, its tops and their lit bands, in
 //      sight looking west from the middle of the town; at night their windows lit; on a computer in the north of the
 //      town the city built a piece a frame, not all at once at its gate; the walls' and lobbies' pictures held small
-//      from the town and at their own size downtown (3 November 2026), the phone's made small again back in the town
+//      from the town and at their own size downtown (3 November 2026), the phone's made small again back in the town;
+//      on a computer in the town the city's signs' pictures at a quarter of their size and the slim trees' own pictures
+//      let go from its graphics card, downtown the signs round the player at their own size and among the trees their
+//      pictures made again, and both let go again back in the town (3 November 2026)
 //   B  downtown at its street level: each tower's foot (its canopy, doors, steps, shops and their names), a piece's
 //      signs drawn as one; the towers' pieces drawn from as near as the rest of the city
 //   C  the windows lit at night, more in the evening than late in the night; none by day; the tallest crowns' bands lit
@@ -107,6 +110,24 @@ await A.shot('skyline-from-college-road');
 for (let k = 0; k < 900 && !(await a.evaluate(() => window.__nlw.city.ready)); k += 1) await a.waitForTimeout(1000);
 const gradual = await a.evaluate(() => { const n = window.__nlw; return { ready: n.city.ready, stats: n.cityStats }; });
 check('on a computer in the north of the town, the city is built a piece a frame once the town is warmed up, not all at once at its gate', gradual.ready && gradual.stats.frames > 0 && gradual.stats.builds === 1, gradual);
+// (3 November 2026: a computer in the town, the city's pieces built round it from 820 m: their signs' pictures at a
+// quarter of their size beyond 110 m of their piece (at their own size within 70 m), and the slim trees' own pictures let
+// go from its graphics card, none of them being drawn as the model from here, 300 m and more off; at Ultra its card was
+// counted nearly full in the town with them, and the level lowered a step. Looked at here on College Road, where the city
+// is in sight at the level Auto gives this machine (Low), as it is from the whole town at Ultra.)
+const cityNow = (p) => p.evaluate(() => {
+  const n = window.__nlw, s = n.city.stats(), onCard = [];
+  n.scene.traverse((o) => { if (/^oganiru:slimtree:/.test(o.name) && o.name !== 'oganiru:slimtree:boards' && o.material) for (const k of ['map', 'normalMap', 'roughnessMap', 'alphaMap']) { const t = o.material[k]; if (t && t.isTexture) onCard.push(!!n.renderer.properties.get(t).__webglTexture); } });
+  return { signs: s.signs, trees: s.trees, onCard, level: n.quality };
+});
+const quarter = (s) => s.width === 256, whole = (s) => s.width === 1024;
+// (each piece's signs at the size its distance asks for: at their own size within 70 m, a quarter of it beyond 110 m)
+const signsRight = (S) => S.waiting === 0 && S.near.every((s) => whole(s) && s.d <= 110) && S.far.every((s) => quarter(s) && s.d >= 70);
+let inTown = null;
+for (let k = 0; k < 300; k += 1) { inTown = await cityNow(a); if (inTown.trees.failed || (inTown.trees.loaded && inTown.trees.asleep && inTown.signs.waiting === 0)) break; await a.waitForTimeout(1000); }
+await settle(a, 4);
+inTown = await cityNow(a);
+check('on a computer in the town, downtown\'s signs\' pictures at a quarter of their size (256 pixels across; each piece\'s at the size its distance asks for), and the slim trees\' own pictures let go from its graphics card (none of them drawn as the model from there)', signsRight(inTown.signs) && inTown.signs.far.some((s) => s.key === '4,3') && inTown.signs.far.length >= 3 && inTown.trees.loaded && !inTown.trees.failed && inTown.trees.asleep && inTown.trees.slept >= 1 && inTown.onCard.length > 0 && inTown.onCard.every((c) => !c), { level: inTown.level, signs: { far: inTown.signs.far.map((s) => `${s.key}:${s.d}m:${s.width}`), near: inTown.signs.near.map((s) => `${s.key}:${s.d}m:${s.width}`), waiting: inTown.signs.waiting }, trees: inTown.trees, onCard: inTown.onCard });
 
 // ---- B: downtown at its street level ----
 await at(a, -120, -588, Math.PI, undefined, { dist: 7, pitch: 0.12, yaw: Math.PI + 0.5 });
@@ -129,6 +150,11 @@ const all = await a.evaluate(() => {
   return { sheets: signs.length, signs: signs.reduce((m, k) => m + k, 0), towers: feet.reduce((m, k) => m + k, 0) };
 });
 check('downtown\'s pieces draw every tower\'s foot (its canopy, doors, steps), its name over its doors and its shops\' names, each piece\'s signs as one', all.towers === OGANIRU_TOWERS.length && all.signs >= OGANIRU_TOWERS.length + shops && all.sheets >= 1 && all.sheets <= all.signs / 4 && street.perSign === 0, { street, all, shops });
+// (there, the pieces round the player with their signs at their own size, 1024 pixels across, those further off at a
+// quarter of it: SIGNS_NEAR, render-oganiru.js; painted again one a frame)
+let downtownSigns = null;
+for (let k = 0; k < 60; k += 1) { downtownSigns = (await cityNow(a)).signs; if (downtownSigns.waiting === 0) break; await settle(a, 1); }
+check('downtown on a computer, the signs of the pieces round the player at their own size (1024 pixels across), those further off at a quarter of it', signsRight(downtownSigns) && downtownSigns.near.length > 0 && downtownSigns.far.length > 0, { near: downtownSigns.near.map((s) => `${s.key}:${s.d}m:${s.width}`), far: downtownSigns.far.map((s) => `${s.key}:${s.d}m:${s.width}`), painted: downtownSigns.painted });
 await at(a, -230, -566, -Math.PI / 2, undefined, { dist: 8, pitch: 0.05, yaw: -Math.PI / 2 + 0.35 });
 await settle(a, 6);
 await A.shot('gateway-boulevard');
@@ -146,6 +172,11 @@ const radar = await a.evaluate(() => {
   return { grey, of: d.length / 4 };
 });
 check('the radar in the corner shows the city\'s roads under the player on Unity Avenue', radar.grey > radar.of * 0.05, radar);
+// (and there, among the slim trees down Unity Avenue's middle strip, their own pictures made again from the file and the
+// trees drawn as the model)
+let amongTrees = null;
+for (let k = 0; k < 60; k += 1) { amongTrees = await cityNow(a); if (!amongTrees.trees.asleep && amongTrees.trees.drawn > 0) break; await settle(a, 2); }
+check('among the slim trees on Unity Avenue, their pictures made again from the file (let go in the town) and the nearest drawn as the model, its pictures on the graphics card', !amongTrees.trees.asleep && amongTrees.trees.woken >= 1 && amongTrees.trees.drawn > 0 && amongTrees.onCard.length > 0 && amongTrees.onCard.every((c) => c), { trees: amongTrees.trees, onCard: amongTrees.onCard });
 
 // ---- C: the windows at night, more in the evening than late; none by day ----
 const day = await skyline(a);
@@ -199,6 +230,13 @@ for (let k = 0; k < 60; k += 1) { backInTown = await b.evaluate(() => window.__n
 check('back in the town from downtown, the phone\'s walls\' and lobbies\' pictures made small again (downtown at their own size, 256 and 128)', !!backInTown && backInTown.near === false && backInTown.wall.every((w) => w === 64) && backInTown.lobby === 32 && downtownSizes && downtownSizes.near === true && downtownSizes.wall.every((w) => w === 256) && downtownSizes.lobby === 128, { downtown: downtownSizes && { near: downtownSizes.near, wall: downtownSizes.wall, lobby: downtownSizes.lobby }, town: backInTown && { near: backInTown.near, wall: backInTown.wall, lobby: backInTown.lobby } });
 check('a phone at Medium holds under 135 MB on its graphics card at every one of the new places', Math.max(...Object.values(card)) < 135, card);
 check('and draws no more there than the busiest place in the town (449 draws a frame, the PowerBike showroom at night, measured 2 November)', Math.max(...Object.values(calls)) <= 449, calls);
+
+// (the computer back in the town from downtown, on College Road: downtown's signs made small again, and the slim trees'
+// pictures let go again once none has been drawn as the model for a while)
+await at(a, 0, -300, Math.PI, undefined, { dist: 8, pitch: 0.02 });
+let backA = null;
+for (let k = 0; k < 90; k += 1) { backA = await cityNow(a); if (signsRight(backA.signs) && backA.signs.far.some((s) => s.key === '4,3') && backA.trees.asleep) break; await a.waitForTimeout(1000); }
+check('back in the town from downtown, the computer\'s downtown signs at a quarter of their size again, and the slim trees\' pictures let go again', signsRight(backA.signs) && backA.signs.far.some((s) => s.key === '4,3') && backA.trees.asleep && backA.trees.slept >= 2 && backA.onCard.every((c) => !c), { signs: { far: backA.signs.far.map((s) => `${s.key}:${s.d}m:${s.width}`), near: backA.signs.near.map((s) => `${s.key}:${s.d}m:${s.width}`), painted: backA.signs.painted }, trees: backA.trees, onCard: backA.onCard });
 
 // ---- E: from inside a hall, the skyline is not drawn ----
 await at(a, POWERBIKE.portal.x, POWERBIKE.portal.z + 3.2, Math.PI, undefined, { yaw: Math.PI, pitch: 0.2, dist: 7 });
