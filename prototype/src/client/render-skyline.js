@@ -226,12 +226,26 @@ export function towerTop(t) {
 }
 
 // ------------------------------------------------------------------------------------------- the whole --
+// The walls' and the lobbies' pictures, how large: at their own size for someone within `near` metres of downtown, and
+// smaller once they are further than `far` (from the town, 600 m and more off, a wall's 14.4 m is a few pixels across on
+// the screen, and what is drawn of a picture is its own smaller sizes all the same: the same to look at, a small part
+// of the graphics card). 3 November 2026: a phone at Medium at the PowerBike showroom, the town's busiest place, held the
+// walls' pictures at their own size, 3.2 MB of its 135 (a computer's 51 MB).
+export const SKYLINE_PICTURES = Object.freeze({
+  near: 400, far: 550,
+  lite: Object.freeze({ wall: [64, 256], lobby: [32, 128] }),
+  full: Object.freeze({ wall: [128, 1024], lobby: [64, 512] }),
+});
 export function* skylineSteps(scene, { lite = false, renderer = null, camera = null, towers = OGANIRU_TOWERS } = {}) {
   const group = new THREE.Group(); group.name = 'oganiru:skyline';
+  const sizes = lite ? SKYLINE_PICTURES.lite : SKYLINE_PICTURES.full;
+  // (made at the smaller size: the skyline is built once the town is warmed up, mostly for someone in the town; `see`
+  // makes them at their own size near downtown)
+  let near = false;
   const textures = {
     facades: new Map(), lits: new Map(),
-    lobby: lobbyTexture(lite ? 128 : 512), lobbyLit: lobbyTexture(lite ? 64 : 128, true),
-    facade(kind) { if (!this.facades.has(kind)) this.facades.set(kind, facadeTexture(kind, lite ? 256 : 1024)); return this.facades.get(kind); },
+    lobby: lobbyTexture(sizes.lobby[0]), lobbyLit: lobbyTexture(lite ? 64 : 128, true),
+    facade(kind) { if (!this.facades.has(kind)) this.facades.set(kind, facadeTexture(kind, sizes.wall[0])); return this.facades.get(kind); },
     lit(punched) { if (!this.lits.has(punched)) this.lits.set(punched, litTexture(punched, lite ? 128 : 256)); return this.lits.get(punched); },
   };
   const materials = new Map();
@@ -283,12 +297,30 @@ export function* skylineSteps(scene, { lite = false, renderer = null, camera = n
   // them all the same, the whole downtown being one mesh of each kind)
   const box = towers.reduce((b, t) => ({ x0: Math.min(b.x0, t.x - t.dx / 2), x1: Math.max(b.x1, t.x + t.dx / 2), z0: Math.min(b.z0, t.z - t.dz / 2), z1: Math.max(b.z1, t.z + t.dz / 2) }), { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity });
   let shadows = null;
+  // (the pictures still to be made at the size wanted: one a frame, so that a computer's nine walls at 1024 are not
+  // painted and handed to the graphics card in one frame)
+  const toRemake = [];
+  function remake(which) {
+    const px = which === 'lobby' ? sizes.lobby[near ? 1 : 0] : sizes.wall[near ? 1 : 0];
+    const old = which === 'lobby' ? textures.lobby : textures.facades.get(which);
+    if (!old || old.image.width === px) return;
+    if (which === 'lobby') { textures.lobby = lobbyTexture(px); lobby.map = textures.lobby; } else {
+      const t = facadeTexture(which, px);
+      textures.facades.set(which, t);
+      materials.get(which).map = t;
+    }
+    old.dispose();
+  }
   function see(x, z) {
     const away = Math.hypot(Math.max(box.x0 - x, 0, x - box.x1), Math.max(box.z0 - z, 0, z - box.z1));
     const want = away < SHADOWS_WITHIN;
-    if (want === shadows) return;
-    shadows = want;
-    for (const m of group.children) if (m.name !== 'oganiru:lobbies' && m.name !== 'oganiru:crowns') m.castShadow = want;
+    if (want !== shadows) {
+      shadows = want;
+      for (const m of group.children) if (m.name !== 'oganiru:lobbies' && m.name !== 'oganiru:crowns') m.castShadow = want;
+    }
+    const wantNear = away < SKYLINE_PICTURES.near ? true : away > SKYLINE_PICTURES.far ? false : near;
+    if (wantNear !== near) { near = wantNear; toRemake.length = 0; toRemake.push(...textures.facades.keys(), 'lobby'); }
+    if (toRemake.length) remake(toRemake.shift());
   }
   function letGo() {
     scene.remove(group);
@@ -296,7 +328,7 @@ export function* skylineSteps(scene, { lite = false, renderer = null, camera = n
     for (const m of [...materials.values(), lobby, tops, band]) m.dispose();
     for (const t of [...textures.facades.values(), ...textures.lits.values(), textures.lobby, textures.lobbyLit]) t.dispose();
   }
-  const stats = () => ({ towers: towers.length, kinds: walls.size, meshes: group.children.length, bands: bands.length, shown: group.visible });
+  const stats = () => ({ towers: towers.length, kinds: walls.size, meshes: group.children.length, bands: bands.length, shown: group.visible, near, wall: [...textures.facades.values()].map((t) => t.image.width), lobby: textures.lobby.image.width });
   see(Infinity, Infinity);
   return { group, update, show, see, letGo, stats, materials };
 }

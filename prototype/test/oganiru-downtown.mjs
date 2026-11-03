@@ -3,7 +3,8 @@
 //   A  the skyline from the town, on the phone before any of the city near it is built (and with nothing of the city's
 //      own built at all): every tower, one mesh for each kind of wall, its lobbies, its tops and their lit bands, in
 //      sight looking west from the middle of the town; at night their windows lit; on a computer in the north of the
-//      town the city built a piece a frame, not all at once at its gate
+//      town the city built a piece a frame, not all at once at its gate; the walls' and lobbies' pictures held small
+//      from the town and at their own size downtown (3 November 2026), the phone's made small again back in the town
 //   B  downtown at its street level: each tower's foot (its canopy, doors, steps, shops and their names), a piece's
 //      signs drawn as one; the towers' pieces drawn from as near as the rest of the city
 //   C  the windows lit at night, more in the evening than late in the night; none by day; the tallest crowns' bands lit
@@ -91,6 +92,10 @@ const fromTown = await skyline(b);
 const wantKinds = new Set(OGANIRU_TOWERS.map((t) => t.kind)).size;
 check('on the phone, in the middle of the town, the skyline is built (every tower, one mesh for each kind of wall, its lobbies, tops and bands) though nothing of the city near it is', !!fromTown && fromTown.stats.towers === OGANIRU_TOWERS.length && fromTown.stats.kinds === wantKinds && fromTown.meshes.length === wantKinds + 3 && fromTown.inScene && !fromTown.cityReady, fromTown && { stats: fromTown.stats, cityReady: fromTown.cityReady, meshes: fromTown.meshes.length });
 check('and, looking west from there, it is in sight', !!fromTown && fromTown.shown && fromTown.meshes.filter((m) => m.name.startsWith('oganiru:towers:')).some((m) => m.inSight), fromTown && fromTown.meshes);
+// (from there, 616 m from downtown, its walls' and lobbies' pictures held at their smaller size: a phone's 64 and 32,
+// render-skyline.js SKYLINE_PICTURES; 3 November 2026, the PowerBike showroom on a phone at Medium 136.9 MB with them at
+// their own size)
+check('and from the town its walls\' and lobbies\' pictures held at their smaller size (on a phone 64 and 32 pixels: a few pixels a wall from there)', !!fromTown && fromTown.stats.near === false && fromTown.stats.wall.length === wantKinds && fromTown.stats.wall.every((w) => w === 64) && fromTown.stats.lobby === 32, fromTown && { near: fromTown.stats.near, wall: fromTown.stats.wall, lobby: fromTown.stats.lobby });
 await B.shot('skyline-from-the-town');
 await at(a, 0, -300, Math.PI, undefined, { dist: 8, pitch: 0.02 });
 for (let k = 0; k < 900 && !(await a.evaluate(() => !!window.__nlw.skyline)); k += 1) await a.waitForTimeout(1000);
@@ -144,6 +149,8 @@ check('the radar in the corner shows the city\'s roads under the player on Unity
 
 // ---- C: the windows at night, more in the evening than late; none by day ----
 const day = await skyline(a);
+// (downtown, the walls' and lobbies' pictures at their own size: a computer's 1024 and 512)
+check('downtown, the towers\' walls\' and lobbies\' pictures at their own size (on a computer 1024 and 512 pixels)', !!day && day.stats.near === true && day.stats.wall.length === wantKinds && day.stats.wall.every((w) => w === 1024) && day.stats.lobby === 512, day && { near: day.stats.near, wall: day.stats.wall, lobby: day.stats.lobby });
 await hourTo(a, 19.5);
 await settle(a, 6);
 const evening = await skyline(a);
@@ -173,16 +180,23 @@ await a.evaluate(() => { const g = window.__nlw.host.game; g.state.weather = { k
 // ---- F: the phone's graphics card and drawing at the new places, at Medium ----
 await b.evaluate(() => { const n = window.__nlw, g = n.governor; g.hold(true); g.set(2, 'measuring'); });
 const card = {}, calls = {};
+let downtownSizes = null;
 for (const [name, x, z, h, hour] of [['downtown at night', 0, -670, Math.PI, 22], ['Gateway Boulevard at night', -230, -566, -Math.PI / 2, 22], ['Interchange Park', 0, -930, Math.PI, 12], ['the skyline from the town at night', 0, 20, Math.PI, 22]]) {
   await hourTo(b, hour);
   await at(b, x, z, h);
   for (let k = 0; k < 120; k += 1) { const q = await pieces(b); if (!q || q.queued === 0) break; await b.waitForTimeout(1000); }
   await settle(b, 6, 240000);
+  // (downtown, the walls' pictures made at their own size, one a frame: counted with them)
+  if (name === 'downtown at night') for (let k = 0; k < 60; k += 1) { downtownSizes = await b.evaluate(() => window.__nlw.skyline.stats()); if (downtownSizes.near && downtownSizes.wall.every((w) => w === 256) && downtownSizes.lobby === 128) break; await settle(b, 1); }
   await b.waitForTimeout(3000);
   card[name] = await b.evaluate(() => { const g = window.__nlw.graphics || {}; return +(((g.pictures || 0) + (g.buffers || 0)) / 1048576).toFixed(1); });
   calls[name] = await b.evaluate(() => { const n = window.__nlw; return n.drawn ? n.drawn.calls : n.renderer.info.render.calls; });
   await B.shot(name.toLowerCase().replace(/ /g, '-'));
 }
+// (back in the town from downtown, the phone's walls' pictures made small again, one a frame)
+let backInTown = null;
+for (let k = 0; k < 60; k += 1) { backInTown = await b.evaluate(() => window.__nlw.skyline.stats()); if (!backInTown.near && backInTown.wall.every((w) => w === 64) && backInTown.lobby === 32) break; await settle(b, 1); }
+check('back in the town from downtown, the phone\'s walls\' and lobbies\' pictures made small again (downtown at their own size, 256 and 128)', !!backInTown && backInTown.near === false && backInTown.wall.every((w) => w === 64) && backInTown.lobby === 32 && downtownSizes && downtownSizes.near === true && downtownSizes.wall.every((w) => w === 256) && downtownSizes.lobby === 128, { downtown: downtownSizes && { near: downtownSizes.near, wall: downtownSizes.wall, lobby: downtownSizes.lobby }, town: backInTown && { near: backInTown.near, wall: backInTown.wall, lobby: backInTown.lobby } });
 check('a phone at Medium holds under 135 MB on its graphics card at every one of the new places', Math.max(...Object.values(card)) < 135, card);
 check('and draws no more there than the busiest place in the town (449 draws a frame, the PowerBike showroom at night, measured 2 November)', Math.max(...Object.values(calls)) <= 449, calls);
 
