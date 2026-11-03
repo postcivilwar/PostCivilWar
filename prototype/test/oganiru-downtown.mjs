@@ -118,16 +118,17 @@ check('on a computer in the north of the town, the city is built a piece a frame
 const cityNow = (p) => p.evaluate(() => {
   const n = window.__nlw, s = n.city.stats(), onCard = [];
   n.scene.traverse((o) => { if (/^oganiru:slimtree:/.test(o.name) && o.name !== 'oganiru:slimtree:boards' && o.material) for (const k of ['map', 'normalMap', 'roughnessMap', 'alphaMap']) { const t = o.material[k]; if (t && t.isTexture) onCard.push(!!n.renderer.properties.get(t).__webglTexture); } });
-  return { signs: s.signs, trees: s.trees, onCard, level: n.quality };
+  return { signs: s.signs, trees: s.trees, pieces: s.pieces, onCard, level: n.quality };
 });
 const quarter = (s) => s.width === 256, whole = (s) => s.width === 1024;
 // (each piece's signs at the size its distance asks for: at their own size within 70 m, a quarter of it beyond 110 m)
 const signsRight = (S) => S.waiting === 0 && S.near.every((s) => whole(s) && s.d <= 110) && S.far.every((s) => quarter(s) && s.d >= 70);
 let inTown = null;
-for (let k = 0; k < 300; k += 1) { inTown = await cityNow(a); if (inTown.trees.failed || (inTown.trees.loaded && inTown.trees.asleep && inTown.signs.waiting === 0)) break; await a.waitForTimeout(1000); }
+// (the pieces round the player all built first, a piece a few frames here)
+for (let k = 0; k < 600; k += 1) { inTown = await cityNow(a); if (inTown.trees.failed || (inTown.trees.loaded && inTown.trees.asleep && inTown.signs.waiting === 0 && inTown.pieces.queued === 0 && !inTown.pieces.building)) break; await a.waitForTimeout(1000); }
 await settle(a, 4);
 inTown = await cityNow(a);
-check('on a computer in the town, downtown\'s signs\' pictures at a quarter of their size (256 pixels across; each piece\'s at the size its distance asks for), and the slim trees\' own pictures let go from its graphics card (none of them drawn as the model from there)', signsRight(inTown.signs) && inTown.signs.far.some((s) => s.key === '4,3') && inTown.signs.far.length >= 3 && inTown.trees.loaded && !inTown.trees.failed && inTown.trees.asleep && inTown.trees.slept >= 1 && inTown.onCard.length > 0 && inTown.onCard.every((c) => !c), { level: inTown.level, signs: { far: inTown.signs.far.map((s) => `${s.key}:${s.d}m:${s.width}`), near: inTown.signs.near.map((s) => `${s.key}:${s.d}m:${s.width}`), waiting: inTown.signs.waiting }, trees: inTown.trees, onCard: inTown.onCard });
+check('on a computer in the town, downtown\'s signs\' pictures at a quarter of their size (256 pixels across; each piece\'s at the size its distance asks for), and the slim trees\' own pictures let go from its graphics card (none of them drawn as the model from there)', signsRight(inTown.signs) && inTown.signs.far.some((s) => s.key === '4,3') && inTown.signs.far.length >= 3 && inTown.trees.loaded && !inTown.trees.failed && inTown.trees.asleep && inTown.trees.slept >= 1 && inTown.onCard.length > 0 && inTown.onCard.every((c) => !c), { level: inTown.level, pieces: { now: inTown.pieces.now, queued: inTown.pieces.queued }, signs: { far: inTown.signs.far.map((s) => `${s.key}:${s.d}m:${s.width}`), near: inTown.signs.near.map((s) => `${s.key}:${s.d}m:${s.width}`), waiting: inTown.signs.waiting }, trees: inTown.trees, onCard: inTown.onCard });
 
 // ---- B: downtown at its street level ----
 await at(a, -120, -588, Math.PI, undefined, { dist: 7, pitch: 0.12, yaw: Math.PI + 0.5 });

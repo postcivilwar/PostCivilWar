@@ -1187,7 +1187,9 @@ function createSlimTrees(group, { lite, fetchFile, renderer }) {
   const frustum = new THREE.Frustum(), vp = new THREE.Matrix4(), sphere = new THREE.Sphere();
   const NEAR = lite ? 110 : 190, MOST = lite ? 18 : 60;
   let drawn = 0;
+  // (any of its pictures let go: no copy drawn as the model; all of them: the card holds none of them)
   const asleepNow = () => !!state.pics && state.pics.some(isAsleep);
+  const allAsleep = () => !!state.pics && state.pics.length > 0 && state.pics.every(isAsleep);
   const nearestTo = (x, z) => { let d = Infinity; for (const c of copies) d = Math.min(d, Math.hypot(c.x - x, c.z - z)); return d; };
   function update(camera, storm) {
     state.amount.value = 0.012 * (1 + storm * 1.6);
@@ -1224,16 +1226,18 @@ function createSlimTrees(group, { lite, fetchFile, renderer }) {
   }
   // (looked at with the city's pieces, twice a second, whether or not the city is in sight: its pictures let go once no
   // copy has been drawn as the model for TREES_SLEEP_AFTER seconds and the nearest is TREES_SLEEP past being drawn so;
-  // letting go twice does nothing)
+  // letting go twice does nothing. One being made again at another size just then (the graphics level changed: glb.js)
+  // is left until it has been, and let go the next time it is looked at: 3 November 2026, the downtown test, one of the
+  // three held on the card so, the other two let go)
   function rest(x, z) {
     if (!state.pics || state.waking || state.disposed) return;
     const now = performance.now() / 1000;
     if (now - (state.restAt || 0) < 3) return;
     state.restAt = now;
-    if (now - (state.drawnAt || 0) < TREES_SLEEP_AFTER || nearestTo(x, z) < NEAR + TREES_SLEEP || asleepNow()) return;
-    let slept = 0;
-    for (const t of state.pics) if (sleepPicture(t)) slept += 1;
-    if (slept) state.slept = (state.slept || 0) + 1;
+    if (now - (state.drawnAt || 0) < TREES_SLEEP_AFTER || nearestTo(x, z) < NEAR + TREES_SLEEP || allAsleep()) return;
+    const before = asleepNow();
+    for (const t of state.pics) sleepPicture(t);
+    if (!before && asleepNow()) state.slept = (state.slept || 0) + 1;
   }
   return {
     update, rest,
@@ -1242,8 +1246,10 @@ function createSlimTrees(group, { lite, fetchFile, renderer }) {
     get drawn() { return drawn; },
     get loaded() { return !!state.model; },
     get failed() { return state.failed; },
-    // (for the tests and the measuring: whether its pictures are let go now, how many times they were, and made again)
-    get asleep() { return asleepNow(); },
+    // (for the tests and the measuring: whether its pictures are let go now (all of them; `resting`, any), how many times
+    // they were, and made again)
+    get asleep() { return allAsleep(); },
+    get resting() { return asleepNow(); },
     get slept() { return state.slept || 0; },
     get woken() { return state.woken || 0; },
     count: copies.length,
@@ -1577,7 +1583,7 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
     group, update, see, letGo, trees, buildAround,
     // (for the tests and the measuring: the pieces and what is in them)
     pieces: () => [...pieces.values()].map((p) => ({ key: p.T.key, state: p.state, d: Math.round(p.d) })),
-    stats: () => ({ pieces: { ...stats, now: [...pieces.values()].filter((p) => p.state === 'built').length, queued: [...pieces.values()].filter((p) => p.state === 'queued').length }, trees: { drawn: trees.drawn, loaded: trees.loaded, failed: trees.failed, of: trees.count, asleep: trees.asleep, slept: trees.slept, woken: trees.woken }, signs: signStats() }),
+    stats: () => ({ pieces: { ...stats, now: [...pieces.values()].filter((p) => p.state === 'built').length, queued: [...pieces.values()].filter((p) => p.state === 'queued').length }, trees: { drawn: trees.drawn, loaded: trees.loaded, failed: trees.failed, of: trees.count, asleep: trees.asleep, resting: trees.resting, slept: trees.slept, woken: trees.woken }, signs: signStats() }),
   };
 }
 // Is any of the city in this piece (its roads, decks, roundabouts, kerbs, trees; or the land round it, near enough to
