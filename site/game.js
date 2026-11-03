@@ -26420,7 +26420,7 @@ function figureLabels(names) {
 }
 
 
-function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
+function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null, plain = false }) {
   let { json, accessor, bytes } = parsed;
   if ((json.meshes || []).length !== 1 || json.meshes[0].primitives.length !== 1) throw new Error('one mesh with one part is read here');
   const prim = json.meshes[0].primitives[0];
@@ -26473,8 +26473,8 @@ function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
     return map;
   }
   const map = textureOf(pbr.baseColorTexture, true);
-  const normalMap = textureOf(mat.normalTexture, false);
-  const rough = textureOf(pbr.metallicRoughnessTexture, false);
+  const normalMap = plain ? null : textureOf(mat.normalTexture, false);
+  const rough = plain ? null : textureOf(pbr.metallicRoughnessTexture, false);
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
   const options = { map, color: colour, roughness: pbr.roughnessFactor ?? 1, metalness: pbr.metallicFactor ?? 1, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide };
   if (normalMap) { options.normalMap = normalMap; if (mat.normalTexture.scale !== undefined) options.normalScale = new THREE.Vector2(mat.normalTexture.scale, mat.normalTexture.scale); }
@@ -27401,7 +27401,7 @@ __modules["client/animated.js"] = (function () {
 const { parseGLB, parsedParts, modelFromGLB, figureLabels, boneName } = __modules["client/glb.js"];
 const { splitGLB } = __modules["client/glb-read.js"];
 const { gunzip } = __modules["client/inflate.js"];
-const { nameTexture, surface } = __modules["client/render-kit.js"];
+const { nameTexture, surface, isLite } = __modules["client/render-kit.js"];
 const { softShadowPicture, FIGURE_PATCH } = __modules["client/soft-patch.js"];
 const { SEAT_POSE } = __modules["client/seat-pose.js"];
 const { borrowedFor, seatFor, loadMoves } = __modules["client/figure-moves.js"];
@@ -27587,7 +27587,7 @@ const TOWN_PICTURE = 512;
 function lightFiles(id, size = NPC_FIGURES[id] && !NPC_FIGURES[id].police && liteTexture() <= 1024 ? Math.min(liteTexture(), TOWN_PICTURE) : liteTexture()) {
   const entry = lightCopy(id);
   if (!entry) return null;
-  const pictures = entry.pictures.map((p) => {
+  const pictures = entry.pictures.filter((p) => !isLite() || p.slot === 'colour').map((p) => {
     const sizes = Object.keys(p.sizes).map(Number).sort((a, b) => a - b);
     const pick = sizes.filter((n) => n <= size).pop() || sizes[0];
     const [url, bytes] = p.sizes[pick];
@@ -27629,7 +27629,7 @@ function loadAnimated(id) {
         const arrived = performance.now();
         const pictures = [];
         for (const p of parts.pictures) pictures[p.index] = p;
-        const model = modelFromGLB(parsedParts(parts), { surface, pictures });
+        const model = modelFromGLB(parsedParts(parts), { surface, pictures, plain: isLite() });
         return model.ready.then(() => {
           logged({ id, bytes: files.bytes, size: files.pictures.length ? files.pictures[0].size : 0, arrivedMs: Math.round(arrived - began), readyMs: Math.round(performance.now() - began) });
           const words = figureLabels(model.clips.map((c) => c.name));
@@ -27638,7 +27638,7 @@ function loadAnimated(id) {
       }, (error) => { jobs.delete(id); if (loading.get(id) === job) loading.delete(id); logged({ id, bytes: files.bytes, stopped: !!(error && error.stopped), failed: !(error && error.stopped), afterMs: Math.round(performance.now() - began) }); throw error; });
     } else {
       job = Promise.all([bytesOf(spec), loadMoves(spec.moves || spec.file)]).then(([buffer]) => {
-        const model = modelFromGLB(parseGLB(buffer), { surface, maxTexture: liteTexture() });
+        const model = modelFromGLB(parseGLB(buffer), { surface, maxTexture: liteTexture(), plain: isLite() });
         return model.ready.then(() => { const words = figureLabels(model.clips.map((c) => c.name)); return { spec, model, labels: model.clips.map((c, i) => ({ name: c.name, label: words[i] })) }; });
       });
     }
@@ -30383,7 +30383,7 @@ return { BIKE_PARTS };
 __modules["client/bike-model.js"] = (function () {
 const { softPatch } = __modules["client/soft-patch.js"];
 const { BIKE_PARTS } = __modules["client/bike-parts.js"];
-const { surface } = __modules["client/render-kit.js"];
+const { surface, isLite } = __modules["client/render-kit.js"];
 const { fetchKept, letGoOnceDrawn, decodeAtMost } = __modules["client/glb.js"];
 const { deviceKind, PICTURES } = __modules["client/budget.js"];
 
@@ -30487,7 +30487,7 @@ async function partsOf(id, { base, tier, own = false, priority }) {
   const made = (async () => {
     const f = spec.files, sizes = SETS[tier] || SETS['2k'];
     const file = (name, size) => { for (const k of LARGER.slice(LARGER.indexOf(size))) if (f[`${name}${k}`]) return f[`${name}${k}`]; return null; };
-    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => (file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own, priority) : null));
+    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => ((k === 0 || !isLite()) && file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own, priority) : null));
     let geometries;
     try { geometries = own ? await buildShape(base, spec, priority) : await shapeOf(id, base, spec, priority); } catch (error) { textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {})); throw error; }
     try {
@@ -39283,7 +39283,7 @@ return { CAR_PARTS };
 __modules["client/car-model.js"] = (function () {
 const { softPatch } = __modules["client/soft-patch.js"];
 const { CAR_PARTS } = __modules["client/car-parts.js"];
-const { surface } = __modules["client/render-kit.js"];
+const { surface, isLite } = __modules["client/render-kit.js"];
 const { fetchKept, letGoOnceDrawn, decodeAtMost } = __modules["client/glb.js"];
 const { vehicleEnvironment } = __modules["client/vehicle-models.js"];
 const { deviceKind, PICTURES } = __modules["client/budget.js"];
@@ -39407,7 +39407,7 @@ async function partsOf(id, { base, lite, tier, own = false, priority }) {
   const made = (async () => {
     const f = spec.files, sizes = SETS[tier] || SETS['2k'];
     const file = (name, size) => { for (const k of LARGER.slice(LARGER.indexOf(size))) if (f[`${name}${k}`]) return f[`${name}${k}`]; return null; };
-    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => (file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own, priority) : null));
+    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => ((k === 0 || !isLite()) && file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own, priority) : null));
     let geometries;
     try { geometries = own ? await buildShape(base, spec, priority) : await shapeOf(id, base, spec, priority); } catch (error) { textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {})); throw error; }
     try {
@@ -49119,7 +49119,7 @@ __modules["client/supplied-model.js"] = (function () {
 
 const { parseGLB, fetchKept, letGoOnceDrawn, rereadFile, pictureMost } = __modules["client/glb.js"];
 const { modelFile } = __modules["client/budget.js"];
-const { surface } = __modules["client/render-kit.js"];
+const { surface, isLite } = __modules["client/render-kit.js"];
 const { reflects } = __modules["client/render-finish.js"];
 
 let reading = Promise.resolve();
@@ -49139,7 +49139,7 @@ async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, n
   geometry.computeBoundingSphere();
   const mat = json.materials[prim.material || 0], pbr = mat.pbrMetallicRoughness || {};
   const pictureOf = async (info, colour, paint = null, kind = 'colour') => {
-    if (!info || maps[kind] === false) return null;
+    if (!info || maps[kind] === false || (kind !== 'colour' && isLite())) return null;
     const index = json.textures[info.index].source;
     const image = json.images[index];
     const own = Number(maps[kind]) > 0 ? (want ? Math.min(want, maps[kind]) : maps[kind]) : want;
