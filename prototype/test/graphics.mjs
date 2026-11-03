@@ -20,7 +20,7 @@ let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
 const here = dirname(fileURLToPath(import.meta.url));
 const { createDevServer } = await import(resolve(here, '../../server/dev.mjs'));
-const { pastQuestion, enterTown, watchPictures, lostPictures } = await import(resolve(here, 'start.mjs'));
+const { pastQuestion, enterTown, watchPictures, lostPictures, lostWhat } = await import(resolve(here, 'start.mjs'));
 const { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LOW, levelSetting, autoStart } = await import(resolve(here, '../src/client/graphics.js'));
 const { SUPPLIED_VEHICLES } = await import(resolve(here, '../src/sim/zones/supplied-vehicles.js'));
 const out = process.argv[2] || '/tmp/graphics-shots';
@@ -147,12 +147,24 @@ for (const kind of ['phone', 'computer']) {
     await settled();
     return state(page);
   };
+  // (the memory guard kept aside meanwhile, as for the truck below, so that the level is the one chosen: a phone at Ultra
+  // in the town holds about the most its graphics card is kept to (135 MB), a computer after a while likewise (1050), and
+  // the guard steps such a one down to High while the test waits, which is the guard doing what it is for (looked at by
+  // itself below), not the pictures. 3 November 2026, page f3a0b29f6577c5ef: the phone raised to Ultra again was found
+  // at High, its screen's pictures and shadows smaller, and the check failed; what the guard counts at Ultra is given
+  // below, `used` of `limit`)
+  const guardAside = (on) => page.evaluate((v) => { window.__nlw.graphicsPretend.extraMB = v ? -100000 : 0; }, on);
+  const guardSees = () => page.evaluate(() => { const n = window.__nlw, g = n.graphics || {}; return { used: +(((g.pictures || 0) + (g.buffers || 0)) / 1048576).toFixed(1), limit: n.memoryLimit }; });
+  await guardAside(true);
   const high = await chooseAndSettle('ultra');
+  const highGuard = await guardSees();
   const low = await chooseAndSettle('low');
-  check(`${kind}: lowered from Ultra to Low, the graphics card holds less: the pictures made smaller, the sun's shadow map let go, fewer pixels drawn`, low.heldMB < high.heldMB - 3 && low.picturesMB < high.picturesMB && !low.shadowLive && low.picturesWaiting === 0, { ultraMB: high.heldMB, lowMB: low.heldMB, ultraPicturesMB: high.picturesMB, lowPicturesMB: low.picturesMB, shadowAfter: low.shadowLive, ultraPictures: high.pictures, lowPictures: low.pictures });
+  check(`${kind}: lowered from Ultra to Low, the graphics card holds less: the pictures made smaller, the sun's shadow map let go, fewer pixels drawn`, high.level === 0 && low.level === 3 && low.heldMB < high.heldMB - 3 && low.picturesMB < high.picturesMB && !low.shadowLive && low.picturesWaiting === 0, { levels: [high.level, low.level], ultraMB: high.heldMB, lowMB: low.heldMB, ultraPicturesMB: high.picturesMB, lowPicturesMB: low.picturesMB, shadowAfter: low.shadowLive, atUltraTheGuardCounts: highGuard, ultraPictures: high.pictures, lowPictures: low.pictures });
   // and raised again: the pictures given back (as large as before, within a little: what was made meanwhile)
   const back = await chooseAndSettle('ultra');
-  check(`${kind}: raised from Low to Ultra again, the pictures made large again`, back.picturesMB > low.picturesMB && back.picturesMB > high.picturesMB * 0.8, { ultraMB: high.picturesMB, lowMB: low.picturesMB, backMB: back.picturesMB, backPictures: back.pictures });
+  const backGuard = await guardSees();
+  await guardAside(false);
+  check(`${kind}: raised from Low to Ultra again, the pictures made large again`, back.level === 0 && back.picturesMB > low.picturesMB && back.picturesMB > high.picturesMB * 0.8, { level: back.level, ultraMB: high.picturesMB, lowMB: low.picturesMB, backMB: back.picturesMB, theGuardCounts: backGuard, changes: back.changes, backPictures: back.pictures });
   await page.screenshot({ path: resolve(out, `${kind}-ultra-again.png`) });
   // ---- a phone: the owner's box truck from far off (more than 60 m) drawn from its pictures at 512, near it (within 40 m)
   // at their own size, and from far off again at 512 (render-supplied.js; none changed within ten seconds of the last)
@@ -202,7 +214,7 @@ for (const kind of ['phone', 'computer']) {
       plane.geometry.dispose(); plane.material.dispose(); target.dispose();
       return { size: [t.image.width, t.image.height], onCardBefore: before, onCardAfter: after, litPixels: lit };
     });
-    check(`${kind}: signs and boards out of sight for half a minute let go from the graphics card, and one drawn again handed back as painted`, !!kept && kept.letGo > 0 && kept.MB > 0 && !!again2 && !again2.onCardBefore && again2.onCardAfter && again2.litPixels > 0 && (await lostPictures(page)) === 0, { kept, again: again2, lost: await lostPictures(page) });
+    check(`${kind}: signs and boards out of sight for half a minute let go from the graphics card, and one drawn again handed back as painted`, !!kept && kept.letGo > 0 && kept.MB > 0 && !!again2 && !again2.onCardBefore && again2.onCardAfter && again2.litPixels > 0 && (await lostPictures(page)) === 0, { kept, again: again2, lost: await lostPictures(page), lostWhat: await lostWhat(page) });
   }
   // ---- Auto lowers by itself when frames are slow. (This machine draws in software, a frame at Ultra in a second or
   // more, and the game takes a frame of more than two seconds for the page being hidden, not for the game being slow:

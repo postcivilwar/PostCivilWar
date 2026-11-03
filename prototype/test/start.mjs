@@ -51,19 +51,28 @@ export const openingOver = () => { const i = document.querySelector('#intro'); r
 
 // Every picture handed to the graphics card, watched for one the page had already let go of (glb.js lets a picture's
 // own copy go once the card has it: handed over again after that, it is empty, and what it covers is drawn black).
-// Call on a browser context before its pages open; `lostPictures(page)` then gives how many there have been.
+// Call on a browser context before its pages open; `lostPictures(page)` then gives how many there have been, and
+// `lostWhat(page)` what the first few were and where in the game each was handed over from (3 November 2026: the
+// graphics test found one, once, and no more could be told of it).
 export async function watchPictures(context) {
   await context.addInitScript(() => {
     window.__lostPictures = 0;
+    window.__lostWhat = [];
+    const lost = (kind) => {
+      window.__lostPictures += 1;
+      if (window.__lostWhat.length >= 4) return;
+      const from = String(new Error().stack || '').split('\n').slice(3, 15).map((l) => l.trim().replace(/^at /, '').replace(/https?:\/\/[^/]+\//, '').replace(/\?v=[0-9a-f]+/, '')).join(' < ');
+      window.__lostWhat.push({ kind, at: Math.round(performance.now() / 1000), from });
+    };
     for (const C of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
       if (!C) continue;
       for (const name of ['texImage2D', 'texSubImage2D']) {
         const orig = C.prototype[name];
         C.prototype[name] = function (...args) {
-          for (const a of args) if (typeof ImageBitmap !== 'undefined' && a instanceof ImageBitmap && (a.width === 0 || a.height === 0)) window.__lostPictures += 1;
+          for (const a of args) if (typeof ImageBitmap !== 'undefined' && a instanceof ImageBitmap && (a.width === 0 || a.height === 0)) lost('a picture read from its file, its copy let go');
           // (a picture painted on a canvas whose pixels were let go once the card had it, painted.js, handed over again
           // without being painted again first)
-          for (const a of args) if (typeof HTMLCanvasElement !== 'undefined' && a instanceof HTMLCanvasElement && a.__letGo) window.__lostPictures += 1;
+          for (const a of args) if (typeof HTMLCanvasElement !== 'undefined' && a instanceof HTMLCanvasElement && a.__letGo) lost('a painted picture, its pixels let go');
           return orig.apply(this, args);
         };
       }
@@ -71,6 +80,7 @@ export async function watchPictures(context) {
   });
 }
 export const lostPictures = (page) => page.evaluate(() => window.__lostPictures || 0);
+export const lostWhat = (page) => page.evaluate(() => window.__lostWhat || []);
 
 // A police officer of the town's brought to stand `metres` from (x, z), out in the open in sight of it, and kept
 // standing there (31 October 2026, the owner's word: only what an officer on the scene sees is a crime, justice.js;
