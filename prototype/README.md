@@ -4623,6 +4623,218 @@ city places at most 293 draws (by the towers), and the city's gate at night, its
 triangles and 102 MB, more than in Stage 1 (more of the city is in sight from there) but within the busiest place in the
 town, the PowerBike showroom (449 draws, 1.23 million triangles, 129 MB; the motor park 527 draws).
 
+## Oganiru City, Stage 3: the whole downtown and the skyline (2 November 2026)
+
+The owner's brief of 31 October (Project doc `claude/brief-flyovers-city.md`), its Stage 3: "The whole downtown and the
+skyline"; his word on 2 November: "Yes go on with stage 3". As in the stages before, nothing that was in the town moved,
+his files are byte for byte, and saved games load (tested).
+
+**The towers** (`src/sim/zones/oganiru.js`, `OGANIRU_TOWERS`): thirty on downtown's blocks between Gateway Boulevard and
+the expressway, the sample's six where they were and twenty-four more, on Gateway Boulevard, Union Street, Exchange,
+Council, Charter and Commerce Streets, Independence Boulevard and round Interchange Park:
+
+- glass towers with a fine grid of frames, of blue glass (Unity Tower, Gate Tower, Udoka Tower, Ijele Tower), teal
+  (Azuka Tower, Lagoon Court, Kingfisher Tower, Oganiru Tower) and grey (Harmony Place, Niger House, Independence House,
+  Parkview West), 18 to 48 storeys;
+- white towers with tall ribs standing out of their walls between rows of windows (Ivory Court, Ocha Tower, Harmattan
+  House, Egret House);
+- stone-and-glass towers with stepped tops, a cornice at each step, finials at the corners and a green pyramid at the
+  top (Sunrise Chambers, Nkem House, Charter House, Ugwu Tower);
+- two round towers (Rotunda House, Halo Tower);
+- glass offices of 7 to 12 storeys along the main roads, of blue, grey and teal glass with a band at each floor (Gateway
+  Offices, Obi Plaza, Chiadi Court, Commerce House, Palmgrove Offices, Council Offices, Boulevard Offices, Parkview
+  Offices).
+
+Twenty-two of them high-rises (15 storeys and more); the tallest Oganiru Tower (48 storeys, a mast on its top) and Ugwu
+Tower (45, its stone crown). Each faces the street it stands on (`face`), its plaza paved out to that street's walkway
+(`front`), its door on the townspeople's ways (`city-walks.js`); no two neighbours (within 70 m of each other) of the same
+kind, and each of a kind a shade of its own; the names over their doors and on their shops (one or two each) made up.
+Solid to their tops; not entered.
+
+**The skyline** (`src/client/render-skyline.js`): every tower's walls, its lobby's glass, its top (the roof, a crown set
+back in steps, the stone ones' pyramids, the tallest glass ones' masts) and the lit bands round the tallest crowns are
+built once for the whole city, a phone's as well as a computer's, once the town is warmed up (at once with the city for
+someone already in it), and never let go; drawn as one thing for each kind of wall (nine), one for the lobbies, one for
+the tops and one for the bands: twelve draws for all thirty towers, from wherever they are seen (the town, the flyovers,
+the expressway's viaduct). Not drawn from inside a hall, nor from in the habitation (a kilometre and more off, over its
+own hills, where its own drawing has a phone's whole share); their shadows cast only for someone among them (within
+250 m). The haze: the town's air fades everything out beyond 480 to 640 m (`render-sky.js`), the more the nearer the
+ground (`world-shading.js`); the towers stand up out of it, the higher up a tower the less of the haze over it (all of it
+at its foot; from 8 m up less and less; from 110 m up half of it just beyond the haze's own reach, 86% at three and a
+half times as far: `SKYLINE_HAZE`), so that from the middle of the town, 650 m to a kilometre off, their upper storeys are
+seen, pale by day, and at night their lit windows. Their walls' and lobbies' pictures (`SKYLINE_PICTURES`) are at their
+own size for someone within 400 m of downtown (a phone's 256 and 128 pixels, a computer's 1024 and 512) and small beyond
+550 m (64 and 32, 128 and 64), made again one a frame as the player comes and goes: from the town a wall's 14.4 m is a
+few pixels across on the screen, and what is drawn of a picture there is its own smaller sizes all the same.
+
+**Near, the finer work** (`render-oganiru.js`, drawn by the city's pieces with the rest of each piece, from as near as
+the rest of it): at each tower's foot columns at its corners, a canopy over the way in (one of four colours), a frame of
+dark metal round its doors, three steps up to them, its name on a board over the canopy, its shops either side with their
+names over their windows and a strip of colour (five colours; on a round tower, round its wall); the white towers'
+ribs, the stone ones' cornices and finials, the plant and water tank on the roofs. Far towers are the simpler: the
+skyline's alone. A piece's signs (the towers' names, the shops', the road signs and the gantries') are painted one under
+another on one picture and drawn as one (each sign was its own picture and its own draw: downtown's towers alone have 72).
+
+**At night** (`render-skyline.js`, `update`): windows lit from dusk, about half of them in the evening, fewer as the
+night goes on, a few at four in the morning, more again before dawn; each tower's walls and each 14.4 m of them their own
+windows lit, so that no two towers are lit alike; a third of the windows an office's cooler white, the rest a lamp's warm
+light; the lobbies lit warm; the tallest crowns' bands lit.
+
+**The radar** (`radar.js`): the city's roads, roundabouts, decks and towers on the round map in the corner (on the
+phone's map since Stage 1, never on the radar until now).
+
+**Found and fixed on the way**: since Stage 2 a phone's first screen (PLAY) came about three and a half seconds later
+than before it (a probe with the processor slowed four times: 5.9 s against 2.4 s): as the game loaded, the decks' walls
+were worked out by trying every point of every deck against every piece of every other deck, and the city's walkways by
+trying every half metre of each against every road; now each deck's and each road's pieces are looked up by where they
+are, and a roundabout or a deck only where one is near: the city's data the same to the last digit (all of it, and what
+it says at nearly 80,000 points over the city, before and after), PLAY 3.0 to 3.9 s. By the new headless test: the plazas'
+points of the townspeople's ways were laid 12 m apart from one corner, the last row up to 12 m short of the far edge, so
+that where a plaza reaches out to its street's walkway it was too far to be joined to it, and seven towers' doors led
+nowhere (now a row along each edge). On the way: the round towers' shop names stood out on the line of their fronts,
+2.6 m off the curve of the wall (Stage 1's Rotunda House too; now round the wall); the plant on the roofs stood inside
+the crowns, never seen (now beside them); the radar never showed the city (now its roads, roundabouts, decks and
+towers); a piece of the city with towers in it was drawn whole, roads, kerbs and lamps, out to twice as far as the rest,
+for its towers (now the skyline draws them from anywhere, and the piece is drawn as far as the rest). By the new browser test: since 1 November, once the town was warmed up, the city
+(and so its skyline) was built only where the player was more than 400 m from the habitation, waiting meanwhile for the
+habitation, which is built only within 180 m (a phone) or 260 m (a computer): in the north of the town (the motor park,
+the market, College Road) nothing of it was built at all, and someone walking out along College Road had it built all at
+once at its gate (7 to 10 seconds of the page held here, drawn in software); now the city and its skyline wait only
+while the habitation is actually being built (`habitationBusy`, `render-habitation.js` `building`). By the showroom's
+browser test, after that: a computer in the PowerBike showroom's hall, from which nothing of the city is seen, now had
+the city's nearest pieces built round it as the hall was drawn, and a question typed to the salesman was slow to go up;
+now nothing of the city or its skyline is built from inside a hall (`main.js`). By the first measuring of the release
+build (`tools/measure/places.mjs`): a phone at Medium at the PowerBike showroom, the town's busiest place, 136.9 MB on
+its graphics card, over the 135 a phone is kept to there: the skyline's walls' and lobbies' pictures at their own size,
+3.2 MB (a computer's 51 MB), picture by picture the only difference there from the live build (`TEXTURE_LIST=1`, the
+showroom after the city boulevard on both builds, 122.2 and 126.7 MB); now small from the town (above). By the graphics
+levels' test (`test/graphics.mjs`) on the build before that: a computer at Ultra in the town, where a new player arrives,
+its graphics card counted nearly full (1173 MB of the 1050 it is kept to; the live build there 937 MB), and the level
+lowered a step by itself; by the measuring of the release build on a computer, picture by picture against the live
+build's, at the motor park 88 MB more than the live build, all of it the city's: since the change above the city is built
+for a computer in the town as well (from 820 m), and with it its signs' pictures at their own size (four pictures of up to
+1024 by 4096 pixels, 28 MB; in the middle of the town looking west downtown's, 94 MB), the slim trees' leaves (21 MB;
+from the town none of the trees is drawn as the model, only as their pictures), the city's billboards' pictures (20 MB:
+each drawn for a frame or two before it was first hidden, and kept by the card from then on), and the skyline's walls
+(above). Now a computer's signs are at their own size only within 70 m of their piece, and at a quarter of it beyond
+110 m (`SIGNS_NEAR`, painted again a picture a frame as the player comes and goes: from 110 m a board of ten metres is a
+hundred pixels or so across on the screen); the slim trees' own pictures are let go from the card while none of them has
+been drawn as the model for ten seconds and the nearest is more than 250 m off (a phone's 170), and made again from the
+file as one comes within 230 m (150) of being drawn so, the trees drawn as their pictures meanwhile (`createSlimTrees`,
+`rest`, as the habitation's own models are); and a billboard's picture is hidden from the moment it is made if the board
+is beyond its distance (`render-billboards.js`). By the graphics levels' test after these changes, a computer at Ultra in the town held 879, 959 and 923 MB on its
+graphics card in three runs (the live build there 937), under the 1050 it is kept to, and its level was no longer
+lowered by itself (all twelve of the computer's checks passed on the release build). Raised to Ultra again after Low
+(the guard kept aside by the test), its pictures came to 958 MB in one run and to 1136 and 1133 MB in the two others
+(the live build, in one run, 937): by then more of the town's models' pictures were on the card (63 pictures made from
+their files against 50 at the start, most of them at 2048); in play the guard first lets go of the models kept ready
+but not drawn, and lowers the level a step only if that is not enough.
+
+**Found and fixed before going live** (3 November): by the graphics levels' test, its watch on the pictures made to
+tell, for a picture handed to the graphics card empty, where it was made, where the page's copy of it was let go and
+where the card's (`test/start.mjs`): in four of six runs on a phone's settings and in one of three on a computer's,
+one picture of something that comes and goes in the town (in the three runs that could tell, a car's twice,
+`car-model.js`, and once one of the town's bicycles', skateboards' or skates', `sports-model.js`) was let go by its
+owner, its model not wanted any more, and seconds or minutes later handed to the card again, empty, as the town was
+drawn: drawn black. What still drew it then could not be caught in the
+act (the watch now names what is drawn with such a picture, and where). Now a picture handed over empty is made again
+from its file at once and handed over afresh (`glb.js`, `mend`): black for the moment that takes (6 s here, drawn in
+software), not for as long as the thing is there; a sleeping one (the habitation's, the slim trees') drawn by mistake
+is woken. On the way: a picture let go by its owner while it was being made again at another size (a level changed) was
+handed to the card all the same once made, and held there for nothing; no longer. And on a phone a car's, a
+motorcycle's and some figures' pictures of how their surface is bent and how rough and metal it is (and the car
+showroom's villa's) were fetched and made, though a phone draws a surface by its colour picture alone (`render-kit.js`,
+`surface`): never drawn, they were never let go either, and stayed whole in the page's memory for as long as it was
+open: for a car on the road 2 MB, a parked one 8 MB, a figure with them 8 MB, each time one was fetched again. Now a
+phone fetches and makes only the colour pictures (`isLite`: `car-model.js`, `bike-model.js`, `supplied-model.js`,
+`animated.js`, `glb.js`); a computer's as before.
+
+**Files.** `src/sim/zones/oganiru.js` (the towers, `towerFront`, the plazas), `src/sim/city-walks.js` (the doors; the
+plazas' points), `src/client/render-skyline.js` (new: the skyline, its pictures, its haze), `src/client/render-mesher.js`
+(new: the building shapes, out of `render-oganiru.js`), `src/client/render-oganiru.js` (the towers' feet and finer work,
+`SignAtlas` and `SIGNS_NEAR`; the slim trees' pictures let go while none is near), `src/client/render-billboards.js` (a
+far board's picture hidden from the moment it is made), `src/client/radar.js`, `src/client/main.js` (the skyline built,
+shown and lit); and before going live `src/client/glb.js` (a picture handed over empty made again at once, `mend`;
+one let go by its owner while being made again not handed over; a phone's figures' colour pictures alone),
+`src/client/render-kit.js` (`isLite`), `car-model.js`, `bike-model.js`, `supplied-model.js` and `animated.js` (a phone's
+colour pictures alone). Tests:
+`test/oganiru-downtown.test.mjs` (headless, new: 20 to 40 high-rises of 15 to 50 storeys, offices of 6 to 12, every kind;
+no two neighbours alike; each solid to its top, on the city's land and clear of every road, deck, junction, roundabout
+and of each other; each front onto its street, its plaza out to the walkway, the walkway to the road; nothing standing in
+a tower or on its steps; a door each, and from each door a walk to the farthest), `test/oganiru-downtown.mjs` (in a
+browser, new, two players, one on a phone's settings: the skyline from the middle of the town on the phone with nothing
+of the city built; each tower's foot and the signs drawn as one a piece; the windows by day, in the evening and late at
+night; the radar; the hall; the phone at the new places; the towers' walls' pictures small from the town and at their own
+size downtown; a computer's signs' pictures by their distance and the slim trees' pictures let go in the town and made
+again among them), `test/oganiru-look.mjs` (the downtown and skyline views),
+`tools/measure/places.mjs` (four new places: `downtown middle`, `Gateway Boulevard`, `Interchange Park`, `town looking
+west`); and before going live `test/start.mjs` (the watch on the pictures: where one handed over empty
+was made, let go and drawn, and any let go while something drawn still uses it), `test/graphics.mjs` (a picture let go
+while drawn made again at once; `GRAPHICS_ONLY`), `test/phone-memory.mjs` (a phone fetches the colour pictures alone).
+
+**Tested** (on the release build, its page `3fb21dbbc43a18d3`; on the build before it, `f3a0b29f6577c5ef`, the same but
+for what was found and fixed before going live (above); on `f70ed411eb5e436c`, the same but for that and one of the
+slim trees' pictures left on a computer's graphics card in the town; on `e0b2461f4672575e`, the same but for those and
+the computer's graphics card fix; on `210612457e7334ca`, the same but for those and the skyline's pictures; on
+`b954a56a0a2ab6b2`, the same but for those and the hall's change): 602 headless (new: `oganiru-downtown.test.mjs` 6),
+server 119 (its code the same on all of them). In a browser, one at a time. On the release build: the graphics levels on a phone's settings 14/15 (the one miss a picture handed over empty, once, one of the
+town's bicycles', skateboards' or skates', mended at once; the new check of the mending passed) and on a computer's
+12/12 (once a car's picture handed over empty, mended); the phone's memory 12/12 (new: only the colour pictures of the
+cars and figures fetched, 20 and 23 of them); the downtown 16/16 (the phone at Medium at the four new places 74.8 to
+78.9 MB on its graphics card and 154 to 372 draws; the rest as on the build before it, below); Stage 2's city 12/12 (the cars on the flyovers, under them and down in the cutting, the town's cars
+up on the viaduct, 1,028 lamps lit at night; a phone at Medium at Stage 2's places 63.3 to 73.5 MB). On
+`f3a0b29f6577c5ef`: the downtown 16/16 (two
+players, a computer and a phone: on the phone in the middle of the town the skyline built, every tower, though nothing
+of the city near it is, and in sight looking west, its walls' and lobbies' pictures held at 64 and 32 pixels; on the
+computer in the north of the town the city built a piece a frame once the town is warmed up, not all at once at its
+gate; on the computer in the town downtown's signs at a quarter of their size, 256 pixels across (the one piece within
+110 m at its own), and none of the slim trees' pictures on its graphics card; downtown's pieces drawing every tower's
+foot, its name and its shops' names, a piece's signs as one: 106 signs on 17 pictures; downtown the signs of the pieces
+round the player at their own size, 1024 pixels across, those further off at a quarter; the radar's roads under the
+player on Unity Avenue; among the slim trees their pictures made again from the file and the nearest drawn as the
+model; downtown the computer's walls' and lobbies' pictures at their own size, 1024 and 512; no window lit by day, in the
+evening more than late at night, the crowns' bands and the lobbies lit; the phone's pictures downtown at 256 and 128,
+and back in the town from there 64 and 32 again; a phone at Medium at the four new places 68.6 to 74.2 MB on its
+graphics card and 153 to 372 draws; back in the town from downtown the computer's signs at a quarter of their size again
+and the trees' pictures let go again; inside the PowerBike hall no skyline); the phone's memory 11/11; the graphics levels 24/26 and 25/26 (in both, on the phone, a picture handed over
+empty, above; in the first, also the phone raised to Ultra again found at High: the memory guard had stepped it down
+while the test waited, as it is there to do, and the test now keeps the guard aside meanwhile), and on a phone's
+settings alone 12/14, 14/14 and 14/14 (in the first, the picture, and the phone lowered two steps where a card nearly
+full asks one: the page, busy making its pictures smaller, heard from the test only after the guard's second step, as
+once on the live build; the test now takes its pretend back in the page itself);
+Stage 1's city 13/13 (the city built and drawn; every street lamp, the city's among them; the slim trees read from their file; a car on the expressway's deck, on the flyover 15 m up and under the deck on Unity Avenue, the camera kept under the decks; a lamp knocked down and seen down by the other player; at night 1,028 lamps lit; a phone at Medium at the city's places 67.6 to 71 MB). On `f70ed411eb5e436c`: the downtown 15/16 (in the town one of the slim trees' three
+pictures still on the computer's graphics card: being made again at another size as the trees were let go; now let go
+once made); the phone's memory 10/11 (C: back at the motor park after the trip east, the town drawn with 361,000
+triangles where nine tenths of the 432,000 at the start were asked for; the same squares of the town rested and came
+back as in the run before it, which passed with 372,000 and 379,000: more of the townspeople and the town's cars about
+the park at the start; 11/11 on the release build); the billboards and the ADS app 17/17. On `e0b2461f4672575e`: the
+downtown 12/12; the pictures, a computer's and a phone's, no page error. On `210612457e7334ca`: the showroom 28/28 (and
+once 27/28, the player set down 13 cm past the doors: the walk's slowing to a stop carried on over the move, in frames
+drawn slowly here); the habitation 47/49 (A, as on the live build; D, a phone in the garden 261 draws a frame where fewer
+than 260 are allowed, on Stage 2's build 260: nothing of the city or its skyline drawn there); the graphics levels: the
+phone's all passed, and the computer at Ultra in the town lowered a level by itself, its graphics card counted nearly
+full (the city's pictures: found and fixed, above; the live build, run in turn, 25/26: its phone lowered two levels where
+the test asks for one). On `b954a56a0a2ab6b2`: the downtown 9/9; Stage 2's city 12/12; Stage 1's city 13/13; the town's
+traffic 17/17 with a computer's settings and with a phone's; the stars 9/9; running people over 16/16 with each; the
+crowd 7/7 with each; the town's riders 30/30 (twice its bell not heard in the test's two minutes of the wall's clock, on
+this machine too few of the town's: now waited for by the town's clock); the land beyond the town 12/12; the billboards
+and the ADS app 17/17; the play-through, every session; the phone's memory 11/11; the street camera 18/18; the first
+city block 5/5; the town's buildings 12/12; the graphics lost and given back 12/12; vehicle sync 10/12 (the live build,
+the same night, 11/12: the watcher told late of the driver's keke, as since 28 October); the showroom 27/28 (a question
+typed to the salesman slow to go up: the hall's change, above).
+
+**Measured** (`tools/measure/places.mjs`, on the release build, a phone's settings at Medium; drawn in software here, so
+the frame times are this machine's, not a phone's): at every place in the city, Stage 2's and the new ones, 72.9 to
+101.1 MB on the graphics card (the most at the city's gate at night, on the town's edge), 92 to 393 draws a frame and
+0.12 to 0.94 million triangles; downtown at night (`downtown middle`) 87.5 MB, 239 draws, 0.82 million triangles;
+Gateway Boulevard 81.6 and 83.7 MB, Interchange Park 80.0 and 80.4; the Harmony Interchange at night 74.6 MB, 107 draws;
+the skyline from the middle of the town (`town looking west`) 80.9 and 83.1 MB, 383 and 393 draws. The town's busiest
+place, the PowerBike showroom: 135.3 MB by day and 132.3 at night, 438 and 461 draws, 1.12 and 1.23 million triangles
+(the live build, measured on 2 November: 129.2 and 128.9 MB, 426 and 449 draws; from run to run it varies there by
+several MB with what is loaded nearby, on this stage's builds 129.6 to 136.9 by day; of the draws at night, twelve are
+the skyline's). A computer's measuring, and the live build's at every place on a phone's settings and a computer's,
+made after going live, for the sheets.
+
 ## Tests
 
 ```
