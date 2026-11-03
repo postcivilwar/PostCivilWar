@@ -26199,19 +26199,37 @@ async function fetchKept(url, init = undefined) {
 }
 
 const restorable = new Map();         // texture -> how to make its picture again: restore(size), size 0 for as large as it is
+const madeFrom = new WeakMap();
+const ownLetGo = new Set();
 function letGoOnceDrawn(texture, restore = null) {
+  if (restore) madeFrom.set(texture, restore);
   texture.onUpdate = () => {
-    texture.onUpdate = null;
     const image = texture.image;
+    if (gone(image)) { mend(texture); return; }
     if (image && image.width) texture.userData.drawn = Math.max(image.width, image.height);
-    if (image && typeof image.close === 'function') image.close();
+    if (image && typeof image.close === 'function') image.close(); else texture.onUpdate = null;
     if (restorable.has(texture) && toRemake(texture) && !waiting.includes(texture)) waiting.push(texture);
   };
   if (restore && !restorable.has(texture)) {
     restorable.set(texture, restore);
-    texture.addEventListener('dispose', () => { if (!remaking.has(texture)) { restorable.delete(texture); asleep.delete(texture); } });
+    texture.addEventListener('dispose', () => { if (!ownLetGo.has(texture)) { restorable.delete(texture); asleep.delete(texture); } });
   }
   return texture;
+}
+const mending = new Set(), mends = new WeakMap();
+let mended = 0;
+function mend(texture) {
+  if (asleep.has(texture)) { if (!waking.has(texture)) { mended += 1; wakePicture(texture); } return; }
+  const restore = madeFrom.get(texture), times = mends.get(texture) || 0;
+  if (!restore || mending.has(texture) || times >= 3) return;
+  mending.add(texture); mends.set(texture, times + 1); mended += 1;
+  Promise.resolve().then(() => restore(pictureWanted(texture))).then((image) => {
+    if (!image) return;
+    ownLetGo.add(texture); texture.dispose(); ownLetGo.delete(texture);
+    texture.image = image; texture.needsUpdate = true;
+    letGoOnceDrawn(texture);
+    handOver(texture);
+  }).catch(() => { /* drawn as it is */ }).finally(() => { mending.delete(texture); });
 }
 
 const asleep = new Set();
@@ -26220,10 +26238,9 @@ function sleepPicture(texture) {
   if (!texture || !restorable.has(texture)) return false;
   if (asleep.has(texture) || remaking.has(texture) || waking.has(texture)) return true;
   const i = waiting.indexOf(texture); if (i >= 0) waiting.splice(i, 1);
-  remaking.add(texture); texture.dispose(); remaking.delete(texture);
+  ownLetGo.add(texture); texture.dispose(); ownLetGo.delete(texture);
   const image = texture.image;
   if (image && typeof image.close === 'function') image.close();
-  texture.onUpdate = null;
   texture.userData.drawn = 0;
   asleep.add(texture);
   return true;
@@ -26238,7 +26255,7 @@ function wakePicture(texture) {
       const size = pictureWanted(texture);
       const image = await restore(size);
       if (!image || !restorable.has(texture)) { if (image && typeof image.close === 'function') image.close(); return false; }
-      remaking.add(texture); texture.dispose(); remaking.delete(texture);
+      ownLetGo.add(texture); texture.dispose(); ownLetGo.delete(texture);
       texture.image = image; texture.needsUpdate = true;
       texture.userData.cap = size;
       letGoOnceDrawn(texture);
@@ -26293,7 +26310,7 @@ function stepPictures() {
   remaking.add(texture);
   Promise.resolve().then(() => restore(size)).then((image) => {
     if (!image || !restorable.has(texture)) { if (image && typeof image.close === 'function') image.close(); return; }
-    texture.dispose();
+    ownLetGo.add(texture); texture.dispose(); ownLetGo.delete(texture);
     texture.image = image; texture.needsUpdate = true;
     texture.userData.cap = size; texture.userData.drawn = 0;
     letGoOnceDrawn(texture);
@@ -26306,7 +26323,7 @@ function pictureState() {
   const sizes = {};
   let undrawn = 0;
   for (const texture of restorable.keys()) { const d = texture.userData.drawn || 0; if (!d) undrawn += 1; else sizes[d] = (sizes[d] || 0) + 1; }
-  return { restorable: restorable.size, undrawn, sizes, waiting: waiting.length, remaking: remaking.size, most, asleep: asleep.size, waking: waking.size };
+  return { restorable: restorable.size, undrawn, sizes, waiting: waiting.length, remaking: remaking.size, most, asleep: asleep.size, waking: waking.size, mended };
 }
 async function decodeAtMost(blob, size = 0, options = undefined) {
   const full = await (options ? createImageBitmap(blob, options) : createImageBitmap(blob));

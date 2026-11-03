@@ -37,23 +37,55 @@ export async function fetchKept(url, init = undefined) {
 // every picture that was let go and is still in use (20 October 2026: the game carries on where it was instead of
 // asking to be reloaded).
 const restorable = new Map();         // texture -> how to make its picture again: restore(size), size 0 for as large as it is
+// (how each picture was made, kept as long as the picture is, whatever its owner has done with it: `mend`)
+const madeFrom = new WeakMap();
+// Those let go from the graphics card here, just now, to be handed a new picture (made again at another size, asleep,
+// woken, mended): any other letting go is the owner's, done with it for good. (3 November 2026: one let go by its owner
+// while it was being made again at another size, a level changed, was handed to the card all the same once made, and
+// held there for nothing, the owner long gone)
+const ownLetGo = new Set();
 export function letGoOnceDrawn(texture, restore = null) {
+  if (restore) madeFrom.set(texture, restore);
   texture.onUpdate = () => {
-    texture.onUpdate = null;
     const image = texture.image;
+    // (handed over empty: its picture let go here once the card had it, and the card's copy let go since, by whatever
+    // was done with it, then drawn again: drawn black. Made again from its file at once: `mend`)
+    if (gone(image)) { mend(texture); return; }
     // (its size on the graphics card, kept as the page's copy is let go: the graphics level's largest picture is
     // compared with it, setPictureMost)
     if (image && image.width) texture.userData.drawn = Math.max(image.width, image.height);
-    if (image && typeof image.close === 'function') image.close();
+    // (a picture let go here is watched for being handed over again, empty; any other, once handed over, is not)
+    if (image && typeof image.close === 'function') image.close(); else texture.onUpdate = null;
     // (one that came larger than the level's largest, or its own, is made smaller in its turn; one made under a cap
     // that has since been raised, larger)
     if (restorable.has(texture) && toRemake(texture) && !waiting.includes(texture)) waiting.push(texture);
   };
   if (restore && !restorable.has(texture)) {
     restorable.set(texture, restore);
-    texture.addEventListener('dispose', () => { if (!remaking.has(texture)) { restorable.delete(texture); asleep.delete(texture); } });
+    texture.addEventListener('dispose', () => { if (!ownLetGo.has(texture)) { restorable.delete(texture); asleep.delete(texture); } });
   }
   return texture;
+}
+// A picture handed to the graphics card empty, made again from its file and handed over afresh (3 November 2026: the
+// graphics levels' test found a car's colour picture handed over again, empty, as the town was drawn, two minutes after
+// it was first drawn, in three of five runs on a phone's settings: what let the card's copy go meanwhile could not be
+// caught in the act. Black for the moment it takes to make it again, not for as long as the car is there). At most
+// three times for one picture; counted (`pictureState().mended`, for the tests).
+const mending = new Set(), mends = new WeakMap();
+let mended = 0;
+function mend(texture) {
+  // (one asleep, drawn all the same: woken, as it would be on coming near)
+  if (asleep.has(texture)) { if (!waking.has(texture)) { mended += 1; wakePicture(texture); } return; }
+  const restore = madeFrom.get(texture), times = mends.get(texture) || 0;
+  if (!restore || mending.has(texture) || times >= 3) return;
+  mending.add(texture); mends.set(texture, times + 1); mended += 1;
+  Promise.resolve().then(() => restore(pictureWanted(texture))).then((image) => {
+    if (!image) return;
+    ownLetGo.add(texture); texture.dispose(); ownLetGo.delete(texture);
+    texture.image = image; texture.needsUpdate = true;
+    letGoOnceDrawn(texture);
+    handOver(texture);
+  }).catch(() => { /* drawn as it is */ }).finally(() => { mending.delete(texture); });
 }
 
 // A picture that nothing has drawn for a while let go from the graphics card as well as from the page (render-habitation.js,
@@ -69,10 +101,10 @@ export function sleepPicture(texture) {
   // (asleep already, or being made again just now: left as it is, and looked at again next time)
   if (asleep.has(texture) || remaking.has(texture) || waking.has(texture)) return true;
   const i = waiting.indexOf(texture); if (i >= 0) waiting.splice(i, 1);
-  remaking.add(texture); texture.dispose(); remaking.delete(texture);
+  ownLetGo.add(texture); texture.dispose(); ownLetGo.delete(texture);
   const image = texture.image;
   if (image && typeof image.close === 'function') image.close();
-  texture.onUpdate = null;
+  // (its watch for being handed over empty kept: drawn while asleep, it is woken, `mend`)
   texture.userData.drawn = 0;
   asleep.add(texture);
   return true;
@@ -91,7 +123,7 @@ export function wakePicture(texture) {
       // (let go for good while it was being made: nothing to hand over)
       if (!image || !restorable.has(texture)) { if (image && typeof image.close === 'function') image.close(); return false; }
       // (any room the card gave it meanwhile let go: r186 gives a picture its room once, at the size it then had)
-      remaking.add(texture); texture.dispose(); remaking.delete(texture);
+      ownLetGo.add(texture); texture.dispose(); ownLetGo.delete(texture);
       texture.image = image; texture.needsUpdate = true;
       texture.userData.cap = size;
       letGoOnceDrawn(texture);
@@ -162,8 +194,9 @@ export function stepPictures() {
   remaking.add(texture);
   Promise.resolve().then(() => restore(size)).then((image) => {
     if (!image || !restorable.has(texture)) { if (image && typeof image.close === 'function') image.close(); return; }
-    // (the card's copy let go: r186 gives a picture its room on the card once, so another size needs new room)
-    texture.dispose();
+    // (the card's copy let go: r186 gives a picture its room on the card once, so another size needs new room. One its
+    // owner let go of meanwhile is not here any more, above: not handed over, 3 November 2026)
+    ownLetGo.add(texture); texture.dispose(); ownLetGo.delete(texture);
     texture.image = image; texture.needsUpdate = true;
     texture.userData.cap = size; texture.userData.drawn = 0;
     // (the level, or its own largest, changed again while it was being made: made again once the card has this one,
@@ -179,7 +212,7 @@ export function pictureState() {
   const sizes = {};
   let undrawn = 0;
   for (const texture of restorable.keys()) { const d = texture.userData.drawn || 0; if (!d) undrawn += 1; else sizes[d] = (sizes[d] || 0) + 1; }
-  return { restorable: restorable.size, undrawn, sizes, waiting: waiting.length, remaking: remaking.size, most, asleep: asleep.size, waking: waking.size };
+  return { restorable: restorable.size, undrawn, sizes, waiting: waiting.length, remaking: remaking.size, most, asleep: asleep.size, waking: waking.size, mended };
 }
 // A picture decoded from its file (a Blob) no larger than `size` pixels across (0: as it is), keeping its shape.
 export async function decodeAtMost(blob, size = 0, options = undefined) {

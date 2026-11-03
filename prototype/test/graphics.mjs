@@ -216,6 +216,28 @@ for (const kind of ['phone', 'computer'].filter((k) => !process.env.GRAPHICS_ONL
       return { size: [t.image.width, t.image.height], onCardBefore: before, onCardAfter: after, litPixels: lit };
     });
     check(`${kind}: signs and boards out of sight for half a minute let go from the graphics card, and one drawn again handed back as painted`, !!kept && kept.letGo > 0 && kept.MB > 0 && !!again2 && !again2.onCardBefore && again2.onCardAfter && again2.litPixels > 0 && (await lostPictures(page)) === 0, { kept, again: again2, lost: await lostPictures(page), lostWhat: await lostWhat(page), inUse: await inUseLetGo(page) });
+    // ---- a phone: a picture let go from the graphics card while still drawn, as a fault elsewhere would let it go (the
+    // owner's box truck's, in sight), handed over empty once and made again from its file at once, not left black for
+    // as long as it is there (glb.js, mend; 3 November 2026)
+    const lostBefore = await lostPictures(page);
+    const mendIt = await page.evaluate(async () => {
+      const n = window.__nlw, r = n.renderer;
+      let map = null; n.supplied.parked.find((q) => q.id === 'boxTruck').holder.traverse((o) => { if (o.isMesh && o.name.startsWith('supplied-') && o.material.map) map = o.material.map; });
+      if (!map) return null;
+      const before = { mended: n.levelState.pictures.mended, drawn: map.userData.drawn };
+      map.dispose();
+      const t0 = performance.now();
+      let after = null;
+      while (performance.now() - t0 < 90000) {
+        await new Promise((ok) => setTimeout(ok, 500));
+        const q = r.properties.has(map) ? r.properties.get(map) : null;
+        after = { mended: n.levelState.pictures.mended, drawn: map.userData.drawn, onCard: !!(q && q.__webglTexture), letGo: !!map.image && map.image.width === 0, ms: Math.round(performance.now() - t0) };
+        if (after.mended > before.mended && after.onCard && after.letGo && after.drawn > 0) break;
+      }
+      return { before, after };
+    });
+    const lostAfter = await lostPictures(page);
+    check(`${kind}: a picture let go from the graphics card while still drawn (as a fault would let it go) made again from its file at once, not left black`, !!mendIt && !!mendIt.after && mendIt.after.mended === mendIt.before.mended + 1 && mendIt.after.onCard && mendIt.after.letGo && mendIt.after.drawn > 0 && lostAfter === lostBefore + 1, { ...(mendIt || {}), lost: [lostBefore, lostAfter] });
   }
   // ---- Auto lowers by itself when frames are slow. (This machine draws in software, a frame at Ultra in a second or
   // more, and the game takes a frame of more than two seconds for the page being hidden, not for the game being slow:
