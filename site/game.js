@@ -53910,6 +53910,7 @@ function createSlimTrees(group, { lite, fetchFile, renderer }) {
   const NEAR = lite ? 110 : 190, MOST = lite ? 18 : 60;
   let drawn = 0;
   const asleepNow = () => !!state.pics && state.pics.some(isAsleep);
+  const allAsleep = () => !!state.pics && state.pics.length > 0 && state.pics.every(isAsleep);
   const nearestTo = (x, z) => { let d = Infinity; for (const c of copies) d = Math.min(d, Math.hypot(c.x - x, c.z - z)); return d; };
   function update(camera, storm) {
     state.amount.value = 0.012 * (1 + storm * 1.6);
@@ -53947,10 +53948,10 @@ function createSlimTrees(group, { lite, fetchFile, renderer }) {
     const now = performance.now() / 1000;
     if (now - (state.restAt || 0) < 3) return;
     state.restAt = now;
-    if (now - (state.drawnAt || 0) < TREES_SLEEP_AFTER || nearestTo(x, z) < NEAR + TREES_SLEEP || asleepNow()) return;
-    let slept = 0;
-    for (const t of state.pics) if (sleepPicture(t)) slept += 1;
-    if (slept) state.slept = (state.slept || 0) + 1;
+    if (now - (state.drawnAt || 0) < TREES_SLEEP_AFTER || nearestTo(x, z) < NEAR + TREES_SLEEP || allAsleep()) return;
+    const before = asleepNow();
+    for (const t of state.pics) sleepPicture(t);
+    if (!before && asleepNow()) state.slept = (state.slept || 0) + 1;
   }
   return {
     update, rest,
@@ -53958,7 +53959,8 @@ function createSlimTrees(group, { lite, fetchFile, renderer }) {
     get drawn() { return drawn; },
     get loaded() { return !!state.model; },
     get failed() { return state.failed; },
-    get asleep() { return asleepNow(); },
+    get asleep() { return allAsleep(); },
+    get resting() { return asleepNow(); },
     get slept() { return state.slept || 0; },
     get woken() { return state.woken || 0; },
     count: copies.length,
@@ -54251,7 +54253,7 @@ function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = null, cam
   return {
     group, update, see, letGo, trees, buildAround,
     pieces: () => [...pieces.values()].map((p) => ({ key: p.T.key, state: p.state, d: Math.round(p.d) })),
-    stats: () => ({ pieces: { ...stats, now: [...pieces.values()].filter((p) => p.state === 'built').length, queued: [...pieces.values()].filter((p) => p.state === 'queued').length }, trees: { drawn: trees.drawn, loaded: trees.loaded, failed: trees.failed, of: trees.count, asleep: trees.asleep, slept: trees.slept, woken: trees.woken }, signs: signStats() }),
+    stats: () => ({ pieces: { ...stats, now: [...pieces.values()].filter((p) => p.state === 'built').length, queued: [...pieces.values()].filter((p) => p.state === 'queued').length }, trees: { drawn: trees.drawn, loaded: trees.loaded, failed: trees.failed, of: trees.count, asleep: trees.asleep, resting: trees.resting, slept: trees.slept, woken: trees.woken }, signs: signStats() }),
   };
 }
 const TILE_HAS = new Map(OGANIRU_TILES.map((T) => {
