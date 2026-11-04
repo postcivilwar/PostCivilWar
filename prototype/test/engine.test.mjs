@@ -86,6 +86,17 @@ test('see-through things drawn in r128\'s order, and a solid surface\'s alpha as
   assert.ok(!/\.copy\([\w$]+\.boundingSphere\.center\)\)?[,;][\w$]+\.applyMatrix4\([\w$]+\.matrixWorld\)\.applyMatrix4\(/.test(script), 'r186\'s ordering left in');
 });
 
+test('the sun\'s plain shadow drawn with no pictures: the material three.js shares among the things that cast one is handed none, so none it kept is handed to the graphics card again once the game has let it go (the renderer changed as bundled; 4 November 2026)', async () => {
+  const { RENDERER_MENDED, timesIn } = await import('../tools/three/as-r128.mjs');
+  const module = readFileSync(resolve(root, 'vendor/three-r186/three.module.js'), 'utf8');
+  for (const [was] of RENDERER_MENDED) assert.equal(timesIn(module, was), 1, String(was));
+  const script = readFileSync(resolve(root, 'vendor/three.min.js'), 'utf8');
+  assert.match(script.slice(0, 300), /the plain shadow's pictures mended/);
+  assert.match(script, /\.alphaMap=[\w$]+===[\w$]+\|\|[\w$]+===[\w$]+\?null:[\w$]+\.alphaMap[,;]/, 'the shared material given no alphaMap');
+  assert.match(script, /\.map=[\w$]+===[\w$]+\|\|[\w$]+===[\w$]+\?null:[\w$]+\.map[,;]/, 'the shared material given no map');
+  assert.ok(!/[\w$]+\.alphaTest=[\w$]+\.alphaToCoverage===!0\?\.5:[\w$]+\.alphaTest,[\w$]+\.map=[\w$]+\.map,/.test(script), 'r186\'s handing of every picture left in');
+});
+
 test('the shaders the game changes: every piece it hooks exists in r186, and none of r128\'s removed names is left', () => {
   const hooked = new Set();
   for (const text of Object.values(source)) for (const m of text.matchAll(/#include <([a-z_]+)>/g)) hooked.add(m[1]);

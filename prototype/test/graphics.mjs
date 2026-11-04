@@ -9,7 +9,9 @@
 //    "Graphics lowered to keep the game smooth";
 //  - the #stats readout: the level, the frames a second, the pictures on the graphics card, the card's name;
 //  - on a phone, the owner's box truck drawn from 512 pictures from far off and at its own size near it, and the signs'
-//    pictures out of sight for half a minute let go from the graphics card.
+//    pictures out of sight for half a minute let go from the graphics card;
+//  - the sun's shadow drawn just after a picture of a thing casting it was let go: that picture not handed to the
+//    graphics card again, empty (4 November 2026).
 //   ../server/with-postgres.sh node test/graphics.mjs [shots folder]
 //   (GRAPHICS_ONLY=phone or =computer: that one alone)
 import { createRequire } from 'node:module';
@@ -21,7 +23,7 @@ let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
 const here = dirname(fileURLToPath(import.meta.url));
 const { createDevServer } = await import(resolve(here, '../../server/dev.mjs'));
-const { pastQuestion, enterTown, watchPictures, lostPictures, lostWhat, inUseLetGo } = await import(resolve(here, 'start.mjs'));
+const { pastQuestion, enterTown, watchPictures, lostPictures, lostWhat, inUseLetGo, shadowAfterLetGo } = await import(resolve(here, 'start.mjs'));
 const { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LOW, levelSetting, autoStart } = await import(resolve(here, '../src/client/graphics.js'));
 const { SUPPLIED_VEHICLES } = await import(resolve(here, '../src/sim/zones/supplied-vehicles.js'));
 const out = process.argv[2] || '/tmp/graphics-shots';
@@ -238,6 +240,15 @@ for (const kind of ['phone', 'computer'].filter((k) => !process.env.GRAPHICS_ONL
     });
     const lostAfter = await lostPictures(page);
     check(`${kind}: a picture let go from the graphics card while still drawn (as a fault would let it go) made again from its file at once, not left black`, !!mendIt && !!mendIt.after && mendIt.after.mended === mendIt.before.mended + 1 && mendIt.after.onCard && mendIt.after.letGo && mendIt.after.drawn > 0 && lostAfter === lostBefore + 1, { ...(mendIt || {}), lost: [lostBefore, lostAfter] });
+  }
+  // ---- the sun's shadow drawn just after a picture of a thing casting it was let go: that picture not handed to the
+  // graphics card again, empty (what let one go there, test/start.mjs shadowAfterLetGo; tools/three/make.mjs,
+  // RENDERER_MENDED; 4 November 2026)
+  {
+    const before = await lostPictures(page);
+    const shadow = await shadowAfterLetGo(page);
+    const after = await lostPictures(page);
+    check(`${kind}: the sun's shadow drawn just after a picture of a thing casting it was let go: that picture not handed to the graphics card again, empty`, !!shadow && shadow.shadowsOn && shadow.shadowMaterial === 'MeshDepthMaterial' && shadow.drawnOnce && !shadow.handedAgain && after === before, { ...(shadow || {}), lost: [before, after], lostWhat: after > before ? (await lostWhat(page)).slice(-1) : [] });
   }
   // ---- Auto lowers by itself when frames are slow. (This machine draws in software, a frame at Ultra in a second or
   // more, and the game takes a frame of more than two seconds for the page being hidden, not for the game being slow:

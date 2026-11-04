@@ -45,12 +45,23 @@
 //    what the surface's picture had there (the habitation's pictures of its far trees, taken of each tree as it
 //    arrives, keep their leaves' edges so). And with the define gone, a surface no longer needs a program of its own for
 //    being solid: as many programs to compile as r128 had, not a dozen or more more (a slower start).
+//
+// And one fault of r186's own (r128 had it too) mended in the same way (RENDERER_MENDED, as-r128.mjs), nothing drawn
+// differently. The sun's shadow is drawn with one material that three.js shares among everything that casts a shadow
+// plainly (a thing with cut-out edges, alphaTest, gets one of its own). Three.js handed that shared material each thing's
+// pictures as it drew it, though a picture changes nothing in a plain shadow; the program it drew with kept the last of
+// them in its settings, and when it next drew a thing without a picture it handed that one to the graphics card again.
+// A picture the game had let go meanwhile (a model let go, to keep a phone's graphics card from filling) went to the
+// card empty: what the tests had been catching as a picture handed over black since 3 November (4 November 2026: the
+// graphics levels' test caught a sports model's picture, let go with the model, handed over again as the sun's shadow
+// was drawn half a minute later, with nothing in the town using it; test/graphics.mjs now does the same on purpose).
+// The shared material is given no pictures: a plain shadow is the same without them, and is drawn without reading them.
 import { readFileSync, writeFileSync, readdirSync, statSync, mkdtempSync, rmSync, existsSync, copyFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { LIGHTS_AS_R128, RENDERER_AS_R128, timesIn } from './as-r128.mjs';
+import { LIGHTS_AS_R128, RENDERER_AS_R128, RENDERER_MENDED, timesIn } from './as-r128.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const lib = resolve(root, 'vendor/three-r186');
@@ -84,7 +95,7 @@ const revision = /const REVISION = '(\d+)'/.exec(readFileSync(resolve(lib, 'thre
 // script stops.
 const work = mkdtempSync(join(tmpdir(), 'pcw-three-'));
 let renderer = readFileSync(resolve(lib, 'three.module.js'), 'utf8');
-for (const [was, now] of RENDERER_AS_R128) {
+for (const [was, now] of [...RENDERER_AS_R128, ...RENDERER_MENDED]) {
   if (timesIn(renderer, was) !== 1) { rmSync(work, { recursive: true, force: true }); throw new Error(`three.js r${revision}: three.module.js no longer has, once, ${was}`); }
   renderer = renderer.replace(was, now);
 }
@@ -97,7 +108,7 @@ const out = join(work, 'three.min.js');
 const core = readFileSync(resolve(lib, 'three.module.js'), 'utf8');
 for (const [was] of LIGHTS_AS_R128) if (timesIn(core, was) !== 1) throw new Error(`three.js r${revision}: lights_physical_pars_fragment no longer has "${was}" once`);
 const asR128 = `(function(){var c=THREE.ShaderChunk,k="lights_physical_pars_fragment",s=c[k],a=${JSON.stringify(LIGHTS_AS_R128)};for(var i=0;i<a.length;i++){if(s.split(a[i][0]).length!==2)throw new Error("three.js: "+k+" is not as tools/three/make.mjs expects");s=s.split(a[i][0]).join(a[i][1]);}c[k]=s;})();`;
-const banner = `/* three.js r${revision} (https://threejs.org), only what PostCivilWar uses; as r128 drew: colours, lights, single pass, order, alpha (tools/three/make.mjs). Copyright 2010-2026 three.js authors. SPDX-License-Identifier: MIT (THREE-LICENSE.txt) */`;
+const banner = `/* three.js r${revision} (https://threejs.org), only what PostCivilWar uses; as r128 drew: colours, lights, single pass, order, alpha; the plain shadow's pictures mended (tools/three/make.mjs). Copyright 2010-2026 three.js authors. SPDX-License-Identifier: MIT (THREE-LICENSE.txt) */`;
 const footer = 'THREE.ColorManagement.enabled=false;' + asR128 + 'Object.defineProperty(THREE.Material.prototype,"forceSinglePass",{get(){return true},set(){},configurable:true});if(typeof module!=="undefined"&&module.exports)module.exports=THREE;';
 const run = spawnSync(esbuild, [entry, '--bundle', '--format=iife', '--global-name=THREE', '--minify', '--legal-comments=none', `--banner:js=${banner}`, `--footer:js=${footer}`, `--outfile=${out}`, '--log-level=warning'], { encoding: 'utf8' });
 if (run.status !== 0) { rmSync(work, { recursive: true, force: true }); throw new Error(`esbuild: ${run.stderr || run.error}`); }

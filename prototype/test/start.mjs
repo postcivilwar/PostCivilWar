@@ -220,6 +220,54 @@ export const lostPictures = (page) => page.evaluate(() => window.__lostPictures 
 export const lostWhat = (page) => page.evaluate(() => window.__lostWhat || []);
 export const inUseLetGo = (page) => page.evaluate(() => window.__inUseLetGo || []);
 
+// The sun's shadow drawn just after a picture of a thing casting it was let go, as the game lets a model's go (from the
+// graphics card, and its copy here closed): is that picture handed to the card again, empty? (4 November 2026: the
+// graphics levels' test caught a sports model's picture handed over so, half a minute after the model was let go, as the
+// town's shadow was drawn, with nothing in the town using it. three.js shares one material among everything that casts
+// a shadow plainly, and handed it each thing's pictures; the program it drew with kept the last of them in its settings
+// and handed it over again on next drawing a thing without one: tools/three/make.mjs, RENDERER_MENDED.) Done on
+// purpose, in a scene of its own drawn by the game's renderer, in one go so that nothing of the game's is drawn
+// between: a box with a picture casting a shadow, the shared material's program made afresh as it is drawn (as three.js
+// does whenever the kind of thing it draws changes); then the shadow drawn twice more with the box and its picture let
+// go, the things left without pictures, one of them with a shadow material of its own (as the town's plants have), so
+// that three.js reads the shared one's settings afresh. Gives what was handed over (`lostPictures` counts the empty ones).
+export const shadowAfterLetGo = (page) => page.evaluate(async () => {
+  const n = window.__nlw, T = n.THREE, r = n.renderer;
+  const bitmap = await createImageBitmap(new ImageData(new Uint8ClampedArray(16 * 16 * 4).fill(200), 16, 16));
+  const picture = new T.Texture(bitmap); picture.needsUpdate = true;
+  const scene = new T.Scene(), geometry = new T.BoxGeometry(1, 1, 1), made = [];
+  const light = new T.DirectionalLight(0xffffff, 1); light.position.set(4, 10, 3); light.castShadow = true; light.shadow.mapSize.set(64, 64);
+  scene.add(light, light.target);
+  const box = (material, x) => { const m = new T.Mesh(geometry, material); m.position.set(x, 0.5, 0); m.castShadow = true; scene.add(m); made.push(material); return m; };
+  const withPicture = box(new T.MeshLambertMaterial({ map: picture }), 0);
+  const ownShadow = box(new T.MeshLambertMaterial({ color: 0x55aa55 }), 2);
+  ownShadow.customDepthMaterial = new T.MeshDepthMaterial({ depthPacking: T.RGBADepthPacking }); made.push(ownShadow.customDepthMaterial);
+  box(new T.MeshLambertMaterial({ color: 0xaaaaaa }), -2);
+  const ground = new T.Mesh(new T.PlaneGeometry(12, 12), new T.MeshLambertMaterial({ color: 0xffffff })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground); made.push(ground.material);
+  // (the material three.js draws the box's shadow with, and its program made afresh there)
+  let shadowMaterial = null, shadowMap = null;
+  withPicture.onBeforeShadow = (renderer, object, camera, shadowCamera, g, depthMaterial) => { shadowMaterial = depthMaterial; shadowMap = depthMaterial.map ? 'the picture' : null; depthMaterial.needsUpdate = true; };
+  const camera = new T.PerspectiveCamera(50, 1, 0.1, 100); camera.position.set(0, 6, 9); camera.lookAt(0, 0, 0);
+  const target = new T.WebGLRenderTarget(32, 32);
+  const was = r.getRenderTarget(), wasUpdate = r.shadowMap.needsUpdate;
+  const held = (t) => !!(r.properties.has(t) && r.properties.get(t).__webglTexture);
+  const draw = () => { r.shadowMap.needsUpdate = true; r.setRenderTarget(target); r.render(scene, camera); };
+  let out;
+  try {
+    draw();
+    const drawn = held(picture);
+    // (let go as a model's picture is: from the graphics card, its copy here closed, its material let go)
+    scene.remove(withPicture); withPicture.material.dispose(); picture.dispose(); bitmap.close();
+    draw(); draw();
+    out = { shadowsOn: r.shadowMap.enabled, shadowMaterial: shadowMaterial ? shadowMaterial.type : null, givenThePicture: shadowMap, drawnOnce: drawn, handedAgain: held(picture) };
+  } finally {
+    r.setRenderTarget(was); r.shadowMap.needsUpdate = wasUpdate;
+    for (const m of made) m.dispose();
+    geometry.dispose(); ground.geometry.dispose(); target.dispose(); light.dispose();
+  }
+  return out;
+});
+
 // A police officer of the town's brought to stand `metres` from (x, z), out in the open in sight of it, and kept
 // standing there (31 October 2026, the owner's word: only what an officer on the scene sees is a crime, justice.js;
 // the same as world.mjs officerOnScene for the headless tests). Gives her number, or null.
