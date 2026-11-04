@@ -5114,9 +5114,15 @@ blood.update(dt, view.blood || []);
       const freed = dropUnusedFigures() + trimBikes() + trimCars() + trimSports();
       if (freed) { graphicsTrims += 1; monitor.count('over the graphics budget: let go of what was kept ready'); return; }
     }
-    if (townBuilt && usedMB > memoryLimit && governor.level < LOW && performance.now() - memoryStepAt > 10000 && picturesWaiting() === 0) {
-      memoryStepAt = performance.now();
-      governor.lower(`the graphics card nearly full (${usedMB.toFixed(0)} of ${graphicsBudgetMB} MB)`);
+    if (townBuilt && usedMB > memoryLimit && governor.level < LOW) {
+      // (and before a level is given up, the full figures kept ready for townspeople who may come near again are let go,
+      // each made again as it is wanted, and the card counted again two seconds later: 4 November 2026, a phone at Medium
+      // at the PowerBike showroom was lowered to Low with them still kept, render-crowd.js `letGoKept`)
+      if (crowd && crowd.letGoKept()) { graphicsTrims += 1; monitor.count('the graphics card nearly full: let go of the figures kept ready'); return; }
+      if (performance.now() - memoryStepAt > 10000 && picturesWaiting() === 0) {
+        memoryStepAt = performance.now();
+        governor.lower(`the graphics card nearly full (${usedMB.toFixed(0)} of ${graphicsBudgetMB} MB)`);
+      }
     }
   }, 2000);
 

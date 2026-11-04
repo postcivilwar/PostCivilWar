@@ -782,5 +782,10 @@ export function createCrowd(scene) {
     actors: () => actors.values(),
     // his figures drawn many at once now: which, how many of each (for the tests and the readout)
     crowdFigures: () => crowdFigures.held(),
+    // The full figures kept ready for townspeople who may come near again (the wardrobe) let go, each made again as it is
+    // wanted; gives how many. For the memory guard (main.js), before it gives up a graphics level: each kept figure holds
+    // its model's pictures on the graphics card while nobody is drawn from it (4 November 2026: a phone at Medium at the
+    // PowerBike showroom, the card nearly full, was lowered to Low with figures still kept ready here).
+    letGoKept() { const n = wardrobe.size; for (const rig of wardrobe.values()) rig.dispose(); wardrobe.clear(); stats.kept = 0; return n; },
   };
 }
