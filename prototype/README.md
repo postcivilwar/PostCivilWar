@@ -4835,6 +4835,42 @@ several MB with what is loaded nearby, on this stage's builds 129.6 to 136.9 by 
 the skyline's). A computer's measuring, and the live build's at every place on a phone's settings and a computer's,
 made after going live, for the sheets.
 
+### After going live (3 and 4 November 2026): the black picture's cause, and the PowerBike showroom
+
+**Checked overnight on the live build** (page `3fb21dbbc43a18d3`): Stage 1's city 13/13; the downtown and the skyline
+seen on a phone's settings (`LOOK_LITE`, 44 pictures, no page error, the downtown and the skyline as on the release's own
+pictures) and on a computer's; the graphics levels on a phone's settings 15/15. The sheets, before (Stage 2's build) and
+after at every place, on a phone's settings at Medium and on a computer's at Ultra (`tools/measure/sheets.py`; on a
+computer, where the city and the skyline are in sight, 20 to 50 MB more on the graphics card, up to about 90 at the
+city's gate, and 30 to 140 MB less on the roads further out; 25 to 50 more draws where the skyline is in sight; the first
+half of the computer's places was measured before and after on two different machines, so its frame times are left off
+those pages, `SHEETS_NO_FRAME_AT`; on the ten places measured on the one machine, a frame 3.6% longer on average).
+
+**The PowerBike showroom**, a phone's graphics card's busiest place in the town: Stage 3 adds only the skyline there (0.34
+MB, about twelve draws). Measured with the memory guard on, as a player has it (`PERF_GUARD=1`, `places.mjs`; measurings
+set it aside otherwise), a phone at Medium come from the motor park and the market was lowered to Low at the showroom on
+Stage 2's build and on Stage 3's alike: the guard lets go of what nothing draws (figures, bikes, cars and sports models
+not in use) before it gives up a level, and the townspeople's figures kept ready for those coming near (`render-crowd.js`,
+eight on a phone) were not among what it let go. Now they are (`letGoKept`; counted in `trims`, and in #stats as "let go
+of what was kept ready"): in two runs, once kept at Medium (134.4 MB of the 135 a phone at Medium is kept to) and once
+lowered to Low all the same. Not enough alone: what else would make room there changes how something looks on a phone
+(the police's pictures at 512 on a phone, as the townspeople's are, about 4 MB there), and is the owner's to choose.
+
+**The black picture.** Since 3 November the tests had caught, now and then, a picture handed to the graphics card empty
+(drawn black; made again from its file at once there, `glb.js` `mend`), without catching what let the card's copy go. On
+4 November the graphics levels' test caught it in the act (the picture watch, `test/start.mjs`, telling what three.js was
+drawing at that moment): a sports model's picture, let go with the model, handed over again half a minute later as the
+sun's shadow was drawn, with nothing in the town using it. Three.js (r186, and r128 before it) draws the shadow of
+everything that casts one plainly with one material it shares among them all (a thing with cut-out edges, alphaTest, gets
+one of its own), and handed that material each thing's pictures as it drew it, though a picture changes nothing in a
+plain shadow; the program it drew with kept the last of them in its settings and handed that picture to the card again
+when it next drew a thing without one. The shared material is now given no pictures (`tools/three/as-r128.mjs`
+`RENDERER_MENDED`, changed as three.js is bundled, `make.mjs`): the shadow is the same without them, and is drawn without
+reading them. Done on purpose (`test/start.mjs` `shadowAfterLetGo`: a box with a picture casting a shadow, drawn, its
+picture let go, the shadow drawn again), on a phone's settings: on the build before the change the picture was handed over
+empty 3 times in 3, with the change 0 in 3; the graphics levels' test does it on a phone and on a computer, and
+`test/engine.test.mjs` checks the change is in the bundle.
+
 ## Tests
 
 ```
