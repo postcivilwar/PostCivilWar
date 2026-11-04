@@ -136,7 +136,7 @@ export function createHijack({ state, players, okada, vehicles, actors, populati
       const crime = hub.justice.offence(p, 'vehicle_theft', { victim: { kind: 'npc', id: i, name: people[i].name }, x: taken.x, z: taken.z, vehicle: `car:${h.id}` });
       actors.flee(i, taken.x, taken.z, PACE.run, 'Robbed of the car', 18);
       const m = actors.get(i); if (m) m.after = real() + 9;
-      hub.ownCars.enterTaken(p, { model: taken.model, x: taken.x, z: taken.z, h: taken.h, n: h.id });
+      hub.ownCars.enterTaken(p, { model: taken.model, x: taken.x, z: taken.z, h: taken.h, n: h.id, y: at.y });
       emit(p.id, { type: 'note', text: `You have taken ${people[i].first}'s ${spec.name}. ${people[i].first} has seen your face. It is not yours: it can never be sold, and the police will take back every car you have taken when they catch you.`, crime: crime.id });
       return;
     }

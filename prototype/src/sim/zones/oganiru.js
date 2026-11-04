@@ -784,9 +784,9 @@ export const OGANIRU_CLOSURES = Object.freeze([
   { id: 'kwale-south', name: 'Asaba–Kwale Road, south', a: { x: -1385, z: KWALE_Z - 11 }, b: { x: -1385, z: KWALE_Z + 11 }, facing: Math.PI / 2, sign: ['ROAD CLOSED', 'To Kwale and Warri: road works'], why: 'The road on to Kwale and Warri is not built on from here yet.' },
   { id: 'airport-south', name: 'Airport Roundabout, south', a: { x: HARMONY_X - 66, z: GATEWAY_Z - 14 }, b: { x: HARMONY_X - 66, z: GATEWAY_Z + 14 }, facing: Math.PI / 2, sign: ['ROAD CLOSED', 'Road works'], why: 'Oganiru City is still being built beyond this point.' },
   { id: 'campus-north', name: 'Campus Roundabout, north', a: { x: PEACE_X + 76, z: CAMPUS_Z - 14 }, b: { x: PEACE_X + 76, z: CAMPUS_Z + 14 }, facing: -Math.PI / 2, sign: ['ROAD CLOSED', 'Anwuli Gardens: coming soon'], why: 'Oganiru City is still being built beyond this point.' },
-  // (the slip road up from Peace Avenue onto the north-bound carriageway, which runs only to the road works at the
-  // expressway's north end: closed at its foot, as the expressway beyond the Peace Interchange is not built on yet)
-  { id: 'peace-nb-on', name: 'Peace Interchange, slip road to the expressway north', a: { x: PEACE_X + 18, z: NB + 35.4 }, b: { x: PEACE_X + 18, z: NB + 44.6 }, facing: -Math.PI / 2, sign: ['ROAD CLOSED', 'Expressway north: road works'], why: 'The expressway north of Peace Avenue is not open yet.' },
+  // (the slip road up from Peace Avenue onto the north-bound carriageway was closed at its foot until 4 November 2026;
+  // the owner, with a picture of it: "remove road blocks if there's road ahead". It is open: up it, the carriageway runs
+  // on to the road works at the expressway's north end, where the viaduct is closed across, oganiruOnDeck)
 ].map((c) => Object.freeze({ ...c, state: 'under construction', a: Object.freeze(c.a), b: Object.freeze(c.b), sign: Object.freeze(c.sign) })));
 CLOSURE_LINES.push(...OGANIRU_CLOSURES);
 // (what of the roadblocks and of the fence at the built land's edge is the city's: drawn with it, render-oganiru.js)
@@ -1147,6 +1147,7 @@ export function oganiruSurface(x, z, y, ground = 0) {
 }
 // On a deck, can something of `radius` stand at (x, z)? Inside the deck's walls (or across into another deck it runs
 // into at the same height), clear of its middle barrier, short of its closed ends.
+const CLOSED_END = 6.4;
 export function oganiruOnDeck(x, z, radius, y) {
   const hits = oganiruDecksAt(x, z).filter((h) => Math.abs(h.y - y) < 0.9);
   if (!hits.length) return false;
@@ -1160,8 +1161,10 @@ export function oganiruOnDeck(x, z, radius, y) {
     }
     if (d.barrier && Math.abs(h.d) < d.barrier + radius && h.y > 1) continue;
     if (d.barrier && d.kind === 'bridge' && Math.abs(h.d) < d.barrier + radius) continue;
-    if (d.closed.includes('start') && h.s < 1.5 + radius) continue;
-    if (d.closed.includes('end') && h.s > d.len - 1.5 - radius) continue;
+    // (a closed end: its wall, and the road works' barriers across the road before it, 6 m short of it: nobody passes
+    // them, 4 November 2026)
+    if (d.closed.includes('start') && h.s < CLOSED_END + radius) continue;
+    if (d.closed.includes('end') && h.s > d.len - CLOSED_END - radius) continue;
     return true;
   }
   return false;

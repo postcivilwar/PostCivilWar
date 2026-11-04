@@ -25,7 +25,7 @@ import { contactNormal, contactOutcome } from './contact.js';
 import { GameError } from './registry.js';
 import { clearOf } from './in-the-way.js';
 import { zoneSurfaceY } from './zone.js';
-import { levelAt, keepLevel } from './levels.js';
+import { levelAt, keepLevel, unstuck } from './levels.js';
 
 export const isOwnCar = (incar) => typeof incar === 'string' && incar.startsWith('pc:');
 export const carOf = (incar) => (isOwnCar(incar) ? incar.slice(3) : null);
@@ -105,13 +105,19 @@ export function createOwnCars({ state, hub, obstacles, strangers = () => [] }) {
 
   // Into a car of the town's: one just taken from its driver (hijack.js), or one taken before and left standing
   // (traffic.js, `enter`). Where it stands; never brought round.
-  function enterTaken(p, { model, x, z, h, n }) {
+  // (and at the height it stands at, `y`: on a slip road, a flyover, the viaduct. Until 4 November 2026 that was left
+  // out, and a car taken on a slip road was put at the ground under it, inside the bank the slip road is built on: the
+  // owner's video, the car going nowhere at full throttle and its thief unable to walk away from it)
+  function enterTaken(p, { model, x, z, h, n, y }) {
     if (!POWER_CARS[model] || !Number.isInteger(n)) throw new GameError('NO_CAR', 'There is no such car.');
     p.incar = `pc:${model}`;
     p.pcar = { id: model, x, z, h, movedAt: state.real, taken: n };
     p.x = x; p.z = z; p.heading = h; p.lastMoveAt = state.real;
-    keepLevel(p.pcar); keepLevel(p, p.pcar.lv.y);
-    return { car: model, x, z, h, taken: n };
+    keepLevel(p.pcar, Number.isFinite(y) ? zoneSurfaceY(x, z, y + 0.05) : undefined);
+    // (where it would not fit at that height after all, on the deck over it)
+    unstuck(p.pcar, (yy) => carFits(model, x, z, h, [], 0.2, yy));
+    keepLevel(p, p.pcar.lv.y);
+    return { car: model, x, z, h, taken: n, y: p.pcar.lv.y };
   }
 
   // One step of driving, as the driver's page moved it. Not further than the car could have gone since the last
@@ -130,13 +136,17 @@ export function createOwnCars({ state, hub, obstacles, strangers = () => [] }) {
     if (gap > handling.top * (elapsed + 0.12) * 1.2 + 0.05) throw new GameError('TOO_FAST', 'Movement rejected.');
     const boxes = [...obstacles(), ...othersParked(p, isTaken(c) ? null : c.id), ...theirs(c)];
     const steps = Math.max(1, Math.ceil(gap / 0.4));
+    // (a car standing at a height that is not open where it is, inside a slip road's bank: on the deck over it;
+    // and one still inside something solid may be driven out of it, only where each step ends being open; 4 November 2026)
+    if (unstuck(c, (yy) => carFits(c.id, c.x, c.z, c.h, boxes, 0.2, yy)) !== null) keepLevel(p, c.lv.y);
     // (on the level it is on, every step: up a ramp, along a flyover inside its walls, or under it: levels.js)
     let y = levelAt(c);
+    const inside = !carFits(c.id, c.x, c.z, c.h, boxes, 0.2, y);
     for (let i = 1; i <= steps; i += 1) {
       const k = i / steps;
       const hh = c.h + wrap(heading - c.h) * k;
       const sx = c.x + (x - c.x) * k, sz = c.z + (z - c.z) * k;
-      if (!carFits(c.id, sx, sz, hh, boxes, 0.2, y)) throw new GameError('BLOCKED', 'Movement rejected.');
+      if (!carFits(c.id, sx, sz, hh, boxes, 0.2, y)) { if (inside && i < steps) continue; throw new GameError('BLOCKED', 'Movement rejected.'); }
       y = zoneSurfaceY(sx, sz, y);
       // (a bridge, a boardwalk, a jetty: walked, never driven onto; the car's front is what reaches it)
       const front = POWER_CARS[c.id].length / 2;

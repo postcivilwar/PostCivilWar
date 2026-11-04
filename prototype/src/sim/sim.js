@@ -41,7 +41,7 @@ import { createFunds, FUND_WORDS } from './funds.js';
 import { createReactions } from './reactions.js';
 import { makeRng } from './rng.js';
 import { renewTown } from './renew.js';
-import { levelAt, keepLevel, walkLevel } from './levels.js';
+import { levelAt, keepLevel, walkLevel, unstuckOnFoot } from './levels.js';
 import { createLamps } from './lamps.js';
 
 export const TIME_SCALE = 30;                 // game seconds per real second (a 48-minute day)
@@ -468,6 +468,9 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       if (!(p.x > van.x0 - 0.5 && p.x < van.x1 + 0.5 && p.z > van.z0 - 0.5 && p.z < van.z1 + 0.5)) boxes.push(van);
       // (every step of the way, on the level they are on: up a ramp from the road, along a flyover inside its walls, or
       // under it, never up onto it nor down off it: levels.js, 31 October 2026)
+      // (someone at a height that is not open where they stand, inside a slip road's bank: on the deck over them; 4
+      // November 2026)
+      unstuckOnFoot(p, boxes, 0.4);
       const y = walkLevel(p.x, p.z, levelAt(p), x, z, boxes, 0.4);
       if (y === null) throw new GameError('BLOCKED', 'Movement rejected.');
       // (in the habitation: not off the side of a bridge or a boardwalk, nor down a drop: zone.js zoneStep)
@@ -1214,7 +1217,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     funds,
     setFigure: (playerId, figure, paid) => changeFigure(player(playerId), figure, paid),
     upgradeQuote: (playerId, figure) => upgradeQuote(player(playerId), figure),
-    internals: { registry, economy, residents, vehicles, population, okada, traffic, sportRiders, strollers, naval, ownBoats, surfing, talk, actors, conflict, justice, care, phone, hijack, impact, guns, voices, timeScale: scale },
+    internals: { registry, economy, residents, vehicles, population, okada, traffic, sportRiders, strollers, naval, ownBoats, surfing, talk, actors, conflict, justice, care, phone, hijack, impact, ownCars, guns, voices, timeScale: scale },
   };
 }
 

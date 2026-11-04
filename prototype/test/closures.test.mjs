@@ -29,8 +29,9 @@ test('every part of the land is in one of four states; the roads closed now are 
   // (Campus Road's north end is open since 1 November 2026: it goes on as Oganiru City's Campus Link)
   assert.equal(ROAD_CLOSURES.find((c) => c.id === 'campus-north').state, AREA_STATE.OPEN);
   // the new city's roads that go no further yet, each closed where it stops (Stage 2: the far ends of its avenues, the
-  // Kwale road on south, the roundabouts' legs not built on, the slip road onto the expressway north of Peace Avenue)
-  assert.deepEqual(OGANIRU_CLOSURES.map((c) => c.id), ['unity-west', 'harmony-west', 'kwale-south', 'airport-south', 'campus-north', 'peace-nb-on']);
+  // Kwale road on south, the roundabouts' legs not built on; the slip road onto the expressway north of Peace Avenue,
+  // closed at its foot until 4 November 2026, is open: there is road ahead, up to the road works at its north end)
+  assert.deepEqual(OGANIRU_CLOSURES.map((c) => c.id), ['unity-west', 'harmony-west', 'kwale-south', 'airport-south', 'campus-north']);
   assert.ok([...ROAD_CLOSURES, ...OGANIRU_CLOSURES].filter((c) => c.state !== AREA_STATE.OPEN).every((c) => c.state === AREA_STATE.BUILDING && c.sign[0] === 'ROAD CLOSED' && c.why.length > 10));
   // what is closed is what is not open, the town's and the city's: one that is opened has no roadblock and nothing solid
   assert.deepEqual(ZONE_CLOSURES.map((c) => c.id), [...openClosures(), ...OGANIRU_CLOSURES].map((c) => c.id));
@@ -75,7 +76,8 @@ test('the fence along the edge of the built land: on the land, where the land en
       assert.ok(zoneOnGround(p.x, p.z), `${r.line} on the land`);
       // (but where Oganiru City's land meets the town's, the airport's and the Kwale road's: a fence between two lands,
       // since 1 November 2026, open only where a road goes through)
-      if (BETWEEN.has(r.line)) continue;
+      // (and the fences at a roadblock's ends, back along the road it closes to the land's edge: 4 November 2026)
+      if (BETWEEN.has(r.line) || /(^|-)wing-/.test(r.line)) continue;
       assert.ok(!zoneOnGround(p.x + r.out.x * EDGE_FENCE.beyond, p.z + r.out.z * EDGE_FENCE.beyond), `${r.line}: the land ends just beyond it`);
     }
   }
@@ -102,4 +104,61 @@ test('what is low does not stand in the way of the camera\'s eye: it looks over 
   // the purple tower's foot is solid at any height
   assert.equal(zoneSolid(-101.5, 100, 0.25, 1.8), true);
   assert.ok(CLOSURE_KIT.height < 1.4);
+});
+
+// (4 November 2026, the owner: "You need to enforce in the game so that user can't pass through any area with road
+// block ... remove road blocks if there's road ahead")
+test('nobody gets past a roadblock: not through it, not round it over the verges and the grass (fenced at its ends back to the land\'s edge)', async () => {
+  const { ZONE_CLOSURE_WINGS } = await import('../src/sim/zone.js');
+  assert.equal(ZONE_CLOSURE_WINGS.length, ZONE_CLOSURES.length * 2, 'a fence at each end of each roadblock');
+  const R = 0.4, STEP = 0.6;
+  for (const c of ZONE_CLOSURES) {
+    const mid = along(c, 0.5);
+    const fx = Math.sin(c.facing), fz = Math.cos(c.facing);
+    const start = { x: mid.x + fx * 6, z: mid.z + fz * 6 }, goal = { x: mid.x - fx * 3, z: mid.z - fz * 3 };
+    assert.ok(zoneWalkable(start.x, start.z, [], R) && zoneWalkable(goal.x, goal.z, [], R), `${c.id}: open either side of it`);
+    // every place a body can reach from before it, within the wings' length round it
+    const wings = ZONE_CLOSURE_WINGS.filter((w) => w.id.endsWith(`wing-${c.id}-a`) || w.id.endsWith(`wing-${c.id}-b`));
+    const reach = Math.max(...wings.map((w) => Math.hypot(w.b.x - w.a.x, w.b.z - w.a.z))) + 30;
+    const key = (i, j) => `${i},${j}`;
+    const seen = new Set([key(0, 0)]), queue = [[0, 0]];
+    const gi = Math.round((goal.x - start.x) / STEP), gj = Math.round((goal.z - start.z) / STEP);
+    let got = false;
+    while (queue.length && !got) {
+      const [i, j] = queue.shift();
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ni = i + di, nj = j + dj, k = key(ni, nj);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        const x = start.x + ni * STEP, z = start.z + nj * STEP;
+        if (Math.hypot(x - mid.x, z - mid.z) > reach || !zoneWalkable(x, z, [], R)) continue;
+        if (Math.abs(ni - gi) <= 1 && Math.abs(nj - gj) <= 1) { got = true; break; }
+        queue.push([ni, nj]);
+      }
+    }
+    assert.ok(!got, `${c.id}: the road beyond it reached from before it`);
+    assert.ok(seen.size > 2000, `${c.id}: the way to it is open (${seen.size})`);
+  }
+});
+
+test('the slip road from Peace Avenue onto the expressway is open (road ahead); the road works at the expressway\'s north end are solid', async () => {
+  const { OGANIRU_DECKS: decks } = await import('../src/sim/zones/oganiru.js');
+  const { walkLevel } = await import('../src/sim/levels.js');
+  const slip = decks.find((d) => d.id === 'p-nb-on');
+  // up it, a step at a time, from Peace Avenue to the top, on its level
+  let y = 0;
+  for (let k = 1; k < slip.path.length; k += 1) {
+    const a = slip.path[k - 1], b = slip.path[k];
+    y = walkLevel(a.x, a.z, y, b.x, b.z, [], 1.0, 0.5);
+    assert.ok(y !== null, `the slip road open at ${b.s.toFixed(0)} m`);
+  }
+  assert.ok(y > 7, `up on the expressway (${y.toFixed(1)} m)`);
+  // the viaduct's north end: its road works' barriers 6 m short of its end wall, and nobody past them
+  const v = decks.find((d) => d.id === 'viaduct'), end = v.path[v.path.length - 1];
+  const at = (s, off) => ({ x: end.x - end.ux * s - end.uz * off, z: end.z - end.uz * s + end.ux * off });
+  for (const off of [-12, -6, 6, 12]) {
+    const before = at(9, off), past = at(4, off);
+    assert.ok(zoneWalkable(before.x, before.z, [], 1.0, end.y), `before the road works (${off})`);
+    assert.ok(!zoneWalkable(past.x, past.z, [], 1.0, end.y), `past the road works (${off})`);
+  }
 });

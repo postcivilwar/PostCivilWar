@@ -60,6 +60,27 @@ export function closureColliders(list = openClosures()) {
   return out;
 }
 
+// The fences at a roadblock's two ends (4 November 2026, the owner: "user can't pass through any area with road
+// block"): from each end of its line, back along the road it closes (away from the way the traffic comes to it), as far
+// as the land goes. With the roadblock across the road and the fence at the edge of the land, they close off what is
+// beyond it, so that nobody goes round it over the verge and the grass. `ground(x, z)`: the town's own test of where its
+// ground is; `city(c)`: whether the roadblock is Oganiru City's (its fences drawn with the city, oganiru.js `ofOganiru`).
+// Each is a line for `edgeFences`, fenced the whole of its length on the land (`keep`).
+export function closureWings(list, ground, city = () => false, most = 400) {
+  const out = [];
+  for (const c of list) {
+    const bx = -Math.sin(c.facing), bz = -Math.cos(c.facing);
+    const across = Math.hypot(c.b.x - c.a.x, c.b.z - c.a.z) || 1;
+    for (const [k, e, o] of [['a', c.a, c.b], ['b', c.b, c.a]]) {
+      let len = 0;
+      while (len < most && ground(e.x + bx * (len + 0.5), e.z + bz * (len + 0.5))) len += 0.5;
+      if (len < 1) continue;
+      out.push(line(`${city(c) ? 'oganiru-' : ''}wing-${c.id}-${k}`, { x: e.x, z: e.z }, { x: +(e.x + bx * len).toFixed(2), z: +(e.z + bz * len).toFixed(2) }, { x: (e.x - o.x) / across, z: (e.z - o.z) / across }));
+    }
+  }
+  return out.map((l) => Object.freeze({ ...l, keep: () => true, wing: true }));
+}
+
 // The edge of the built land, fenced. Each candidate line runs a little inside the edge of some land (the town's own,
 // the road to Kwale, the airport's, the far bank of the Niger) with the way out of it (`out`); the fence stands along
 // it wherever the land really does end just beyond it, and nowhere it goes on (where the town meets the road to Kwale,

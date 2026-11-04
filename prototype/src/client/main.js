@@ -57,7 +57,7 @@ import { CRASH } from '../sim/own-bikes.js';
 import { POWER_CARS, carHandlingOf, stepPowerCar, carRevs, carBoxes } from '../sim/power-cars.js';
 import { CAR_CRASH, carFits } from '../sim/own-cars.js';
 // levels (31 October 2026, Oganiru City's flyovers): what the player stands on or drives is the level they were on
-import { levelAt, keepLevel } from '../sim/levels.js';
+import { levelAt, keepLevel, unstuck, unstuckOnFoot } from '../sim/levels.js';
 import { STREET_LAMPS, LAMP_KNOCK, knockSpeedOf, lampInTheWay, fallenBars, knockLamp } from '../sim/street-lamps.js';
 import { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz } from './bike-audio.js';
 import { startStrike, poseFighter, poseTaking, soundOf } from './combat-view.js';
@@ -3840,6 +3840,8 @@ function start(carried) {
     if (stopsAtBridge(nx, nz, carState.heading + (carState.speed < 0 ? Math.PI : 0), (spec.length || 4.6) / 2 + 0.3)) { carState.speed = 0; return 0; }
     // into something: along it, against it, or a crash (meetWithCar); never through it
     const boxes = structureBoxes();
+    // (a car at a height not open where it stands, inside a slip road's bank: on the deck over it, as the town has it)
+    unstuck(predicted, (yy) => carFits(spec.id, predicted.x, predicted.z, carState.heading, boxes, 0.2, yy));
     const py = levelAt(predicted);
     if (!carFits(spec.id, nx, nz, carState.heading, boxes, 0.2, py)) {
       const on = meetWithCar(dt, spec, nx, nz, boxes);
@@ -3958,6 +3960,8 @@ function start(carried) {
     }
     // (where one may stand, and a step there that one can take: not off the side of a bridge, nor down a drop)
     // (on the level they are on: up a ramp from the road, along a flyover inside its walls, or under it: levels.js)
+    // (and at a height not open where they stand, inside a slip road's bank: on the deck over them, as the town has it)
+    unstuckOnFoot(predicted, boxes, 0.4);
     const py = levelAt(predicted);
     const ok = (x, z) => zoneWalkable(x, z, boxes, 0.4, py) && zoneStep(predicted.x, predicted.z, x, z);
     // (on a deck, a step into its rails goes on along it instead; at a deck's end, one into its end's posts goes round

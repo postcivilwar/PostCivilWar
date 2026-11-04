@@ -33,7 +33,7 @@ import { SUPPLIED_VEHICLE_COLLIDERS } from './supplied-vehicles.js';
 export * from './supplied-vehicles.js';
 import { TOWN_TREES } from './atani-trees.js';
 import { TOWER_COLLIDERS, TOWER_BOXES, standsAt } from './town-buildings.js';
-import { openClosures, closureColliders, edgeFences, fenceColliders } from './closures.js';
+import { openClosures, closureColliders, edgeFences, fenceColliders, closureWings } from './closures.js';
 // Oganiru City, the new city on the free land west of the town (31 October 2026): its roads, flyovers and towers
 import { OGANIRU_CLOSURES, OGANIRU_EDGE_LINES, onOganiru, nearOganiru, oganiruGroundY, oganiruSurface, oganiruOnDeck, oganiruBlocked, oganiruDecksAt, oganiruStructureAt } from './oganiru.js';
 export * from './oganiru.js';
@@ -1042,6 +1042,8 @@ export function zoneLevel(x, z, y) {
 export const zoneSurfaceY = (x, z, y) => zoneLevel(x, z, y).y;
 // Is there a deck (a flyover, a ramp, the raised expressway) over this point, at any height?
 export const zoneDeckOver = (x, z) => inOganiru(x, z) && oganiruDecksAt(x, z).length > 0;
+// The heights of the decks' roads over a point, lowest first (levels.js `unstuck`).
+export const zoneDeckHeights = (x, z) => (inOganiru(x, z) ? oganiruDecksAt(x, z).map((h) => h.y).sort((a, b) => a - b) : []);
 // (the street lamps' poles, for the players' things: street-lamps.js registers how to find one in the way)
 let lampBlocker = null;
 export const setLampBlocker = (fn) => { lampBlocker = fn; };
@@ -1056,8 +1058,17 @@ const BILLBOARD_COLLIDERS = ZONE_BILLBOARDS.flatMap((b) => b.feet.map((f) => Obj
 // of the fence along the edge, where they stand. (They are barriers, which give a little: contact.js.)
 export * from './closures.js';
 export const ZONE_CLOSURES = Object.freeze([...openClosures(), ...OGANIRU_CLOSURES]);
-export const ZONE_EDGE_FENCES = Object.freeze(edgeFences((x, z) => onGround(x, z) || onOutskirts(x, z) || onUpriver(x, z) || onHabitation(x, z) || onOganiru(x, z), OGANIRU_EDGE_LINES));
+// (each roadblock fenced at its ends, back along the road it closes to the edge of the land, so that nobody goes round
+// it over the verges and the grass: 4 November 2026, the owner: "user can't pass through any area with road block";
+// `closureWings` below)
+const onLand = (x, z) => onGround(x, z) || onOutskirts(x, z) || onUpriver(x, z) || onHabitation(x, z) || onOganiru(x, z);
+export const ZONE_CLOSURE_WINGS = Object.freeze(closureWings(ZONE_CLOSURES, onLand, (c) => OGANIRU_CLOSURES.includes(c)));
+export const ZONE_EDGE_FENCES = Object.freeze(edgeFences(onLand, [...OGANIRU_EDGE_LINES, ...ZONE_CLOSURE_WINGS]));
 const CLOSURE_COLLIDERS = [...closureColliders(ZONE_CLOSURES), ...fenceColliders(ZONE_EDGE_FENCES)];
+// (the roadblocks and fences stand on the ground: on a deck still within a couple of metres of it, a slip road's foot,
+// they are in the way too; 4 November 2026, the slip road closed at its foot was driven through, on its deck)
+const CLOSURE_INDEX = indexBoxes(CLOSURE_COLLIDERS);
+const closedOnDeck = (x, z, radius, y) => y - zoneGroundY(x, z) < 2.5 && blockedIn(CLOSURE_INDEX, x, z, radius);
 export const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...CLOSURE_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS, ...SPORTS_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS, ...HABITATION_COLLIDERS].map(Object.freeze));
 const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
 
@@ -1084,6 +1095,7 @@ export function zoneWalkable(x, z, extra = [], radius = 0.4, y = undefined) {
   const lv = Number.isFinite(y) && inOganiru(x, z) ? zoneLevel(x, z, y) : null;
   if (lv && lv.deck) {
     if (!oganiruOnDeck(x, z, radius, lv.y)) return false;
+    if (closedOnDeck(x, z, radius, lv.y)) return false;
     for (const c of extra) if (atLevel(c, lv.y) && x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return false;
     return !(lampBlocker && lampBlocker(x, z, radius, lv.y));
   }
@@ -1108,6 +1120,7 @@ export function zoneBlockKind(x, z, extra = [], radius = 0.4, y = undefined) {
   const lv = Number.isFinite(y) && inOganiru(x, z) ? zoneLevel(x, z, y) : null;
   if (lv && lv.deck) {
     if (!oganiruOnDeck(x, z, radius, lv.y)) return 'solid';
+    if (closedOnDeck(x, z, radius, lv.y)) return 'barrier';
     for (const c of extra) if (atLevel(c, lv.y) && x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return 'solid';
     return lampBlocker && lampBlocker(x, z, radius, lv.y) ? 'lamp' : null;
   }
