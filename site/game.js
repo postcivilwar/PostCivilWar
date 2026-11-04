@@ -11493,6 +11493,7 @@ const { ZONE, ZONE_SPOTS, ZONE_STOPS, ZONE_VENUES, ZONE_ROADS, OUTSKIRT_ROADS, A
 const { graphRoute, graphDistance, graphNearest, graphPoint } = __modules["sim/graph.js"];
 const { POSE, RIDE_SPEED } = __modules["sim/population.js"];
 const { GameError } = __modules["sim/registry.js"];
+const { oganiruTar } = __modules["sim/zones/oganiru.js"];
 
 const OKADA_RULES = Object.freeze({
   speed: RIDE_SPEED + 0.5,      // metres per real second on the road
@@ -11508,7 +11509,7 @@ const MOTO = Object.freeze({ speedRoad: 11, speedRough: 6, reverse: 2, radius: 0
 
 const inBox = (r, x, z) => !!r && x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1;
 const PAVED = [AIRPORT.runway, AIRPORT.taxiway, AIRPORT.apron, ...(Array.isArray(AIRPORT.links) ? AIRPORT.links : []), SPORTS_MALL.compound, SPORTS_MALL.drive.fromRoad].filter((r) => r && Number.isFinite(r.x0));
-const onTar = (x, z) => ZONE_ROADS.some((r) => inBox(r, x, z)) || OUTSKIRT_ROADS.some((r) => inBox(r, x, z)) || PAVED.some((r) => inBox(r, x, z));
+const onTar = (x, z) => ZONE_ROADS.some((r) => inBox(r, x, z)) || OUTSKIRT_ROADS.some((r) => inBox(r, x, z)) || PAVED.some((r) => inBox(r, x, z)) || oganiruTar(x, z);
 const motoSpeedAt = (x, z, wet) => (onTar(x, z) ? MOTO.speedRoad : MOTO.speedRough) * (wet ? 0.8 : 1);
 
 const okadaFare = (metres) => Math.max(OKADA_RULES.least, Math.round((OKADA_RULES.base + metres * OKADA_RULES.perMetre) / 10) * 10);
@@ -13874,7 +13875,7 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
       const from = zoneWalkable(at.x + side.x, at.z + side.z, [], 0.3) ? { x: at.x + side.x, z: at.z + side.z } : { x: at.x - side.x, z: at.z - side.z };
       if (hub.actors.take(r.i, state.t, from)) hub.actors.flee(r.i, p.x, p.z, 4.4, 'Running from a thief');
     }
-    if (hub.talk) hub.talk.say({ who: `n:${r.i}`, name: who ? who.short || who.name : 'Someone', text: `Thief! Thief! My ${NAMES[r.item]}!`, lang: 'en', x: at.x, z: at.z, kind: 'shout', range: 40, hold: 3.4 });
+    if (hub.talk) hub.talk.say({ who: `n:${r.i}`, name: who ? who.short || who.name : 'Someone', text: `Thief! Thief! My ${NAMES[r.item]}!`, lang: 'en', x: at.x, z: at.z, kind: 'shout', react: 'hurt', range: 40, hold: 3.4 });
     const crime = hub.justice ? hub.justice.offence(p, 'vehicle_theft', { victim: { kind: 'npc', id: r.i, name: who ? who.name : 'Someone' }, x: at.x, z: at.z, vehicle: `sport:${r.item}` }) : null;
     r.mode = 'taken'; r.takenBy = p.id; r.v = 0; r.lean = 0; r.keptAt = real(); r.fallen = false;
     book.taken += 1;
@@ -15770,7 +15771,7 @@ function createConflict({ state, players, population, actors, talk, emit, rng, h
     const at = whereNpc(i);
     const pick = LINES[kind][Math.floor(rng.next() * LINES[kind].length)];
     const pidgin = who.langs.includes('pcm') && who.lang !== 'en';
-    talk.say({ who: `n:${i}`, name: who.short, text: pidgin ? pick[1] : pick[0], lang: pidgin ? 'pcm' : 'en', gloss: pidgin ? pick[0] : null, x: at.x, z: at.z, kind: 'shout', range: 26, hold: 3.2 });
+    talk.say({ who: `n:${i}`, name: who.short, text: pidgin ? pick[1] : pick[0], lang: pidgin ? 'pcm' : 'en', gloss: pidgin ? pick[0] : null, x: at.x, z: at.z, kind: 'shout', react: 'hurt', range: 26, hold: 3.2 });
   }
 
   function show(event) {
@@ -16613,7 +16614,7 @@ function createGuns({ state, players, population, actors, conflict, talk, emit, 
     officers.set(i, { by: p.id, burst: 0, next: real() + 0.35 + rng.next() * 0.3, lastSeen: real(), at: { x: p.x, z: p.z } });
     if (!actors.has(i)) actors.take(i, state.t);
     actors.hold(i, 'Shooting back', POSE.stand, real() + 30);
-    if (talk) { const at = where(i); talk.say({ who: `n:${i}`, name: people[i].short, role: 'Police', text: 'Police! Drop your weapon!', lang: 'en', x: at.x, z: at.z, kind: 'shout', range: 40, hold: 3.2 }); }
+    if (talk) { const at = where(i); talk.say({ who: `n:${i}`, name: people[i].short, role: 'Police', text: 'Police! Drop your weapon!', lang: 'en', x: at.x, z: at.z, kind: 'shout', react: 'gunshot', range: 40, hold: 3.2 }); }
   }
   function disengage(i, why = 'Going back on the beat') {
     officers.delete(i);
@@ -16785,6 +16786,7 @@ function createTalk({ state, population, residents, players, weather, hub = {}, 
     const until = from + (line.hold || Math.max(line.kind === 'chat' ? 4 : 2.6, Math.min(8, 1.6 + line.text.length * 0.055)));
     const entry = { id: book.seq, who: line.who, name: line.name, role: line.role || '', text: line.text, lang: line.lang, gloss: line.gloss || null, x: Math.round(line.x * 10) / 10, z: Math.round(line.z * 10) / 10, from: Math.floor(from * 100) / 100, until: Math.round(until * 100) / 100, kind: line.kind, range: line.range || CHAT.overhear };
     if (line.voice) { entry.voice = line.voice; entry.seconds = line.seconds; entry.to = line.to || null; entry.group = line.group || null; }
+    if (!line.voice && !/^[pv]:/.test(String(line.who))) { if (line.react && hub && hub.voices && hub.voices.callOut) hub.voices.callOut(line.react, line.who, line.x, line.z); return entry; }
     (line.kind === 'chat' ? chatter : book.lines).push(entry);
     return entry;
   }
@@ -17351,9 +17353,9 @@ function createVoices({ state, population, residents, actors, talk, timeScale = 
     }
   }
 
-  function event(kind, x, z, { only = null, not = [] } = {}) {
+  function event(kind, x, z, { only = null, not = [], news = true, callers = VOICES.callers } = {}) {
     const real = state.real, t = state.t;
-    if (kind !== 'hurt' && kind !== 'laugh') book.news.push({ kind, x, z, real });
+    if (news && kind !== 'hurt' && kind !== 'laugh') book.news.push({ kind, x, z, real });
     const near = [];
     const consider = (who, px, pz) => {
       if (only && who !== only) return;
@@ -17369,7 +17371,8 @@ function createVoices({ state, population, residents, actors, talk, timeScale = 
     for (const r of residents.all()) if (r.mode !== 'inside') consider(`r:${r.id}`, r.x, r.z);
     near.sort((a, b) => a.d - b.d);
     let delay = kind === 'hurt' ? 0.15 : 0.45;
-    for (const n of near.slice(0, only ? 1 : VOICES.callers)) {
+    let called = 0;
+    for (const n of near.slice(0, only ? 1 : callers)) {
       const fresh = n.lines.filter(([id]) => (book.said[id] || -1e9) <= real - VOICES.lineAgain);
       if (!fresh.length) { stats.skipped += 1; continue; }
       const [id, seconds, words, meaning] = fresh[Math.floor(hash(textHash(n.who), Math.floor(t)) * fresh.length)];
@@ -17379,8 +17382,17 @@ function createVoices({ state, population, residents, actors, talk, timeScale = 
       book.reacted[`${n.who}|${kind}`] = real;
       delay += 0.9 + hash(textHash(n.who), 3) * 0.8;
       stats.reactions += 1;
+      called += 1;
     }
-    if (EVENT_TALK[kind]) afterNews(kind, x, z);
+    if (news && EVENT_TALK[kind]) afterNews(kind, x, z);
+    return called;
+  }
+
+  function callOut(kind, who, x, z) {
+    if (!kind || !REACT) return 0;
+    const own = event(kind, x, z, { only: who, news: false });
+    if (own || kind === 'hurt') return own;
+    return event(kind, x, z, { news: false, callers: 1 });
   }
 
   function afterNews(kind, x, z) {
@@ -17413,7 +17425,7 @@ function createVoices({ state, population, residents, actors, talk, timeScale = 
   }
 
   const voiced = (who) => voiceOf.has(who) && (Object.keys(REACT[voiceOf.get(who)] || {}).length > 0 || talks.some((c) => c.lines.some(([v]) => v === voiceOf.get(who))));
-  return { tick, schedule, event, talking, voicesNear, voiced, stats: () => ({ ...stats }), news: () => book.news.slice(), talks: () => talks };
+  return { tick, schedule, event, callOut, talking, voicesNear, voiced, stats: () => ({ ...stats }), news: () => book.news.slice(), talks: () => talks };
 }
 
 return { VOICES, useVoiceData, createVoices };
@@ -17642,7 +17654,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
     if (killed) {
       rec.dead = { at: now, by: driver.id, byName: driver.name, takeAt: now + IMPACT.body };
       actors.kill(i, 'Dead');
-      if (talk) talk.say({ who: `n:${i}`, name: 'Someone', text: 'Ewo! He don die! Call police!', lang: 'pcm', gloss: 'Oh no! He is dead! Call the police!', x: m.x, z: m.z, kind: 'shout', range: 30, hold: 3.6 });
+      if (talk) talk.say({ who: `n:${i}`, name: 'Someone', text: 'Ewo! He don die! Call police!', lang: 'pcm', gloss: 'Oh no! He is dead! Call the police!', x: m.x, z: m.z, kind: 'shout', react: 'crash', range: 30, hold: 3.6 });
       emit(driver.id, { type: 'alert', title: 'You have killed someone', text: `${who.short} is dead under your wheels.` });
     } else {
       const lie = IMPACT.down[0] + (IMPACT.down[1] - IMPACT.down[0]) * weight + (rec.health <= 25 ? 12 : 1.5);
@@ -17654,7 +17666,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
       rec.pinnedSince = 0;
       if (hub.reactions) { if (hub.reactions.end) hub.reactions.end(i); rec.reactAt = now + lie + IMPACT.rise; rec.reactWith = rec.badly || rec.health <= 25 ? 'cry' : 'hurt'; }
       rec.badly = rec.health <= 25;
-      if (talk) talk.say({ who: `n:${i}`, name: who.short, text: rec.badly ? 'My leg! Somebody help me!' : 'Ah! You no dey look road?', lang: rec.badly ? 'en' : 'pcm', gloss: rec.badly ? null : 'Are you not watching the road?', x: m.x, z: m.z, kind: 'shout', range: 26, hold: 3.2 });
+      if (talk) talk.say({ who: `n:${i}`, name: who.short, text: rec.badly ? 'My leg! Somebody help me!' : 'Ah! You no dey look road?', lang: rec.badly ? 'en' : 'pcm', gloss: rec.badly ? null : 'Are you not watching the road?', x: m.x, z: m.z, kind: 'shout', react: 'hurt', range: 26, hold: 3.2 });
     }
     charge(driver, { kind: 'npc', id: i, name: who.short }, m.x, m.z, vehicle, killed);
     driver.involvedNpc = { i, name: who.short, until: now + IMPACT.seen };
@@ -18088,8 +18100,8 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
   const setState = (p, next) => { const law = lawOf(p); if (law.state !== next) { law.state = next; law.since = real(); } };
 
   const victimAccount = (victim) => (victim.kind === 'player' ? (players[victim.id] ? players[victim.id].wallet : null) : victim.kind === 'resident' ? accounts.resident(victim.id) : households);
-  const speak = (i, lines) => { const who = people[i]; const at = where(i); const pick = lines[Math.floor(rng.next() * lines.length)]; const pidgin = who.langs.includes('pcm') && who.lang !== 'en'; talk.say({ who: `n:${i}`, name: who.short, text: pidgin ? pick[1] : pick[0], lang: pidgin ? 'pcm' : 'en', gloss: pidgin ? pick[0] : null, x: at.x, z: at.z, kind: 'shout', range: 30, hold: 3.2 }); };
-  const officerSays = (i, text) => { const at = where(i); talk.say({ who: `n:${i}`, name: people[i].short, role: 'Police', text, lang: 'en', x: at.x, z: at.z, kind: 'shout', range: 34, hold: 3.6 }); };
+  const speak = (i, lines) => { const who = people[i]; const at = where(i); const pick = lines[Math.floor(rng.next() * lines.length)]; const pidgin = who.langs.includes('pcm') && who.lang !== 'en'; talk.say({ who: `n:${i}`, name: who.short, text: pidgin ? pick[1] : pick[0], lang: pidgin ? 'pcm' : 'en', gloss: pidgin ? pick[0] : null, x: at.x, z: at.z, kind: 'shout', react: 'police', range: 30, hold: 3.2 }); };
+  const officerSays = (i, text) => { const at = where(i); talk.say({ who: `n:${i}`, name: people[i].short, role: 'Police', text, lang: 'en', x: at.x, z: at.z, kind: 'shout', react: 'fight', range: 34, hold: 3.6 }); };
 
 
   function witnessesOf(crime, culprit, stealth) {
@@ -31617,6 +31629,7 @@ function createCrowd(scene) {
     setLimps(set) { for (const actor of actors.values()) { actor.limp = set.has(actor.i); if (actor.rig) actor.rig.limp = actor.limp && actor.pose !== POSE.sit && actor.pose !== POSE.lie; } },
     actors: () => actors.values(),
     crowdFigures: () => crowdFigures.held(),
+    letGoKept() { const n = wardrobe.size; for (const rig of wardrobe.values()) rig.dispose(); wardrobe.clear(); stats.kept = 0; return n; },
   };
 }
 
@@ -33162,8 +33175,7 @@ function createBubbles(layer, { translator, settings }) {
   function update(...args) { const n = place(...args); showLayer(); return n; }
   function place(lines, where, project, eye, selfKey, width, height) {
     const now = performance.now() / 1000;
-    const subtitles = !settings.subtitles || settings.subtitles();
-    lines = subtitles ? lines : lines.filter((l) => !l.voice);
+    lines = lines.filter((l) => /^[pv]:/.test(String(l.who)));
     const byId = new Map(lines.map((l) => [l.id, l]));
     for (const line of lines) {
       if (!live.has(line.id)) {
@@ -43667,8 +43679,7 @@ function createUI(app) {
       root.append(h('p', { class: 'small' }, 'Your character was chosen when you arrived and stays yours. You can look at the others at any time; changing to one of them is a character upgrade, which is paid for.'));
     }
     root.append(section('Sound'));
-    root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Sound'), toggle('sound-on', app.soundOn(), 'Sound', () => { app.sound(); redraw(); })),
-      h('div', { class: 'setrow' }, h('span', null, 'Subtitles: show the words when people talk'), toggle('subtitles-on', app.settings.subtitles ? app.settings.subtitles() : true, 'Subtitles', (on) => { if (app.settings.setSubtitles) app.settings.setSubtitles(on); redraw(); }))));
+    root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Sound'), toggle('sound-on', app.soundOn(), 'Sound', () => { app.sound(); redraw(); }))));
     const levels = app.volumes();
     root.append(h('div', { class: 'rows faders' }, Object.keys(SOUND_NAMES).map((name) => {
       const shown = h('span', { class: 'mono' }, `${Math.round(levels[name] * 100)}`);
@@ -57086,7 +57097,7 @@ function start(carried) {
 
 
   const stored = carried && carried.host ? carried : readStored(SAVE_KEY);
-  const prefs = { translate: true, subtitles: true, sound: true, graphics: 'auto', calm: false, skyTime: 'real', skyWeather: 'real', ...(readStored(PREFS_KEY) || {}) };
+  const prefs = { translate: true, sound: true, graphics: 'auto', calm: false, skyTime: 'real', skyWeather: 'real', ...(readStored(PREFS_KEY) || {}) };
   const SKY_TIMES = Object.freeze({ morning: 8, noon: 12.5, dusk: 18.5, night: 22 });
   const SKY_WEATHERS = Object.freeze({ clear: Object.freeze({ kind: 'clear', wet: false, intensity: 0 }), cloudy: Object.freeze({ kind: 'cloudy', wet: false, intensity: 0 }), rain: Object.freeze({ kind: 'rain', wet: true, intensity: 0.6 }), storm: Object.freeze({ kind: 'storm', wet: true, intensity: 1 }) });
   const skyChoice = () => ({ time: SKY_TIMES[prefs.skyTime] !== undefined ? prefs.skyTime : 'real', weather: SKY_WEATHERS[prefs.skyWeather] ? prefs.skyWeather : 'real' });
@@ -57974,8 +57985,6 @@ function start(carried) {
     language: () => (view ? view.self.lang : 'en'),
     translate: () => prefs.translate,
     setTranslate: (on) => { prefs.translate = !!on; writeStored(PREFS_KEY, prefs); },
-    subtitles: () => prefs.subtitles !== false,
-    setSubtitles: (on) => { prefs.subtitles = !!on; writeStored(PREFS_KEY, prefs); },
     machine: () => translator.hasService,
   };
   const bubbles = createBubbles($('bubbles'), { translator, settings });
@@ -60705,9 +60714,12 @@ blood.update(dt, view.blood || []);
       const freed = dropUnusedFigures() + trimBikes() + trimCars() + trimSports();
       if (freed) { graphicsTrims += 1; monitor.count('over the graphics budget: let go of what was kept ready'); return; }
     }
-    if (townBuilt && usedMB > memoryLimit && governor.level < LOW && performance.now() - memoryStepAt > 10000 && picturesWaiting() === 0) {
-      memoryStepAt = performance.now();
-      governor.lower(`the graphics card nearly full (${usedMB.toFixed(0)} of ${graphicsBudgetMB} MB)`);
+    if (townBuilt && usedMB > memoryLimit && governor.level < LOW) {
+      if (crowd && crowd.letGoKept()) { graphicsTrims += 1; monitor.count('the graphics card nearly full: let go of the figures kept ready'); return; }
+      if (performance.now() - memoryStepAt > 10000 && picturesWaiting() === 0) {
+        memoryStepAt = performance.now();
+        governor.lower(`the graphics card nearly full (${usedMB.toFixed(0)} of ${graphicsBudgetMB} MB)`);
+      }
     }
   }, 2000);
 

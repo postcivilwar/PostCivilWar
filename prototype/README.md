@@ -4871,6 +4871,23 @@ picture let go, the shadow drawn again), on a phone's settings: on the build bef
 empty 3 times in 3, with the change 0 in 3; the graphics levels' test does it on a phone and on a computer, and
 `test/engine.test.mjs` checks the change is in the bundle.
 
+With the shadow mended, the PowerBike showroom on a phone at Medium with the memory guard on (`PERF_GUARD=1`): Medium kept
+three times in three, at 131.4, 127.4 and 128.0 MB of its 135, nothing let go to keep there (the pictures seen only by the
+shadow are no longer handed to the card at all).
+
+The city's roads were not tar to a vehicle (the owner, 4 November: "Currently the max is 36km/h"): `okada.js` `onTar` now
+takes the city's roads, roundabouts, flyovers and expressway (`oganiruTar`), so a car or motorcycle there goes as fast as
+it does on the town's tar, its own top speed (`test/city-speed.test.mjs`). And the townspeople are no longer written: only
+the players' words show (`bubbles.js`, `talk.js`: `p:` this game's players, `v:` another game's); a townsperson's shout
+with no recording of its own is said in the closest recording of someone nearby reacting to the same kind of thing
+(`voices.js` `callOut`, the shouts tagged `react:`), or not at all; Settings has no Subtitles switch.
+
+Tested, build b67733d9a4e3a2e1: the quick tests 605 of 605; the graphics levels 16 of 16 on a phone and 13 of 13 on a
+computer (the memory-guard check now holds the card's count over its limit all through it: the computer's pictures, made
+smaller by the step just before, had fallen under it once); the city 13 of 13; a phone's memory 12 of 12; the look of the
+city on a phone (44 views, no console errors); the voices 9 of 10 (the gunshot's call-out chosen, but not heard within the
+test's wait on this machine: the live build misses it the same way here).
+
 ## Tests
 
 ```
