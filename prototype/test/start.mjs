@@ -103,7 +103,23 @@ export async function watchPictures(context) {
       walk(scene, true);
       return found;
     };
+    // (what three.js is drawing at each moment: the thing and the material it is drawn with, in the town's picture or in
+    // its sun's shadow, set as each is drawn; and each material let go, and when. 4 November 2026: the scene walked at the
+    // moment a picture was handed over empty, as three.js drew the town, found nothing in it using that picture)
+    let drawingNow = null, drawingMat = null, drawingShadow = false;
+    const matGone = new WeakMap();
     const watchThree = (T) => {
+      const O = T && T.Object3D && T.Object3D.prototype;
+      if (O && typeof O.onBeforeRender === 'function') {
+        const before = O.onBeforeRender, beforeShadow = O.onBeforeShadow;
+        O.onBeforeRender = function (renderer, scene, camera, geometry, material) { drawingNow = this; drawingMat = material; drawingShadow = false; return before.apply(this, arguments); };
+        if (typeof beforeShadow === 'function') O.onBeforeShadow = function (renderer, object, camera, shadowCamera, geometry, depthMaterial) { drawingNow = this; drawingMat = depthMaterial; drawingShadow = true; return beforeShadow.apply(this, arguments); };
+      }
+      const M = T && T.Material && T.Material.prototype;
+      if (M && typeof M.dispose === 'function') {
+        const letGo = M.dispose;
+        M.dispose = function () { if (!matGone.has(this)) matGone.set(this, { at: Math.round(performance.now() / 1000), from: where(3) }); return letGo.apply(this, arguments); };
+      }
       const proto = T && T.Texture && T.Texture.prototype;
       if (!proto) return;
       const dispose = proto.dispose;
@@ -148,8 +164,28 @@ export async function watchPictures(context) {
         }
         for (const c of o.children) walk(c, v);
       };
-      try { walk(scene, true); } catch (error) { /* told without it */ }
+      try { walk(scene, true); } catch (error) { out.push({ error: String((error && error.message) || error) }); }
       return out;
+    };
+    // (the thing three.js was drawing as it handed the picture over: its name and its parents' up to the top, whether
+    // that top is the town's scene, whether it was drawn for the sun's shadow, which of its material's pictures it is,
+    // and whether that material had been let go, when and from where. Its place read from its last matrix, not worked
+    // out afresh in the middle of the drawing)
+    const drawing = (image) => {
+      const o = drawingNow;
+      if (!o) return null;
+      const names = []; let top = o;
+      for (let p = o; p; p = p.parent) { if (names.length < 9) names.push(`${p.name || p.type}${p.visible === false ? ' (hidden)' : ''}`); top = p; }
+      const n = window.__nlw;
+      const pictureKeys = (m) => (m ? Object.keys(m).filter((k) => { const t = m[k]; return !!t && t.isTexture === true && t.image === image; }) : []);
+      const own = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      const e = o.matrixWorld && o.matrixWorld.elements;
+      return {
+        names: names.join(' < '), type: o.type, inScene: !!(n && top === n.scene), top: top.name || top.type, shadow: drawingShadow,
+        material: drawingMat ? `${drawingMat.type}${drawingMat.name ? ` ${drawingMat.name}` : ''}` : null, keys: pictureKeys(drawingMat),
+        ownKeys: own.flatMap((m) => pictureKeys(m)), ownLetGo: own.map((m) => (m && matGone.get(m)) || null).filter(Boolean),
+        at: e ? [Math.round(e[12]), Math.round(e[13]), Math.round(e[14])] : null,
+      };
     };
     const lost = (kind, image = null) => {
       window.__lostPictures += 1;
@@ -159,6 +195,7 @@ export async function watchPictures(context) {
         what.made = made.get(image) || '(not seen made: on a worker)'; what.letGo = shut.get(image) || null;
         what.cardLetGo = cardGone.get(image) || null; what.marked = marked.get(image) || null;
         what.drawnOn = drawnOn(image);
+        try { what.drawing = drawing(image); } catch (error) { what.drawing = { error: String((error && error.message) || error) }; }
         const eye = window.__nlw && window.__nlw.cam && window.__nlw.camera ? window.__nlw.camera.position : null;
         if (eye) what.eye = [Math.round(eye.x), Math.round(eye.z)];
       }
