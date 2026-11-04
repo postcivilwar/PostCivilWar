@@ -33,6 +33,8 @@ import { inCity } from './city-walks.js';
 import { POWER_CARS, carBoxes, carCircles } from './power-cars.js';
 import { POSE } from './population.js';
 import { GameError } from './registry.js';
+import { TWO_DOORS } from './car-doors.js';
+import { npcFigure } from './npc-figures.js';
 
 export const TRAFFIC = Object.freeze({
   wide: 7.5,               // metres: a road at least this wide carries cars
@@ -57,6 +59,15 @@ export const TRAFFIC = Object.freeze({
   most: 5,                 // cars one player may have taken and left standing; a sixth, and the first is found by its owner
   wait: 22,                // real seconds a car waits for something that does not move before it turns round
 });
+
+// Who rides with a motorist (4 November 2026, the owner: "the NPCs can randomly carry others at the passenger seat, 1
+// passengers at the front seat and maybe 2 or 3 or 1 at the back, randomly ... no NPC must carry on the car another
+// NPC that their character was coined from ... It is not must that npc will carry other passengers, they can be
+// alone"). Chosen afresh for each trip: someone in the front seat, at `front`'s odds; behind, none, one, two or three
+// (`back`: the odds of fewer than one, two, three); never two people of one figure in a car. A car of two doors has
+// one place behind. They are townspeople whose day has them indoors just then (so that nobody is seen in two places),
+// adults, none of the police; in the car, nobody sees them (the cars' windows are painted on), until they get out.
+export const RIDERS = Object.freeze({ front: 0.45, back: Object.freeze([0.55, 0.78, 0.92]), age: 16 });
 
 // The ten models the town drives (power-cars.js; a motorist's is the n-th, round and round): the showroom's closed
 // cars, the six made light first.
@@ -619,6 +630,10 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
   const book = state.traffic;
   const cars = book.cars;
   const carOfPerson = new Map(cars.map((c) => [c.i, c.n]));
+  // (who rides in which car now: `riders`, each { i, seat })
+  for (const c of cars) if (!Array.isArray(c.riders)) c.riders = [];
+  const ridingIn = new Map();
+  for (const c of cars) for (const r of c.riders) ridingIn.set(r.i, c.n);
   const ways = new Map();                 // the way each car is on (not kept: made again from where it is)
   // who is in each junction now, going which way through it: a car going another way waits for them to be out of it
   // (not kept: worked out again from where everyone is)
@@ -765,7 +780,53 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     if (!wayOf(c)) { c.to = was; c.from = wasFrom; ways.delete(c.n); return false; }
     c.trips += 1; book.trips += 1;
     c.mode = 'drive'; c.since = real(); c.waited = 0; c.booked = null; c.passing = null; c.side = 0;
+    pickRiders(c);
     return true;
+  }
+  // Those who ride with it this trip (RIDERS): the seats filled at the odds, the people for them chosen from the
+  // townspeople indoors just now, a figure no one else in the car has.
+  const figureOf = (i) => (people[i] && people[i].look && npcFigure(people[i].look.figure) ? people[i].look.figure : null);
+  const probeRider = {};
+  function letRidersGo(c) { for (const r of c.riders) ridingIn.delete(r.i); c.riders = []; }
+  function pickRiders(c) {
+    letRidersGo(c);
+    const k = c.n * 131 + c.trips * 7;
+    const two = TWO_DOORS.has(c.model);
+    const seats = [];
+    if (hash(k, 1) < RIDERS.front) seats.push('front');
+    const b = hash(k, 2), behind = b < RIDERS.back[0] ? 0 : b < RIDERS.back[1] ? 1 : b < RIDERS.back[2] ? 2 : 3;
+    seats.push(...['rl', 'rr', 'rm'].slice(0, Math.min(behind, two ? 1 : 3)));
+    if (!seats.length) return;
+    const used = new Set([figureOf(c.i)]);
+    const N = people.length, from = Math.floor(hash(k, 3) * N), t = state.t;
+    for (let s = 0; s < N && c.riders.length < seats.length; s += 1) {
+      const i = (from + s) % N, who = people[i];
+      const f = figureOf(i);
+      if (!f || used.has(f) || npcFigure(f).police || who.gone || !(who.age >= RIDERS.age)) continue;
+      if (carOfPerson.has(i) || ridingIn.has(i) || (hub.actors && hub.actors.has(i))) continue;
+      // (nobody anything else has hold of: out on a bicycle, out walking in the city, gone over to talk; and none of the
+      // town's riders at all, who go out on their own times)
+      if (population.held(i, t) || (hub.sportRiders && hub.sportRiders.riders().some((q) => q.i === i))) continue;
+      population.planned(i, t, probeRider);
+      if (probeRider.pose !== POSE.hidden) continue;
+      used.add(f);
+      c.riders.push({ i, seat: seats[c.riders.length] });
+      ridingIn.set(i, c.n);
+    }
+  }
+  // Someone out of the car (the car taken: hijack.js)
+  function riderOut(n, i) { const c = cars[n]; if (!c) return; c.riders = c.riders.filter((r) => r.i !== i); ridingIn.delete(i); }
+  const ridersOf = (n) => (cars[n] ? c0(cars[n].riders) : []);
+  // (is someone riding in one of the cars now: for those who would take them out walking, city-strollers.js)
+  const riding = (i) => ridingIn.has(i);
+  const c0 = (list) => list.map((r) => ({ ...r }));
+  // A door of a car opened and shut again (a real time each): for the drawing (`list`, `doors`)
+  function door(n, d, open, shut) {
+    const c = cars[n];
+    if (!c) return;
+    const now = real();
+    c.doors = (c.doors || []).filter((q) => q.s > now - 2 && q.d !== d);
+    c.doors.push({ d, o: open, s: shut });
   }
   // onto the roads, at a place at the roadside out of every player's sight
   function comeOut(c) {
@@ -784,7 +845,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     ways.delete(c.n);
     return true;
   }
-  const goHome = (c) => { c.mode = 'off'; c.v = 0; c.to = -1; ways.delete(c.n); };
+  const goHome = (c) => { c.mode = 'off'; c.v = 0; c.to = -1; ways.delete(c.n); letRidersGo(c); };
 
   // ------------------------------------------------------- one car, one step ---
 
@@ -1149,6 +1210,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     const c = cars[n];
     c.frozen = false; c.mode = 'taken'; c.takenBy = player.id; c.v = 0; c.to = -1; c.since = real();
     ways.delete(c.n);
+    letRidersGo(c);
     book.taken += 1;
     return { person: c.i, model: c.model, x: c.x, z: c.z, h: c.h };
   }
@@ -1256,13 +1318,14 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
   }
 
   // Tells the population where a motorist is while at the wheel: in the car, not to be seen.
+  // (and where someone riding with a motorist is: in the car with them)
   function locate(i, t, out) {
-    const n = carOfPerson.get(i);
-    if (n === undefined) return false;
+    let n = carOfPerson.get(i), rider = false;
+    if (n === undefined) { n = ridingIn.get(i); rider = true; if (n === undefined) return false; }
     const c = cars[n];
     if (!onRoads(c)) return false;
     out.x = c.x; out.z = c.z; out.h = c.h; out.pose = POSE.hidden; out.moving = c.v > 0.1; out.spot = people[i].homeSpot; out.leg = null;
-    out.act = c.mode === 'stop' ? 'Sitting in the car' : 'Driving';
+    out.act = rider ? 'Riding in a car' : c.mode === 'stop' ? 'Sitting in the car' : 'Driving';
     return true;
   }
   population.setHook(locate);
@@ -1274,7 +1337,10 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
       if (!shown(c) || Math.abs(c.x - x) > 330 || Math.abs(c.z - z) > 330) continue;
       const r = (v, k = 100) => Math.round(v * k) / k;
       out.push({ n: c.n, model: c.model, person: onRoads(c) ? c.i : null, x: r(c.x), z: r(c.z), y: Number.isFinite(c.y) ? r(c.y) : undefined, h: r(c.h, 1000), speed: r(c.mode === 'drive' ? c.v : 0, 10), steer: r(c.steer || 0), brake: c.brake ? 1 : 0, held: !!c.held,
-        mode: c.mode, mine: c.takenBy !== null && c.takenBy === viewerId, stopped: onRoads(c) && !c.frozen && c.v <= 0.6, hornAgo: c.hornAt ? r(real() - c.hornAt, 10) : -1 });
+        mode: c.mode, mine: c.takenBy !== null && c.takenBy === viewerId, stopped: onRoads(c) && !c.frozen && c.v <= 0.6, hornAgo: c.hornAt ? r(real() - c.hornAt, 10) : -1,
+        // (how many ride with the driver; and its doors opened and shut lately, each [door, seconds to its opening, to its
+        // shutting] from now: hijack.js)
+        riders: onRoads(c) ? c.riders.length : 0, ...(c.doors && c.doors.length ? { doors: c.doors.filter((q) => q.s > real() - 1.5).map((q) => [q.d, r(q.o - real()), r(q.s - real())]) } : {}) });
     }
     return out;
   }
@@ -1302,7 +1368,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     return { cars: cars.length, modes: by, trips: book.trips, taken: book.taken, returned: book.returned, ghosts: book.ghosts || 0, passed: book.passed || 0, stops: NET.stops.length, roads: NET.roads.length, junctions: NET.nodes.length };
   }
 
-  const api = { tick, list, boxes, seizable, freeze, take, leftBy, enter, moved, recover, keptBy, audit, locate, cars, onShift, shiftOf, wayOf: (n) => ways.get(n) || null, network: NET,
+  const api = { tick, list, boxes, seizable, freeze, take, leftBy, enter, moved, recover, keptBy, audit, locate, cars, onShift, shiftOf, wayOf: (n) => ways.get(n) || null, network: NET, ridersOf, riderOut, door, riding,
     waitingFor: (rider) => cars.some((c) => c.mode === 'drive' && c.waitRider === rider),
     // (for the tests: who is going through which junction now)
     claims: () => [...claims].map(([node, m]) => [node, [...m]]) };

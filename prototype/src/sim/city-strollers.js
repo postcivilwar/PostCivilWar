@@ -91,7 +91,7 @@ export function createCityStrollers({ state, population, hub = {}, timeScale = 3
     const k = Math.floor(hash(book.walks + 17, Math.floor(real())) * chosen.length);
     for (let n = 0; n < chosen.length; n += 1) {
       const i = chosen[(k + n) % chosen.length];
-      if (book.out[i] || (hub.actors && hub.actors.has(i)) || people[i].gone) continue;
+      if (book.out[i] || (hub.actors && hub.actors.has(i)) || people[i].gone || (hub.traffic && hub.traffic.riding && hub.traffic.riding(i))) continue;
       // indoors long enough: a stroll of a few minutes (real), the town's day going thirty times as fast
       // (indoors for a while yet, by their own day: a walk to fit, out and back to a door near, as far as that allows)
       const indoors = indoorsFor(i, t);

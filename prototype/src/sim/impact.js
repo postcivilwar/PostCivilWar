@@ -619,19 +619,21 @@ export function createImpact({ state, players, population, actors, conflict, tal
   // drawn as for a vehicle: `fallen`), lie a few seconds, get up, and then run from whoever did it, or, badly hurt
   // (at 20), limp. A little blood is left under them each time. Not again within `refall` seconds of the last: just up,
   // they keep going. Returns whether they went down.
-  function felled(i, { from = null, harm = 1 } = {}) {
+  // (`lie`: seconds on the ground, where it is not a blow's; `blood` false: thrown down, not hurt, as a driver pulled out
+  // of their car is: hijack.js, 4 November 2026)
+  function felled(i, { from = null, harm = 1, lie: lying = null, blood = true } = {}) {
     const now = real();
     const rec = book.npc[i] || (book.npc[i] = { at: -10, health: 100, t: state.t });
     if (rec.dead) return false;
     rec.t = state.t;
-    rec.blood = Math.min(IMPACT.bleed.most, (rec.blood || 0) + Math.max(harm * IMPACT.bleed.perHarm, IMPACT.fallBlood * (rec.fellAt && now - rec.fellAt < IMPACT.refall ? 0.25 : 1)));
+    if (blood) rec.blood = Math.min(IMPACT.bleed.most, (rec.blood || 0) + Math.max(harm * IMPACT.bleed.perHarm, IMPACT.fallBlood * (rec.fellAt && now - rec.fellAt < IMPACT.refall ? 0.25 : 1)));
     if (now - (rec.fellAt === undefined ? -1e9 : rec.fellAt) < IMPACT.refall) return false;
     const m = actors.take(i, state.t);
     if (!m || m.pose === POSE.lie || m.pose === POSE.sit) return false;
     rec.fellAt = now; rec.at = now;
     rec.x = m.x; rec.z = m.z;
     if (from && Math.hypot(from.x - m.x, from.z - m.z) > 0.2) m.h = Math.atan2(from.x - m.x, from.z - m.z);
-    const lie = IMPACT.down[0] + rng.next() * (IMPACT.down[1] - IMPACT.down[0]);
+    const lie = Number.isFinite(lying) ? lying : IMPACT.down[0] + rng.next() * (IMPACT.down[1] - IMPACT.down[0]);
     actors.hold(i, 'Knocked down', POSE.lie, 0);
     m.after = 0;
     rec.upAt = now + lie;

@@ -26,6 +26,7 @@ import { GameError } from './registry.js';
 import { clearOf } from './in-the-way.js';
 import { zoneSurfaceY } from './zone.js';
 import { levelAt, keepLevel, unstuck } from './levels.js';
+import { DOOR, doorPlace, toWorld } from './car-doors.js';
 
 export const isOwnCar = (incar) => typeof incar === 'string' && incar.startsWith('pc:');
 export const carOf = (incar) => (isOwnCar(incar) ? incar.slice(3) : null);
@@ -218,7 +219,18 @@ export function createOwnCars({ state, hub, obstacles, strangers = () => [] }) {
     const door = -0.15 * spec.length;          // the driver's door is a little behind the car's middle
     const spots = [[side.x * out + ahead.x * door, side.z * out + ahead.z * door], [-side.x * out + ahead.x * door, -side.z * out + ahead.z * door], [-ahead.x * back, -ahead.z * back], [ahead.x * back, ahead.z * back]];
     const cy = levelAt(c);
-    const spot = spots.map(([dx, dz]) => ({ x: c.x + dx, z: c.z + dz })).find((s) => zoneWalkable(s.x, s.z, boxes, 0.4, cy)) || { x: c.x + spots[0][0], z: c.z + spots[0][1] };
+    // (and room for the door to swing open on that side: against a wall, another car, the driver slides across and
+    // gets out of the front passenger's door, as the owner's video has it, 4 November 2026)
+    const swings = (door) => {
+      const d = doorPlace(c.id, door);
+      for (const ang of [DOOR.open * 0.5, DOOR.open]) for (const k of [0.5, 0.85]) {
+        const q = toWorld(c, { along: d.front - Math.cos(ang) * d.length * k, across: d.side * (d.half + Math.sin(ang) * d.length * k) });
+        if (!zoneWalkable(q.x, q.z, boxes, 0.1, cy)) return false;
+      }
+      return true;
+    };
+    const roomBy = [swings('fl'), swings('fr'), true, true];
+    const spot = spots.map(([dx, dz], k) => ({ x: c.x + dx, z: c.z + dz, k })).find((s) => roomBy[s.k] && zoneWalkable(s.x, s.z, boxes, 0.4, cy)) || spots.map(([dx, dz]) => ({ x: c.x + dx, z: c.z + dz })).find((s) => zoneWalkable(s.x, s.z, boxes, 0.4, cy)) || { x: c.x + spots[0][0], z: c.z + spots[0][1] };
     if (isTaken(c)) { if (hub.traffic) hub.traffic.leftBy(p, c.taken, c); }
     else if (own(p).includes(c.id)) parkedOf(p)[c.id] = { x: c.x, z: c.z, h: c.h, y: cy };
     p.incar = null; p.pcar = null;

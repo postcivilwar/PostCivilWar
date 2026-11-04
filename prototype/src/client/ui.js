@@ -933,7 +933,9 @@ export function createUI(app) {
 
   // Health, the other fighter, the law, and what the hands are busy with.
   const LAW_CHIP = { suspicious: 'Watched', wanted: 'Wanted', pursuit: 'Police in pursuit', arrested: 'Under arrest', custody: 'In custody', released: 'Released' };
-  const TAKING = { okada: { reach: 'Reaching for the handlebar', pull: 'Pulling the rider off', mount: 'Getting on' }, keke: { door: 'At the driver\'s side', pull: 'Pulling the driver out', enter: 'Climbing into the seat' }, car: { door: 'Opening the door', pull: 'Pulling the driver out', enter: 'Getting behind the wheel' } };
+  const TAKING = { okada: { reach: 'Reaching for the handlebar', pull: 'Pulling the rider off', mount: 'Getting on' }, keke: { door: 'At the driver\'s side', pull: 'Pulling the driver out', enter: 'Climbing into the seat' }, car: { walk: 'Going round to the driver\'s door', door: 'Opening the door', pull: 'Pulling the driver out', enter: 'Getting behind the wheel', shut: 'Slamming the door', slide: 'Across to the wheel' },
+    // (the driver's side blocked: in by the front passenger's door, hijack.js)
+    carPassenger: { walk: 'Going round to the passenger\'s door', door: 'Opening the passenger\'s door', pull: 'Getting them out', enter: 'Getting in', shut: 'Slamming the door', slide: 'Across to the wheel' } };
   let vitalsShown = '';
   let lastLaw = 'normal', arrestTimer = 0, blackoutTimer = 0;
   function lift() { clearTimeout(blackoutTimer); const b = $('blackout'); b.classList.remove('on'); setTimeout(() => { if (!b.classList.contains('on')) b.hidden = true; }, 650); }
@@ -1018,7 +1020,7 @@ export function createUI(app) {
     if (!chip.hidden) { chip.className = law; chip.textContent = LAW_CHIP[law] || law; }
     $('taking').hidden = !taking && !fallen;
     // (thrown from a motorcycle, or knocked down; getting up, the bar fills as they get up)
-    if (fallen) { $('taking-text').textContent = self.dead ? `Killed by ${self.dead.by}. You come round at the hospital in ${self.dead.left} s` : self.down.rising ? 'Getting up' : self.down.by === 'crash' ? 'Thrown off' : 'Knocked down'; $('taking-fill').style.width = self.dead ? `${Math.round((1 - self.dead.left / 8) * 100)}%` : self.down.rising && self.down.rise > 0 ? `${Math.round(Math.max(0, Math.min(1, 1 - self.down.left / self.down.rise)) * 100)}%` : '0%'; } else if (taking) { $('taking-text').textContent = (TAKING[taking.kind] && TAKING[taking.kind][taking.step]) || 'Taking it'; $('taking-fill').style.width = `${Math.round(taking.progress * 100)}%`; }
+    if (fallen) { $('taking-text').textContent = self.dead ? `Killed by ${self.dead.by}. You come round at the hospital in ${self.dead.left} s` : self.down.rising ? 'Getting up' : self.down.by === 'crash' ? 'Thrown off' : 'Knocked down'; $('taking-fill').style.width = self.dead ? `${Math.round((1 - self.dead.left / 8) * 100)}%` : self.down.rising && self.down.rise > 0 ? `${Math.round(Math.max(0, Math.min(1, 1 - self.down.left / self.down.rise)) * 100)}%` : '0%'; } else if (taking) { const words = TAKING[taking.kind === 'car' && taking.door === 'fr' ? 'carPassenger' : taking.kind]; $('taking-text').textContent = (words && words[taking.step]) || 'Taking it'; $('taking-fill').style.width = `${Math.round(taking.progress * 100)}%`; }
     const badge = $('phone-badge');
     badge.hidden = !unread;
     if (unread) badge.textContent = String(unread);

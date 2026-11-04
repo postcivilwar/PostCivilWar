@@ -4888,6 +4888,86 @@ smaller by the step just before, had fallen under it once); the city 13 of 13; a
 city on a phone (44 views, no console errors); the voices 9 of 10 (the gunshot's call-out chosen, but not heard within the
 test's wait on this machine: the live build misses it the same way here).
 
+## Taking a car as in the owner's videos, its passengers, the slip roads and the roadblocks, the townspeople's height (4 November 2026)
+
+The owner's word of 4 November 2026, with a picture (ROAD CLOSED across a slip road with tar ahead of it) and three
+videos (his own play; and another game's taking of a car, by the driver's door and by the passenger's): "Watch this first
+video and observe all the errors there and fix it. Including the fact that the user is under the flyovers and the
+flyovers was transparent, secondly. The user got stuck for no reason. You need to enforce in the game so user that user
+can't pass through any area with road block. Take a look at the image, remove road blocks if there's road tiledroad
+ahead. I want you to also redesign the flow of how a user hijacks a car ... Then I noticed the npcs are smaller in size
+than the playable character". His files are byte for byte; saved games load (tested).
+
+**Stuck, and the flyover seen through.** In his video he took a car of the town's on the slip road from Peace Avenue up
+to the expressway, and from then on neither the car nor he could move, and the deck over him was see-through. The cause:
+a car taken was put on the ground under the place it stood (`own-cars.js` `enterTaken` let go of its height); on a slip
+road that is inside its bank, the earth under the road that is solid to everyone, and the deck, drawn to be seen from
+outside, is seen through from in there. Now a car taken keeps the height it stands at, and anyone or any car found inside
+something solid (a game saved there before this was mended) is put on the deck above them, the nearest where they fit,
+at their next step (`levels.js` `unstuck`); someone already in a solid may always step out of it (`walkLevel`). The town
+in his video, as it is now: taken on the slip road, the car driven on up and down it and got out of onto it
+(`test/stuck.test.mjs`).
+
+**The roadblocks.** His picture: ROAD CLOSED across the slip road from Peace Avenue onto the expressway (northbound), the
+road built on ahead of it. That roadblock is taken away (`oganiru.js`): the slip road is open to the top (walked a step at
+a time by the test). The seven that stand (two in the town, five in the city) stand where the road ahead is not built,
+and none of them can be passed now: from each end of each a fence runs back along the road to where the built land ends
+(`closures.js` `closureWings`, fourteen), so that it is not walked round over the verges and the grass; one on a deck is
+solid there too (the roadblocks were tried on the ground alone: `atani.js` `closedOnDeck`); and the road works at the
+north end of the expressway's viaduct, its last 6.4 m before the end wall, are solid (`CLOSED_END`). Tested by a search
+of every place a body can reach from before each roadblock: none reaches the road beyond it (`test/closures.test.mjs`).
+
+**Taking a car** (`hijack.js`, `car-doors.js`), as his videos show it:
+
+- **From wherever the player stands near it**, in front of it as well (the take is offered within 3.5 m of its outline):
+  they walk round it to the driver's door, never through it (the shortest way round its corners), open the door, pull the
+  driver out onto the road (who lies there a moment, gets up and runs), get in and slam the door. Whoever rides with the
+  driver opens their own door, gets out, slams it behind them and runs, a moment apart where two share a door.
+- **The driver's side blocked** (a wall, another car, anything a body or the door's swing cannot pass): to the front
+  passenger's door instead; the front passenger is pulled out (the driver scrambling out after them across the seat), or,
+  with nobody there, the driver scrambles out that way; the player gets in and slides across to the wheel. Both sides
+  blocked: "There is no way in".
+- Every step is the town's, timed when it begins, so that every player sees the same: the walk at 3.3 m a second, the
+  door 0.55 s, the pull 1.05 s (1.6 s for two), in 0.8 s, the slam 0.35 s, across 0.85 s; about three to five seconds in
+  all. The theft is the police's when the driver is out, as before (stars only where an officer sees it).
+- **The doors** (`car-model.js`): each car's own doors cut from its body, the parts of its sides between the wheel
+  arches from the sill to the roof line (four doors; two on the coupés, the convertibles, the roadsters and the supercars,
+  read from each model drawn from the side), hinged at their front edges and swung out 65 degrees, their insides dark; the
+  town's cars, whose windows are painted on and which have nothing inside, drawn dark within while a door is open (the
+  body's own inside, seen only through the opening), so that an open door shows a dark car and not the road through it.
+  The doors are drawn apart from the body only while one is open. The gold hypercar's doors are up already, as it was
+  made: none cut. A door opening clicks and a door
+  slammed thuds (`audio.js` `carDoor`, made in the game as its knocks are, no recording).
+- **Getting in and out of the player's own cars** the same: the door opened, in (or out) and slammed, a little over a
+  second; out by the passenger's door, across the seat, where the driver's door cannot open.
+
+**The town's passengers** (`traffic.js` `pickRiders`): a car of the town's sets out with someone in the front seat 45
+times in 100, and behind nobody (55 in 100), one (23), two (14) or three (8); a two-door car one behind at most. Never two
+of one figure in a car, the driver's figure among them; none of the police; grown-ups; nobody the town has out on the
+streets at that moment, on a bicycle, in the city or in another car. They are in the car, unseen (its windows painted
+on), until it is taken. Over 160 trips in the test: nobody with the driver 72 times, one 51, two 30, three 5, four 2
+(fewer than the odds would have it: only someone the town has indoors at that moment is taken along).
+
+**The townspeople's height** (`npc-figures.js`): drawn as tall as the players' own characters, the townswomen 1.68 to
+1.73 m as the women a player can be are (1.66 to 1.80, most 1.68 to 1.72), the men 1.80 to 1.82 as the men are (1.78 to
+1.85). Until now the townswomen were 1.63 to 1.72 m, most of them shorter than any woman a player can be. Measured in the
+running game (each figure standing, the top of its head): every townsperson within 2.1 cm of its height, as the players'
+characters are within 1.5 cm of theirs.
+
+**Found and fixed on the way**, by watching it in slow motion (the town's clock at an eighth, from in front of the car and
+with its driver's side blocked): the dark inside first given to the town's cars was a box, and stood out over the sloping
+windscreen and back window while a door was open (now the body's own inside); while one door was open the shut ones were
+drawn only in the first frame of it, and the car was seen through where they were (now every door is drawn on its hinge
+while any is open); the car just taken was not drawn for a
+moment once the player was in it, while it was fetched as the car driven (now the car as it was drawn a moment ago is
+drawn on in its place until then, `car-view.js`; the same for a car got out of and left standing); two people out of one
+door were put on the same spot (now the second a little further back and out); the words under the bar said "Getting
+behind the wheel" on the passenger's side and "Taking it" while the door was slammed and the player went across (now each
+step its own words); and a getting-out begun went on being drawn if the player was put somewhere else, or got on
+something, before it was done (now it stops).
+
+@TESTED@
+
 ## Tests
 
 ```
@@ -4920,6 +5000,7 @@ node test/stars.mjs out/                           # the police's stars: none wh
 ../server/with-postgres.sh node test/npc-walk.mjs out/ [phone]   # the townspeople walk facing the way they go: from their hips, frame by frame, at five busy places (round them again, up to three times, while too little walking has been seen); the body drawn as well: the skin at the hips, each hand at its bone
 ../server/with-postgres.sh node test/crowd.mjs out/ [phone]      # his townspeople, ten of each figure: many about by day at the market and the motor park, those near drawn as his own figures many at once (those in the picture), out at one in the morning, the graphics card's memory
 ../server/with-postgres.sh node test/traffic.mjs out/ [phone]    # the town's traffic in the showroom's cars: near the player, the nearest as their models and the rest as their pictures, drawn smoothly; a car taken (the stars), driven, left and taken up again, never the player's, all given back on arrest; lamps at night
+../server/with-postgres.sh node test/car-taking.mjs out/ [phone]  # taking a car of the town's as the owner's videos show it (4 November 2026): offered from in front of it, round to the driver's door, the door opened, the driver pulled out and down, the riders out of their own doors and away, in, the door slammed; out again by the door, slammed behind; nothing in the console
 ../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs
 node test/city.mjs out/                            # the first city block, walked and seen from the road, the junction, above and at night
 ../server/with-postgres.sh node test/oganiru.mjs out/        # Oganiru City (31 October 2026), two players (a computer and a phone): the city drawn, the expressway, the flyover over it and the avenue under it driven, the camera under the decks, the lamps at night, a lamp knocked down seen by the other, the phone's graphics card at the city's places

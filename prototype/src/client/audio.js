@@ -761,6 +761,21 @@ export function createAudio() {
     if (made && kind !== 'miss') focus(0.9);
   }
 
+  // A car's door (4 November 2026: "the open of the door and banging of the door"): 'open', the latch let go and the door
+  // swung out on its hinges (a click and a soft creak of the seal); 'slam', banged shut (the deep thud of the door in its
+  // frame, the latch catching, a rattle of the glass). Made here, as every knock in the game is: no recording.
+  function carDoor(kind, x, z) {
+    const play = (out, t) => {
+      if (kind === 'open') { tick(ctx, out, t, 2600, 0.05, 0.05); burst(out, t + 0.01, 'bandpass', 1500, 2.2, 0.06, 0.05); burst(out, t + 0.06, 'lowpass', 600, 0.8, 0.05, 0.18); return; }
+      thump(ctx, out, t, 0.5, 95, 38, 0.22);
+      thump(ctx, out, t + 0.012, 0.24, 210, 90, 0.09);
+      burst(out, t, 'lowpass', 520, 0.8, 0.22, 0.12);
+      tick(ctx, out, t + 0.018, 3100, 0.07, 0.04);
+      burst(out, t + 0.03, 'bandpass', 3400, 3, 0.05, 0.07);
+    };
+    return at(x, z, kind === 'slam' ? 45 : 25, 'door', kind === 'slam' ? 0.6 : 0.4, 'effects', play);
+  }
+
   // A street lamp's pole (render-lamps.js, 31 October 2026): 'hit', knocked gently (it rings, and stands); 'snap', knocked
   // over (a crunch at its foot as it goes); 'down', on the road (the clang of it, once and a bounce, its glass breaking,
   // and a crackle of sparks). Made here, as every knock in the game is: no recording.
@@ -1153,7 +1168,7 @@ export function createAudio() {
   return {
     supported: !!Ctx,
     voiceLine, decode, voiceStats: () => ({ ...voiceStats }), playerVoice, micPipe,
-    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, shipHorn, surfBreak, previewBike, stopPreview, previewing: () => !!preview, blow, streetLamp, whistle, shout, door, chime, shutter, choose, focus, level,
+    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, shipHorn, surfBreak, previewBike, stopPreview, previewing: () => !!preview, blow, streetLamp, carDoor, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
     // the guns (gun-audio.js): each does nothing with the sound off or not started
     gunLoad: (gun) => { const v = guns(); return v ? v.load(gun) : Promise.resolve(); },

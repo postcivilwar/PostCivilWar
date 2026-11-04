@@ -1212,6 +1212,8 @@ export function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPU
     // Others may take charge of where someone is (a rider on his motorcycle, someone running from a fight).
     // Each is asked in turn; the first to answer true has them.
     addHook(fn, first = false) { if (first) hooks.unshift(fn); else hooks.push(fn); },
+    // is someone in the hands of something other than their own day just now (a hook says where they are)?
+    held(i, t) { const o = {}; for (let k = 0; k < hooks.length; k += 1) if (hooks[k](i, t, o)) return true; return false; },
     setHook(fn) { hooks.push(fn); },
     dayInfo,
   };

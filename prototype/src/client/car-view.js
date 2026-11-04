@@ -107,7 +107,8 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     const pk = e.peak || (e.peak = { lifts: [], pitchMin: 0, pitchMax: 0, roll: 0 });
     for (let k = 0; k < lifts.length; k += 1) pk.lifts[k] = Math.max(pk.lifts[k] || 0, lifts[k]);
     pk.pitchMin = Math.min(pk.pitchMin, b.pitch); pk.pitchMax = Math.max(pk.pitchMax, b.pitch); pk.roll = Math.max(pk.roll, Math.abs(b.roll));
-    e.car.pose({ travelled: e.travelled, steerAngle: -(d.steer || 0), pitch: fx.pitch + b.pitch, roll: fx.roll + b.roll, lifts, rise: b.rise });
+    // (its doors, as far open as each is now: { fl, fr, rl, rr }, main.js: getting in and out, a car taken)
+    e.car.pose({ travelled: e.travelled, steerAngle: -(d.steer || 0), pitch: fx.pitch + b.pitch, roll: fx.roll + b.roll, lifts, rise: b.rise, doors: d.doors || null });
     // (the brake lamps when braking, and on a car of the town's waiting at a red light, its foot on the brake)
     e.state = { head: night > 0.25 || d.lamps ? 1 : 0, tail: night > 0.25 || d.lamps ? 1 : 0, brake: (d.brake && (d.speed || 0) > 0.2) || d.held ? 1 : 0, reverse: (d.speed || 0) < -0.2 ? 1 : 0 };
     e.car.lamps(e.state);
@@ -122,11 +123,14 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     for (const f of frozen) f.freeze = false;
     frozen.clear();
     const wanted = new Set();
+    // (a car wanted somewhere new while it is still being fetched for that: `standIn` below)
+    const waiting = [];
     if (driven && POWER_CARS[driven.id]) {
       wanted.add('drive');
       const e = entry('drive', driven.id);
       e.travelled += (driven.speed || 0) * dt;
       if (e.car) place(e, driven, groundY, dt, night, bodies);
+      else waiting.push({ id: driven.id, put: (o) => { o.travelled = e.travelled; place(o, driven, groundY, dt, night, bodies); } });
     }
     const dist = (q) => Math.hypot(q.x - from.x, q.z - from.z);
     for (const r of drives.filter((q) => POWER_CARS[q.id] && dist(q) <= PEER_SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, PEER_MOST)) {
@@ -145,17 +149,26 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
       if (e.car) place(e, r, groundY, dt, night, bodies);
     }
     const near = parked.filter((p) => POWER_CARS[p.car] && dist(p) <= SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, parkedMost);
+    const stand = (e, p) => {
+      e.car.group.position.set(p.x, groundY(p.x, p.z, p.y), p.z);
+      e.car.group.rotation.set(0, p.h, 0);
+      e.car.group.visible = true;
+      e.car.pose({ travelled: e.travelled, steerAngle: 0, pitch: 0, roll: 0, doors: p.doors || null });
+      e.car.lamps({});
+    };
     for (const p of near) {
       const key = p.key || `park:${p.car}`;
       wanted.add(key);
       const e = entry(key, p.car);
-      if (e.car) {
-        e.car.group.position.set(p.x, groundY(p.x, p.z, p.y), p.z);
-        e.car.group.rotation.set(0, p.h, 0);
-        e.car.group.visible = true;
-        e.car.pose({ travelled: e.travelled, steerAngle: 0, pitch: 0, roll: 0 });
-        e.car.lamps({});
-      }
+      if (e.car) stand(e, p);
+      else waiting.push({ id: p.car, put: (o) => stand(o, p) });
+    }
+    // (4 November 2026) A car got into, or out of, is wanted under another name than it was drawn by a moment ago (one
+    // of the town's taken: from `traffic:` to `drive`, fetched at the driven car's own size; the player's own left
+    // standing: from `drive` to `park:`): until it is ready under its new name, the one drawn a moment ago is drawn on
+    // in its place, so that the car never goes from sight while it is fetched.
+    for (const w of waiting) {
+      for (const [key, o] of shown) if (!wanted.has(key) && o.id === w.id && o.car) { wanted.add(key); w.put(o); break; }
     }
     for (const [key, e] of shown) if (!wanted.has(key)) { if (e.car) e.car.dispose(); shown.delete(key); }
   }

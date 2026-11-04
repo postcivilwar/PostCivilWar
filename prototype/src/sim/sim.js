@@ -198,7 +198,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   const sportRiders = createSportRiders({ state, population, players: state.players, hub, emit, visitors: () => talk.visitors() });
   // the town's people out walking in Oganiru City by day (city-strollers.js, 1 November 2026): its pavements and crossings
   const strollers = createCityStrollers({ state, population, hub, timeScale: scale });
-  const hijack = createHijack({ state, players: state.players, okada, vehicles, actors, population, emit, hub });
+  const hijack = createHijack({ state, players: state.players, okada, vehicles, actors, population, emit, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars()] });
   // the shared market settles its sales here (market.js): money set aside for an offer, paid for a purchase, received for a sale
   // (what it finishes was agreed before starter TR was kept apart, with the money already set aside: it is not asked again)
   const market = createMarketBridge({ state, ledger: rawLedger, monetary, issuanceAccount, players: state.players });

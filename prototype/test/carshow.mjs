@@ -384,6 +384,9 @@ await shot('16-out-through-the-gate');
 const outPrompt = await page.evaluate(() => { const p = window.__nlw.prompt(); return p && p.text; });
 await page.evaluate(() => { const p = window.__nlw.prompt(); if (p) p.run(); });
 await page.waitForTimeout(1200);
+// (since 4 November 2026 getting out takes a second and more: the door opened, out, the door slammed; the car is drawn
+// as the one driven until then, and then as one left standing. Here a frame can take a second or two)
+await page.waitForFunction(() => window.__nlw.carView.keys().includes('park:grey-saloon'), null, { timeout: 30000 }).catch(() => {});
 const parked = await page.evaluate(() => { const n = window.__nlw; return { incar: n.view.self.incar, parked: n.view.self.ownCars.parked, keys: n.carView.keys(), figure: n.me.group.visible, engine: n.audio.status().car, me: [n.predicted.x, n.predicted.z] }; });
 check('Get out: the player steps out beside it, and it stands where it was left, drawn there; its engine stops', outPrompt === 'Get out of the Grey Saloon' && !parked.incar && parked.parked.length === 1 && parked.keys.includes('park:grey-saloon') && parked.figure && !parked.engine, parked);
 await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.predicted.heading + 2.4; n.cam.dist = 6; n.cam.pitch = 0.2; });
