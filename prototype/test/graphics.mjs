@@ -271,8 +271,12 @@ for (const kind of ['phone', 'computer'].filter((k) => !process.env.GRAPHICS_ONL
   // after the first, while the page, busy making its pictures smaller, had not yet heard from the test)
   await page.evaluate((limit) => new Promise((done) => {
     const n = window.__nlw, g = n.graphics, t0 = performance.now();
-    n.graphicsPretend.extraMB = Math.max(0, limit * 1.05 - (g.pictures + g.buffers) / 1048576);
-    const look = setInterval(() => { if (n.quality > 1 || performance.now() - t0 > 120000) { clearInterval(look); n.graphicsPretend.extraMB = 0; n.governor.hold(false); done(); } }, 50);
+    // (held at a little over the limit all the while: the pictures a step just before made smaller are still being
+    // made as this starts, and the card's own count falls under it; 4 November 2026, the computer, after the frames'
+    // step a moment before, was never counted full again and kept its level)
+    const pin = () => { n.graphicsPretend.extraMB = Math.max(0, limit * 1.05 - (g.pictures + g.buffers) / 1048576); };
+    pin();
+    const look = setInterval(() => { pin(); if (n.quality > 1 || performance.now() - t0 > 120000) { clearInterval(look); n.graphicsPretend.extraMB = 0; n.governor.hold(false); done(); } }, 50);
   }), budget.limit);
   const full = await state(page);
   const guard = await page.evaluate(() => { const n = window.__nlw, l = n.levelState, g = n.graphics; return { trims: l.trims, picturesWaiting: l.picturesWaiting, memoryLimit: l.memoryLimit, kept: l.kept, usedMB: Math.round((g.pictures + g.buffers) / 1048576), unwatched: g.unwatched, lost: g.lost, held: n.governor.held, hidden: document.hidden }; });
