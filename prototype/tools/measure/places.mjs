@@ -137,7 +137,7 @@ const state = () => page.evaluate(() => {
   const n = window.__nlw, r = n.renderer, g = n.graphics || {};
   const mem = performance.memory || {};
   const safe = (f) => { try { return f(); } catch (e) { return null; } };
-  return { level: safe(() => n.quality), sunShadows: safe(() => n.sunShadows), calls: n.drawn ? n.drawn.calls : null, triangles: n.drawn ? n.drawn.triangles : null, gpuMB: +(((g.pictures || 0) + (g.buffers || 0)) / 1048576).toFixed(1), picturesMB: +((g.pictures || 0) / 1048576).toFixed(1), buffersMB: +((g.buffers || 0) / 1048576).toFixed(1), screenMB: +((g.screen || 0) / 1048576).toFixed(1), pixelRatio: r ? r.getPixelRatio() : null, textures: r ? r.info.memory.textures : null, geometries: r ? r.info.memory.geometries : null, programs: r && r.info.programs ? r.info.programs.length : null, heapMB: mem.usedJSHeapSize ? +(mem.usedJSHeapSize / 1048576).toFixed(1) : null };
+  return { level: safe(() => n.quality), trims: safe(() => n.levelState.trims), sunShadows: safe(() => n.sunShadows), calls: n.drawn ? n.drawn.calls : null, triangles: n.drawn ? n.drawn.triangles : null, gpuMB: +(((g.pictures || 0) + (g.buffers || 0)) / 1048576).toFixed(1), picturesMB: +((g.pictures || 0) / 1048576).toFixed(1), buffersMB: +((g.buffers || 0) / 1048576).toFixed(1), screenMB: +((g.screen || 0) / 1048576).toFixed(1), pixelRatio: r ? r.getPixelRatio() : null, textures: r ? r.info.memory.textures : null, geometries: r ? r.info.memory.geometries : null, programs: r && r.info.programs ? r.info.programs.length : null, heapMB: mem.usedJSHeapSize ? +(mem.usedJSHeapSize / 1048576).toFixed(1) : null };
 });
 // what the main picture and the sun's shadow map each draw, per frame, counted object by object over four frames (three.js
 // r186 counts the shadow map's draws in renderer.info, r128 did not: this counts both the same way on both)
@@ -207,8 +207,11 @@ result.loading.townMs = Date.now() - t2;
 // otherwise step its detail down as it does on a slow device, and what is measured would depend on how long it had run)
 const LEVEL = process.env.PERF_LEVEL ? Number(process.env.PERF_LEVEL) : 0;
 // (and the memory guard set aside, which would lower even a level held when the card is nearly full: what each level
-// holds is what is measured; whether that is past the guard's limit is in the numbers)
-await page.evaluate((level) => { const n = window.__nlw, g = n.governor; g.hold(true); g.set(level, 'measuring'); if (n.graphicsPretend) n.graphicsPretend.extraMB = -1e6; }, LEVEL);
+// holds is what is measured; whether that is past the guard's limit is in the numbers. PERF_GUARD=1 leaves the guard as a
+// player has it (4 November 2026: does a phone at Medium stay at Medium at the PowerBike showroom, where it is near its
+// limit?): each place then gives the level the game is at and how many times the guard has let go of what was kept ready)
+const GUARD = !!process.env.PERF_GUARD;
+await page.evaluate(({ level, guard }) => { const n = window.__nlw, g = n.governor; g.hold(true); g.set(level, 'measuring'); if (n.graphicsPretend && !guard) n.graphicsPretend.extraMB = -1e6; }, { level: LEVEL, guard: GUARD });
 const t3 = Date.now();
 if (!process.env.PERF_QUICK) await page.waitForFunction(() => window.__nlw.beyond, null, { timeout: 900000 }).catch(() => {});
 result.loading.warmMs = Date.now() - t3;
