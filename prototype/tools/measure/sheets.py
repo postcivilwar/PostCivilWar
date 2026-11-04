@@ -8,6 +8,8 @@ SHEETS_NO_FRAME=1 leaves out the time of a frame drawn in software: where the tw
 other work beside it on the machine), those times are not to be set side by side. SHEETS_MEMORY_ONLY=1 gives only what each
 holds on the graphics card (places.mjs counted a frame twice where the glow is laid over the picture, until 24 October
 2026: its draws for the picture and the shadows, halved, are not to be set beside another's).
+SHEETS_NO_FRAME_AT="motor park,market" leaves out the time of a frame at those places only, and says so on their pages (where
+those places' two measurings were taken on different machines, and the rest alike).
 """
 import json, os, sys
 from PIL import Image, ImageDraw, ImageFont
@@ -26,6 +28,7 @@ def font(size, bold=False):
     return ImageFont.load_default()
 
 F, FB, FT = font(15), font(17, True), font(24, True)
+NO_FRAME_AT = {s.strip() for s in os.environ.get('SHEETS_NO_FRAME_AT', '').split(',') if s.strip()}
 by = lambda r: {p['place']: p for p in r['places']}
 bp, ap = by(B), by(A)
 pages = []
@@ -48,6 +51,9 @@ for place, b in bp.items():
     page = Image.new('RGB', (W, h), (24, 24, 26))
     d = ImageDraw.Draw(page)
     d.text((10, 10), f'{place}', font=FT, fill=(255, 255, 255))
+    if place in NO_FRAME_AT:
+        d.text((30 + d.textlength(place, font=FT), 16), 'no time of a frame here: the two were measured on different machines',
+               font=F, fill=(255, 200, 120))
     d.text((10, 42), title, font=F, fill=(200, 200, 200))
     y = 70
     for w, ib, ia, x, z in imgs:
@@ -63,7 +69,7 @@ for place, b in bp.items():
             shadows = f"the sun's shadows: {sc} draws, {st / 1e6:.2f} M triangles · " if sc is not None and st is not None else ''
             if os.environ.get('SHEETS_MEMORY_ONLY'):
                 return f"{m.get('gpuMB')} MB on the graphics card (with the screen's own, {round(m.get('gpuMB', 0) + m.get('screenMB', 0), 1)} MB)"
-            frame = '' if os.environ.get('SHEETS_NO_FRAME') else f"a frame here (in software) {f.get('median')} ms · "
+            frame = '' if os.environ.get('SHEETS_NO_FRAME') or place in NO_FRAME_AT else f"a frame here (in software) {f.get('median')} ms · "
             return f"{frame}the picture: {calls} draws, {tris / 1e6:.2f} M triangles\n{shadows}{m.get('gpuMB')} MB on the graphics card"
         d.text((10, y), line(x), font=F, fill=(230, 230, 230))
         d.text((20 + ib.size[0], y), line(z), font=F, fill=(230, 230, 230))
