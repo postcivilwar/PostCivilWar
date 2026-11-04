@@ -1,4 +1,5 @@
-// Speech bubbles: what people say, drawn small over their heads.
+// Speech bubbles: what the players say, drawn small over their heads (the town's people are heard, never written:
+// 4 November 2026).
 //
 // A line of speech arrives from the simulation with its speaker, language
 // and text. Here it becomes a small bubble with a tail, placed over the
@@ -95,9 +96,10 @@ export function createBubbles(layer, { translator, settings }) {
   function update(...args) { const n = place(...args); showLayer(); return n; }
   function place(lines, where, project, eye, selfKey, width, height) {
     const now = performance.now() / 1000;
-    // (the words of the recorded voices only if the player wants subtitles: Settings)
-    const subtitles = !settings.subtitles || settings.subtitles();
-    lines = subtitles ? lines : lines.filter((l) => !l.voice);
+    // (only the players' own words are written: what the town's people say is heard, never written, 4 November 2026,
+    // the owner: "remove those write ups ... turn them to spoken words ... allow only playable characters to communicate
+    // via chat". Their recorded lines are played from where they stand, voices.js; there are no subtitles)
+    lines = lines.filter((l) => /^[pv]:/.test(String(l.who)));
     const byId = new Map(lines.map((l) => [l.id, l]));
     for (const line of lines) {
       if (!live.has(line.id)) {

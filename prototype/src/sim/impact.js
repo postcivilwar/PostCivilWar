@@ -300,7 +300,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
     if (killed) {
       rec.dead = { at: now, by: driver.id, byName: driver.name, takeAt: now + IMPACT.body };
       actors.kill(i, 'Dead');
-      if (talk) talk.say({ who: `n:${i}`, name: 'Someone', text: 'Ewo! He don die! Call police!', lang: 'pcm', gloss: 'Oh no! He is dead! Call the police!', x: m.x, z: m.z, kind: 'shout', range: 30, hold: 3.6 });
+      if (talk) talk.say({ who: `n:${i}`, name: 'Someone', text: 'Ewo! He don die! Call police!', lang: 'pcm', gloss: 'Oh no! He is dead! Call the police!', x: m.x, z: m.z, kind: 'shout', react: 'crash', range: 30, hold: 3.6 });
       emit(driver.id, { type: 'alert', title: 'You have killed someone', text: `${who.short} is dead under your wheels.` });
     } else {
       const lie = IMPACT.down[0] + (IMPACT.down[1] - IMPACT.down[0]) * weight + (rec.health <= 25 ? 12 : 1.5);
@@ -316,7 +316,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
       // getting up, they hold their head; badly hurt, they weep
       if (hub.reactions) { if (hub.reactions.end) hub.reactions.end(i); rec.reactAt = now + lie + IMPACT.rise; rec.reactWith = rec.badly || rec.health <= 25 ? 'cry' : 'hurt'; }
       rec.badly = rec.health <= 25;
-      if (talk) talk.say({ who: `n:${i}`, name: who.short, text: rec.badly ? 'My leg! Somebody help me!' : 'Ah! You no dey look road?', lang: rec.badly ? 'en' : 'pcm', gloss: rec.badly ? null : 'Are you not watching the road?', x: m.x, z: m.z, kind: 'shout', range: 26, hold: 3.2 });
+      if (talk) talk.say({ who: `n:${i}`, name: who.short, text: rec.badly ? 'My leg! Somebody help me!' : 'Ah! You no dey look road?', lang: rec.badly ? 'en' : 'pcm', gloss: rec.badly ? null : 'Are you not watching the road?', x: m.x, z: m.z, kind: 'shout', react: 'hurt', range: 26, hold: 3.2 });
     }
     charge(driver, { kind: 'npc', id: i, name: who.short }, m.x, m.z, vehicle, killed);
     driver.involvedNpc = { i, name: who.short, until: now + IMPACT.seen };

@@ -319,9 +319,9 @@ export function createVoices({ state, population, residents, actors, talk, timeS
   // Something happened at (x, z): `kind` is gunshot, fight, crash, police, car (a car bought), building (walls going
   // up), laugh (something funny), or hurt (`only` the one struck). Those near call out; and it is news for a while,
   // which the people in a conversation about such a thing talk about if they are together.
-  function event(kind, x, z, { only = null, not = [] } = {}) {
+  function event(kind, x, z, { only = null, not = [], news = true, callers = VOICES.callers } = {}) {
     const real = state.real, t = state.t;
-    if (kind !== 'hurt' && kind !== 'laugh') book.news.push({ kind, x, z, real });
+    if (news && kind !== 'hurt' && kind !== 'laugh') book.news.push({ kind, x, z, real });
     // who is near: the townspeople and the people at the counters, with a voice, up and about
     const near = [];
     const consider = (who, px, pz) => {
@@ -338,7 +338,8 @@ export function createVoices({ state, population, residents, actors, talk, timeS
     for (const r of residents.all()) if (r.mode !== 'inside') consider(`r:${r.id}`, r.x, r.z);
     near.sort((a, b) => a.d - b.d);
     let delay = kind === 'hurt' ? 0.15 : 0.45;
-    for (const n of near.slice(0, only ? 1 : VOICES.callers)) {
+    let called = 0;
+    for (const n of near.slice(0, only ? 1 : callers)) {
       // their line for it: one not heard lately, the same in every game for the same moment
       const fresh = n.lines.filter(([id]) => (book.said[id] || -1e9) <= real - VOICES.lineAgain);
       if (!fresh.length) { stats.skipped += 1; continue; }
@@ -349,8 +350,22 @@ export function createVoices({ state, population, residents, actors, talk, timeS
       book.reacted[`${n.who}|${kind}`] = real;
       delay += 0.9 + hash(textHash(n.who), 3) * 0.8;
       stats.reactions += 1;
+      called += 1;
     }
-    if (EVENT_TALK[kind]) afterNews(kind, x, z);
+    if (news && EVENT_TALK[kind]) afterNews(kind, x, z);
+    return called;
+  }
+
+  // A townsperson's words that were only ever written (a police officer's shout, a cry of "Thief!", someone knocked
+  // down): no longer written on the screen (4 November 2026, the owner: "remove those write ups ... turn them to spoken
+  // words. Use one of those our voice to say them aloud"), but said in the closest recording there is: the speaker's own
+  // line for `kind` if they have one, else, but for being hurt (said only by the one hurt), the nearest one near with a
+  // voice and a line for it; nothing where none fits. Not news: what happened is told to the town where it happens.
+  function callOut(kind, who, x, z) {
+    if (!kind || !REACT) return 0;
+    const own = event(kind, x, z, { only: who, news: false });
+    if (own || kind === 'hurt') return own;
+    return event(kind, x, z, { news: false, callers: 1 });
   }
 
   // A conversation about what has just happened, between people who are together near it, a few seconds on.
@@ -389,5 +404,5 @@ export function createVoices({ state, population, residents, actors, talk, timeS
 
   // whether someone speaks in recordings (and so not in the phrase book's words: talk.js)
   const voiced = (who) => voiceOf.has(who) && (Object.keys(REACT[voiceOf.get(who)] || {}).length > 0 || talks.some((c) => c.lines.some(([v]) => v === voiceOf.get(who))));
-  return { tick, schedule, event, talking, voicesNear, voiced, stats: () => ({ ...stats }), news: () => book.news.slice(), talks: () => talks };
+  return { tick, schedule, event, callOut, talking, voicesNear, voiced, stats: () => ({ ...stats }), news: () => book.news.slice(), talks: () => talks };
 }

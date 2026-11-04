@@ -100,7 +100,7 @@ export function createConflict({ state, players, population, actors, talk, emit,
     const at = whereNpc(i);
     const pick = LINES[kind][Math.floor(rng.next() * LINES[kind].length)];
     const pidgin = who.langs.includes('pcm') && who.lang !== 'en';
-    talk.say({ who: `n:${i}`, name: who.short, text: pidgin ? pick[1] : pick[0], lang: pidgin ? 'pcm' : 'en', gloss: pidgin ? pick[0] : null, x: at.x, z: at.z, kind: 'shout', range: 26, hold: 3.2 });
+    talk.say({ who: `n:${i}`, name: who.short, text: pidgin ? pick[1] : pick[0], lang: pidgin ? 'pcm' : 'en', gloss: pidgin ? pick[0] : null, x: at.x, z: at.z, kind: 'shout', react: 'hurt', range: 26, hold: 3.2 });
   }
 
   // Something that happened in a fight, for everyone near to see and hear.

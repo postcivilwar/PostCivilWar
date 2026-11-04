@@ -2,8 +2,9 @@
 // player on the website, the way a player is, through its server.
 //   1  the voices of the people about the player are fetched, and only theirs: no file of a voice not near
 //   2  a conversation near the player: its lines heard (the recordings decoded and played, from where each speaker
-//      stands), and its words shown as subtitles (Settings, on unless turned off)
-//   3  subtitles turned off: the voices still heard, the words not shown
+//      stands), and its words never written on the screen (4 November 2026, the owner: the town's people heard, only
+//      the players write)
+//   3  Settings has no Subtitles switch; a second conversation heard, its words not written either
 //   4  beyond 25 m nothing of it is played
 //   5  a gunshot near people: one of them calls out, a reaction line heard
 //   6  the page's memory: the recordings held as they came (small) and only a few made into sound at a time
@@ -91,11 +92,11 @@ if (at) {
     lines = await speech();
     const s = await stats(); last = s;
     if (s.played > s0.played) heard = s;
-    if (!words) { const sub = await subtitle(); if (lines.some((l) => sub.includes(l.text.replace(/\[[^\]]*\]\s*/g, '').trim().slice(0, 12)))) words = sub; }
+    { const sub = await subtitle(); if (lines.some((l) => sub.includes(l.text.replace(/\[[^\]]*\]\s*/g, '').trim().slice(0, 12)))) words = sub; }
   }
   check('its lines are heard: recordings fetched, decoded and played', !!heard && heard.fetched > 0 && heard.decoded > 0 && heard.failed === 0, heard || last);
   for (let k = 0; k < 16 && !words; k += 1) { await page.waitForTimeout(500); lines = await speech(); const sub = await subtitle(); if (lines.some((l) => sub.includes(l.text.replace(/\[[^\]]*\]\s*/g, '').trim().slice(0, 12)))) words = sub; }
-  check('its words shown as subtitles (on by default)', !!words, words);
+  check('its words never written on the screen', lines.length > 0 && !words, { said: lines.length, written: words });
   await page.screenshot({ path: resolve(out, '01-conversation.png') });
 }
 // only the voices of the people about the player were fetched
@@ -103,13 +104,10 @@ const near = new Set(await page.evaluate(() => [...window.__nearSeen]));
 const wrong = fetched.filter((id) => !near.has(voiceOf(id)));
 check('only the voices of the people near the player were fetched', fetched.length > 0 && wrong.length === 0, { files: fetched.length, different: new Set(fetched).size, voicesNear: near.size, others: wrong.slice(0, 5) });
 
-// 3: subtitles off
-// (Settings opened on the phone, and its switch pressed, as a player does)
+// 3: no Subtitles switch in Settings (Settings opened on the phone, as a player does)
 await page.evaluate(() => window.__nlw.ui.openPhone('settings'));
-const sw = await page.waitForSelector('#subtitles-on', { timeout: 30000 }).catch(() => null);
-const wasOn = sw ? await sw.getAttribute('aria-checked') : null;
-if (sw) await sw.click();
-const turned = sw ? (await sw.getAttribute('aria-checked')) === 'false' && wasOn === 'true' : false;
+await page.waitForSelector('#sound-on', { timeout: 30000 }).catch(() => null);
+const noSwitch = !(await page.$('#subtitles-on')) && !!(await page.$('#sound-on'));
 await page.screenshot({ path: resolve(out, '02-settings.png') });
 await page.evaluate(() => window.__nlw.ui.close && window.__nlw.ui.close());
 const s1 = await stats();
@@ -122,7 +120,7 @@ for (let k = 0; k < 40 && at2; k += 1) {
   if (lines.some((l) => sub.includes(l.text.replace(/\[[^\]]*\]\s*/g, '').trim().slice(0, 12)))) shownOff = sub;
   if ((await stats()).played > s1.played) heardOff = true;
 }
-check('Settings: subtitles on at first; turned off, the voices still heard and the words not shown', !!at2 && turned && heardOff && !shownOff, { wasOn, turned, heardOff, shownOff });
+check('Settings: no Subtitles switch; another conversation heard, and its words not written', !!at2 && noSwitch && heardOff && !shownOff, { noSwitch, heardOff, shownOff });
 
 // 4: beyond 25 m, nothing played
 const s2 = await stats();

@@ -83,6 +83,10 @@ export function createTalk({ state, population, residents, players, weather, hub
     const entry = { id: book.seq, who: line.who, name: line.name, role: line.role || '', text: line.text, lang: line.lang, gloss: line.gloss || null, x: Math.round(line.x * 10) / 10, z: Math.round(line.z * 10) / 10, from: Math.floor(from * 100) / 100, until: Math.round(until * 100) / 100, kind: line.kind, range: line.range || CHAT.overhear };
     // a line of the town's recorded voices (voices.js): its recording, how long it lasts, whom it is said to
     if (line.voice) { entry.voice = line.voice; entry.seconds = line.seconds; entry.to = line.to || null; entry.group = line.group || null; }
+    // (4 November 2026, the owner: only the players write, here and in other games beside this one (v:); what the town's people say is heard, never written. A line
+    // of theirs with no recording of its own is not kept to be shown: it is said, where something fits, in the closest of
+    // the town's recordings, `react` (voices.js, callOut). Its time is still taken, so that what follows waits for it.)
+    if (!line.voice && !/^[pv]:/.test(String(line.who))) { if (line.react && hub && hub.voices && hub.voices.callOut) hub.voices.callOut(line.react, line.who, line.x, line.z); return entry; }
     (line.kind === 'chat' ? chatter : book.lines).push(entry);
     return entry;
   }

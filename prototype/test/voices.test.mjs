@@ -220,6 +220,34 @@ test('the townspeople with voices do not also talk in the phrase book\'s words',
   assert.ok(w.g.state.talk.lines.every((l) => l.kind !== 'npc' || !/^n:/.test(l.who)), 'no phrase-book lines from his townspeople');
 });
 
+// Only the players write (4 November 2026, the owner: "remove those write ups, I mean the captions and turn them to
+// spoken words. Use one of those our voice to say them aloud and stop writing it on the screen. allow only playable
+// characters to communicate via chat"): nothing a townsperson says is kept to be written; a shout of theirs with no
+// recording of its own is said in the closest recording there is, the speaker's own where they have one.
+test('only the players\' words are kept to be written; a townsperson\'s shout with no recording is said in the closest recording', () => {
+  const w = town(['Writer', 'Reader']);
+  const [a, b] = w.ids;
+  const pa = w.g.state.players[a], pb = w.g.state.players[b];
+  // two players side by side: their chat is kept, and seen by the other
+  w.place(pb, pa.x + 2, pa.z, 0);
+  ok(w.send(a, { type: 'chat.say', text: 'hello there' }));
+  const chat = w.g.view(b).speech.find((l) => l.who === `p:${a}`);
+  assert.ok(chat && chat.text === 'hello there', 'a player\'s chat is there to be written');
+  // a police officer's shout: no written line, and an officer's recording said instead (from the officer, who has one)
+  const talk = w.g.internals.talk;
+  const officer = 0;
+  const at = w.g.internals.population.locate(officer, w.g.state.t, {});
+  w.place(pa, at.x + 3, at.z, 0);
+  const before = w.g.state.talk.lines.length;
+  talk.say({ who: `n:${officer}`, name: 'Officer', role: 'Police', text: 'Stop! Police! Stand where you are!', lang: 'en', x: at.x, z: at.z, kind: 'shout', react: 'fight', range: 34, hold: 3.6 });
+  const said = w.g.state.talk.lines.slice(before);
+  assert.ok(said.every((l) => l.voice), 'nothing written kept');
+  assert.ok(said.some((l) => l.who === `n:${officer}` && /^police_.*_fight_\d+$/.test(l.voice)), `the officer's own recording: ${JSON.stringify(said.map((l) => l.voice))}`);
+  // whatever reaches a player of the town's people is a recording
+  run(w.host, 60);
+  for (const id of [a, b]) for (const l of w.g.view(id).speech) assert.ok(/^[pv]:/.test(String(l.who)) || l.voice, `${l.who}: ${l.text}`);
+});
+
 // The recordings (the owner's ElevenLabs lines, 28 October 2026): every line the game uses has its light copy, two to
 // eight seconds, and small; and the recording as it was made is kept beside it.
 test('the recordings: every line the game uses is there, as made and as a light copy, 2 to 8.5 seconds, under 45 KB', (t) => {

@@ -72,7 +72,8 @@ test('fighting: who may be faced, from how far, and never a child', () => {
   assert.equal(w.g.view(w.id).self.fight.target.id, a.i);
   // squaring up is not an offence, and the other is not made to fight
   assert.equal(w.g.audit().justice.crimes, 0);
-  assert.ok(w.g.view(w.id).speech.some((s) => s.who === `n:${a.i}`), 'they say something to calm things down');
+  // (what they say to calm things down is no longer written: only the players write, 4 November 2026)
+  assert.ok(!w.g.view(w.id).speech.some((s) => s.who === `n:${a.i}` && !s.voice), 'nothing of theirs written');
   ok(w.send(w.id, { type: 'combat.disengage' }));
   assert.equal(w.g.view(w.id).self.fight, null);
 });
@@ -113,7 +114,8 @@ test('townspeople would rather not fight: struck once, most plead and run', () =
   const before = whereIs(w, a.i);
   const hit = assault(w, w.p, a);
   assert.equal(hit.reaction, 'fled');
-  assert.ok(w.g.view(w.id).speech.some((s) => s.who === `n:${a.i}` && s.kind === 'shout'));
+  // (their cry is heard in their own recording where they have one, never written: 4 November 2026)
+  assert.ok(w.g.view(w.id).speech.every((s) => s.who !== `n:${a.i}` || s.voice), 'nothing of theirs written');
   let last = before, farthest = 0;
   for (let t = 0; t < 8; t += 0.1) {
     w.host.tick(0.1);

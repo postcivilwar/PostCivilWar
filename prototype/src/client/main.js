@@ -741,7 +741,7 @@ function start(carried) {
 
   const stored = carried && carried.host ? carried : readStored(SAVE_KEY);
   // (`calm`: Settings, "Reduce intense effects": less blood on the screen and in the town, gun-play.js)
-  const prefs = { translate: true, subtitles: true, sound: true, graphics: 'auto', calm: false, skyTime: 'real', skyWeather: 'real', ...(readStored(PREFS_KEY) || {}) };
+  const prefs = { translate: true, sound: true, graphics: 'auto', calm: false, skyTime: 'real', skyWeather: 'real', ...(readStored(PREFS_KEY) || {}) };
   // The sky the player chooses (30 October 2026, the owner's brief: "users to be able to choose the weather of their
   // game. The game should be able to use the real time weather as default but users can choose to change the settings,
   // maybe morning, noon, dusk or night, rainy or whatever"): Settings, Time and weather. 'real' (the default) is the time
@@ -1805,8 +1805,6 @@ function start(carried) {
     translate: () => prefs.translate,
     setTranslate: (on) => { prefs.translate = !!on; writeStored(PREFS_KEY, prefs); },
     // the words of the town's recorded voices shown as they are said (28 October 2026): on unless the player turns them off
-    subtitles: () => prefs.subtitles !== false,
-    setSubtitles: (on) => { prefs.subtitles = !!on; writeStored(PREFS_KEY, prefs); },
     machine: () => translator.hasService,
   };
   const bubbles = createBubbles($('bubbles'), { translator, settings });

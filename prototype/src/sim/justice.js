@@ -144,8 +144,8 @@ export function createJustice({ state, players, ledger, accounts, population, ac
   const setState = (p, next) => { const law = lawOf(p); if (law.state !== next) { law.state = next; law.since = real(); } };
 
   const victimAccount = (victim) => (victim.kind === 'player' ? (players[victim.id] ? players[victim.id].wallet : null) : victim.kind === 'resident' ? accounts.resident(victim.id) : households);
-  const speak = (i, lines) => { const who = people[i]; const at = where(i); const pick = lines[Math.floor(rng.next() * lines.length)]; const pidgin = who.langs.includes('pcm') && who.lang !== 'en'; talk.say({ who: `n:${i}`, name: who.short, text: pidgin ? pick[1] : pick[0], lang: pidgin ? 'pcm' : 'en', gloss: pidgin ? pick[0] : null, x: at.x, z: at.z, kind: 'shout', range: 30, hold: 3.2 }); };
-  const officerSays = (i, text) => { const at = where(i); talk.say({ who: `n:${i}`, name: people[i].short, role: 'Police', text, lang: 'en', x: at.x, z: at.z, kind: 'shout', range: 34, hold: 3.6 }); };
+  const speak = (i, lines) => { const who = people[i]; const at = where(i); const pick = lines[Math.floor(rng.next() * lines.length)]; const pidgin = who.langs.includes('pcm') && who.lang !== 'en'; talk.say({ who: `n:${i}`, name: who.short, text: pidgin ? pick[1] : pick[0], lang: pidgin ? 'pcm' : 'en', gloss: pidgin ? pick[0] : null, x: at.x, z: at.z, kind: 'shout', react: 'police', range: 30, hold: 3.2 }); };
+  const officerSays = (i, text) => { const at = where(i); talk.say({ who: `n:${i}`, name: people[i].short, role: 'Police', text, lang: 'en', x: at.x, z: at.z, kind: 'shout', react: 'fight', range: 34, hold: 3.6 }); };
 
   // --- offences ---------------------------------------------------------------------
 

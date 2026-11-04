@@ -322,54 +322,25 @@ test('business people: traders at their pitches, craftsmen in their sheds, custo
 
 // --------------------------------------------------------------- speech --
 
-test('conversations: townspeople talk to each other, briefly, in a language they share', () => {
+// (4 November 2026, the owner: "remove those write ups ... allow only playable characters to communicate via chat".
+// The townspeople's phrase-book talk among themselves, the lessons and the haggling, were only ever written: now they
+// are not, and what the town's people say is heard in their recordings, voices.js and test/voices.test.mjs.)
+test('conversations: the townspeople\'s talk among themselves is never written, at the market or in a lesson', () => {
   const { host, id } = newWorld();
   put(host, id, 43, 59);
   goTo(host, 9.4);
-  const heard = new Map();
-  let most = 0;
-  for (let i = 0; i < 900; i += 1) {
-    host.tick(0.1);
-    const v = host.game.view(id);
-    most = Math.max(most, v.speech.length);
-    for (const line of v.speech) heard.set(line.id, line);
-  }
-  const lines = [...heard.values()].filter((line) => line.kind === 'npc');
-  assert.ok(lines.length >= 8, `${lines.length} lines were overheard in ninety seconds at the market`);
-  const pop = host.game.internals.population;
-  const langsOf = (who) => (who.startsWith('n:') ? pop.people[Number(who.slice(2))].langs : ['ig', 'pcm', 'en']);
-  for (const line of lines) {
-    assert.ok(LANGUAGES[line.lang]);
-    assert.ok(Object.values(PHRASES).some((row) => row[line.lang] === line.text), `"${line.text}" is from the phrase book`);
-    assert.ok(langsOf(line.who).includes(line.lang), `${line.name} speaks ${line.lang}`);
-    assert.ok(line.text.length <= 60, 'lines are short');
-    if (line.lang !== 'en') assert.equal(translatePhrase(line.text, 'en').text, line.gloss);
-    else assert.equal(line.gloss, null);
-  }
-  assert.ok(new Set(lines.map((l) => l.lang)).size >= 2, `more than one language is heard: ${lines.map((l) => l.lang).join(' ')}`);
-  assert.ok(most <= 14, 'talk is occasional, not a wall of it');
-  // far from anyone, nothing is heard
-  put(host, id, -230, -200);
-  run(host, 20);
-  assert.equal(host.game.view(id).speech.filter((l) => l.kind === 'npc').length, 0);
-});
-
-test('conversations: a lesson is conducted in English, and a sale is haggled', () => {
-  const { host, id } = newWorld();
-  // the top class: the youngest are taught in their mother tongue until they have English
+  const written = [];
+  for (let i = 0; i < 900; i += 1) { host.tick(0.1); for (const line of host.game.view(id).speech) if (!/^[pv]:/.test(line.who) && !line.voice) written.push(line); }
+  assert.equal(written.length, 0, JSON.stringify(written.slice(0, 3)));
   const room = ZONE_ROOMS.filter((r) => r.venue === 'primary' && r.kind === 'classroom').pop();
   put(host, id, (room.x0 + room.x1) / 2, room.z0 + 1.2);
-  goTo(host, 9.2);
-  const heard = new Map();
-  for (let i = 0; i < 600; i += 1) { host.tick(0.1); for (const line of host.game.view(id).speech) heard.set(line.id, line); }
-  const lesson = [...heard.values()].filter((l) => ['Open your books.', 'Read after me.', 'Yes, teacher.'].includes(l.text));
-  assert.ok(lesson.length >= 2, 'the teacher speaks and the class answers');
-  assert.ok(lesson.every((l) => l.lang === 'en'), JSON.stringify(lesson.map((l) => [l.name, l.text, l.lang])));
+  for (let i = 0; i < 600; i += 1) { host.tick(0.1); for (const line of host.game.view(id).speech) if (!/^[pv]:/.test(line.who) && !line.voice) written.push(line); }
+  assert.equal(written.length, 0, JSON.stringify(written.slice(0, 3)));
   const haggle = EXCHANGES.filter((e) => e.roles && e.roles[1] === 'trader');
   assert.ok(haggle.length >= 2);
 });
 
-test('language: people answer in the player\'s language when they speak it', () => {
+test('language: a player greets in their own language; the answer is not written', () => {
   const { host, id } = newWorld();
   const pop = host.game.internals.population;
   goTo(host, 9.5);
@@ -387,10 +358,8 @@ test('language: people answer in the player\'s language when they speak it', () 
   assert.equal(said[0].who, `p:${id}`);
   assert.equal(said[0].lang, 'ig');
   assert.equal(said[0].text, 'Ụtụtụ ọma.');
-  assert.equal(said[1].who, `n:${igbo.index}`);
-  assert.equal(said[1].lang, 'ig');
-  assert.ok(said.some((l) => l.text.includes(igbo.first)), 'they say who they are');
-  assert.ok(said.length >= 3 && said.length <= 6);
+  // (their answer is not written: only the players write, 4 November 2026)
+  assert.ok(said.every((l) => l.who === `p:${id}`), JSON.stringify(said.map((l) => l.who)));
   // someone who has no Igbo is greeted in Pidgin or English
   const other = find((p) => !p.langs.includes('ig'));
   if (other) {

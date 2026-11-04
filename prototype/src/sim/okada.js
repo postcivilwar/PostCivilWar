@@ -16,6 +16,7 @@ import { ZONE, ZONE_SPOTS, ZONE_STOPS, ZONE_VENUES, ZONE_ROADS, OUTSKIRT_ROADS, 
 import { graphRoute, graphDistance, graphNearest, graphPoint } from './graph.js';
 import { POSE, RIDE_SPEED } from './population.js';
 import { GameError } from './registry.js';
+import { oganiruTar } from './zones/oganiru.js';
 
 export const OKADA_RULES = Object.freeze({
   speed: RIDE_SPEED + 0.5,      // metres per real second on the road
@@ -34,7 +35,9 @@ const inBox = (r, x, z) => !!r && x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.
 // tarred: the roads, and the airport's runway, taxiway, its links and the apron (all paved); and the sports mall's paved
 // compound (31 October 2026: skated and ridden on from its doors)
 const PAVED = [AIRPORT.runway, AIRPORT.taxiway, AIRPORT.apron, ...(Array.isArray(AIRPORT.links) ? AIRPORT.links : []), SPORTS_MALL.compound, SPORTS_MALL.drive.fromRoad].filter((r) => r && Number.isFinite(r.x0));
-const onTar = (x, z) => ZONE_ROADS.some((r) => inBox(r, x, z)) || OUTSKIRT_ROADS.some((r) => inBox(r, x, z)) || PAVED.some((r) => inBox(r, x, z));
+// (4 November 2026, the owner: on the city's roads a car went no faster than 36 km/h, its speed off the tar. The city's
+// roads, roundabouts, junctions, flyovers, slip roads and expressway are tar too, `oganiruTar`; its grass is not.)
+const onTar = (x, z) => ZONE_ROADS.some((r) => inBox(r, x, z)) || OUTSKIRT_ROADS.some((r) => inBox(r, x, z)) || PAVED.some((r) => inBox(r, x, z)) || oganiruTar(x, z);
 // The top speed of a motorcycle at a point, in metres a second.
 export const motoSpeedAt = (x, z, wet) => (onTar(x, z) ? MOTO.speedRoad : MOTO.speedRough) * (wet ? 0.8 : 1);
 

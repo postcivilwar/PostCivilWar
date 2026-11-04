@@ -457,7 +457,7 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
       const from = zoneWalkable(at.x + side.x, at.z + side.z, [], 0.3) ? { x: at.x + side.x, z: at.z + side.z } : { x: at.x - side.x, z: at.z - side.z };
       if (hub.actors.take(r.i, state.t, from)) hub.actors.flee(r.i, p.x, p.z, 4.4, 'Running from a thief');
     }
-    if (hub.talk) hub.talk.say({ who: `n:${r.i}`, name: who ? who.short || who.name : 'Someone', text: `Thief! Thief! My ${NAMES[r.item]}!`, lang: 'en', x: at.x, z: at.z, kind: 'shout', range: 40, hold: 3.4 });
+    if (hub.talk) hub.talk.say({ who: `n:${r.i}`, name: who ? who.short || who.name : 'Someone', text: `Thief! Thief! My ${NAMES[r.item]}!`, lang: 'en', x: at.x, z: at.z, kind: 'shout', react: 'hurt', range: 40, hold: 3.4 });
     const crime = hub.justice ? hub.justice.offence(p, 'vehicle_theft', { victim: { kind: 'npc', id: r.i, name: who ? who.name : 'Someone' }, x: at.x, z: at.z, vehicle: `sport:${r.item}` }) : null;
     r.mode = 'taken'; r.takenBy = p.id; r.v = 0; r.lean = 0; r.keptAt = real(); r.fallen = false;
     book.taken += 1;

@@ -520,7 +520,7 @@ export function createGuns({ state, players, population, actors, conflict, talk,
     officers.set(i, { by: p.id, burst: 0, next: real() + 0.35 + rng.next() * 0.3, lastSeen: real(), at: { x: p.x, z: p.z } });
     if (!actors.has(i)) actors.take(i, state.t);
     actors.hold(i, 'Shooting back', POSE.stand, real() + 30);
-    if (talk) { const at = where(i); talk.say({ who: `n:${i}`, name: people[i].short, role: 'Police', text: 'Police! Drop your weapon!', lang: 'en', x: at.x, z: at.z, kind: 'shout', range: 40, hold: 3.2 }); }
+    if (talk) { const at = where(i); talk.say({ who: `n:${i}`, name: people[i].short, role: 'Police', text: 'Police! Drop your weapon!', lang: 'en', x: at.x, z: at.z, kind: 'shout', react: 'gunshot', range: 40, hold: 3.2 }); }
   }
   function disengage(i, why = 'Going back on the beat') {
     officers.delete(i);
