@@ -275,7 +275,8 @@ for (const kind of ['phone', 'computer'].filter((k) => !process.env.GRAPHICS_ONL
     const look = setInterval(() => { if (n.quality > 1 || performance.now() - t0 > 120000) { clearInterval(look); n.graphicsPretend.extraMB = 0; n.governor.hold(false); done(); } }, 50);
   }), budget.limit);
   const full = await state(page);
-  check(`${kind}: the graphics card nearly full: the level lowered a step`, full.level === 2 && /nearly full/.test(JSON.stringify(full.changes.slice(-1))), { budget, level: full.level, changes: full.changes });
+  const guard = await page.evaluate(() => { const n = window.__nlw, l = n.levelState, g = n.graphics; return { trims: l.trims, picturesWaiting: l.picturesWaiting, memoryLimit: l.memoryLimit, kept: l.kept, usedMB: Math.round((g.pictures + g.buffers) / 1048576), unwatched: g.unwatched, lost: g.lost, held: n.governor.held, hidden: document.hidden }; });
+  check(`${kind}: the graphics card nearly full: the level lowered a step`, full.level === 2 && /nearly full/.test(JSON.stringify(full.changes.slice(-1))), { budget, level: full.level, changes: full.changes, guard });
   // ---- the player told, once: "Graphics lowered to keep the game smooth", however many times the game lowered it by
   // itself (here twice or more: for the frames, for the memory, and, on a phone at Ultra, for its own memory before that)
   await page.waitForTimeout(1500);
