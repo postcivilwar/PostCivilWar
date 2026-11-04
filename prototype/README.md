@@ -4958,20 +4958,28 @@ characters are within 1.5 cm of theirs.
 with its driver's side blocked): the dark inside first given to the town's cars was a box, and stood out over the sloping
 windscreen and back window while a door was open (now the body's own inside); while one door was open the shut ones were
 drawn only in the first frame of it, and the car was seen through where they were (now every door is drawn on its hinge
-while any is open); the car just taken was not drawn for a
-moment once the player was in it, while it was fetched as the car driven (now the car as it was drawn a moment ago is
-drawn on in its place until then, `car-view.js`; the same for a car got out of and left standing); two people out of one
-door were put on the same spot (now the second a little further back and out); the words under the bar said "Getting
-behind the wheel" on the passenger's side and "Taking it" while the door was slammed and the player went across (now each
-step its own words); and a getting-out begun went on being drawn if the player was put somewhere else, or got on
-something, before it was done (now it stops).
+while any is open); the car just taken was not drawn for a moment once the player was in it, while it was fetched as the
+car driven (now the car as it was drawn a moment ago is drawn on in its place until then, `car-view.js`; by the new
+browser test, the same for a car taken got out of again, fetched as one of the town's: gone for 14 frames, now drawn on
+as well, and so for every car the page draws under a new name); the picture that stands in for one of the town's cars
+not drawn as its model was put up over the car being got out of; two people out of one door were put on the same spot
+(now the second a little further back and out); the words under the bar said "Getting behind the wheel" on the
+passenger's side and "Taking it" while the door was slammed and the player went across (now each step its own words);
+and a getting-out begun went on being drawn if the player was put somewhere else, or got on something, before it was
+done (now it stops).
 
-@TESTED@
+Tested, build `bb992df235474674` (its page asks for `game.js?v=32abd7106dfb33bb`): the quick tests 612 of 612 (new:
+`test/car-taking.test.mjs` 3, `test/stuck.test.mjs` 2, and two in `test/closures.test.mjs`); in a browser, one at a
+time: taking a car (`test/car-taking.mjs`, new) 15 of 15 with a computer's settings (the State Limousine, two riding
+with its driver) and 15 of 15 with a phone's (one riding); the town's traffic 17 of 17; the car showroom 42 of 42 (it
+now waits for the getting out, a second and more); the seats 17 of 17. Its first run found the car taken gone from
+the screen for 14 frames as it was got out of again (above). Run after going live, on the same build: the phone's
+memory, the city, vehicle sync and running people over (the build-status doc has how they went).
 
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 602 headless tests
+node --test test/*.test.mjs                        # 612 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 119 tests against a real PostgreSQL (accounts, the market and its cars and the sports mall's things, the bank with starter and earned TR, the character and its upgrade, play, the guns, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/phone-memory.mjs out/           # a phone's memory and its buttons (29 October 2026): the car's buttons on a page shorter than the screen, the empty layers hidden, the town far off resting and coming back, the habitation's pictures let go and made again, nothing drawn without its pictures, and only the colour pictures of the cars, motorcycles and figures fetched (a phone draws no others)

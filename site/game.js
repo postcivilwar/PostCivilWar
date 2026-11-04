@@ -49309,12 +49309,14 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
     frozen.clear();
     const wanted = new Set();
     const waiting = [];
+    for (const e of shown.values()) e.by = null;
+    const wait = (e, d) => waiting.push({ e, put: (o) => { o.travelled = e.travelled; place(o, d, groundY, dt, night, bodies); } });
     if (driven && POWER_CARS[driven.id]) {
       wanted.add('drive');
       const e = entry('drive', driven.id);
       e.travelled += (driven.speed || 0) * dt;
       if (e.car) place(e, driven, groundY, dt, night, bodies);
-      else waiting.push({ id: driven.id, put: (o) => { o.travelled = e.travelled; place(o, driven, groundY, dt, night, bodies); } });
+      else wait(e, driven);
     }
     const dist = (q) => Math.hypot(q.x - from.x, q.z - from.z);
     for (const r of drives.filter((q) => POWER_CARS[q.id] && dist(q) <= PEER_SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, PEER_MOST)) {
@@ -49323,6 +49325,7 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
       const e = entry(key, r.id);
       e.travelled += (r.speed || 0) * dt;
       if (e.car) place(e, r, groundY, dt, night, bodies);
+      else wait(e, r);
     }
     const T = TRAFFIC_DRAWN[lite ? 'lite' : 'full'];
     if (!ON_DISK) for (const r of traffic.filter((q) => POWER_CARS[q.id] && dist(q) <= T.sight).sort((a, b) => dist(a) - dist(b)).slice(0, T.most)) {
@@ -49331,6 +49334,7 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
       const e = entry(key, r.id, T.tier);
       e.travelled += (r.speed || 0) * dt;
       if (e.car) place(e, r, groundY, dt, night, bodies);
+      else wait(e, r);
     }
     const near = parked.filter((p) => POWER_CARS[p.car] && dist(p) <= SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, parkedMost);
     const stand = (e, p) => {
@@ -49345,10 +49349,10 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
       wanted.add(key);
       const e = entry(key, p.car);
       if (e.car) stand(e, p);
-      else waiting.push({ id: p.car, put: (o) => stand(o, p) });
+      else waiting.push({ e, put: (o) => stand(o, p) });
     }
     for (const w of waiting) {
-      for (const [key, o] of shown) if (!wanted.has(key) && o.id === w.id && o.car) { wanted.add(key); w.put(o); break; }
+      for (const [key, o] of shown) if (!wanted.has(key) && o.id === w.e.id && o.car) { wanted.add(key); w.put(o); w.e.by = key; break; }
     }
     for (const [key, e] of shown) if (!wanted.has(key)) { if (e.car) e.car.dispose(); shown.delete(key); }
   }
@@ -49436,7 +49440,7 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
     bumpPeak: (key = 'drive') => { const e = shown.get(key); if (!e || !e.peak) return null; const pk = e.peak; e.peak = null; return { lifts: [...pk.lifts], pitchMin: pk.pitchMin, pitchMax: pk.pitchMax, roll: pk.roll }; },
     rules: DRIVE,
     ready: () => { const e = shown.get('drive'); return !!(e && e.car); },
-    driven: (key = 'drive') => { const e = shown.get(key); return e && e.car ? e.car : null; },
+    driven: (key = 'drive') => { const e = shown.get(key); if (!e) return null; if (e.car) return e.car; const by = e.by ? shown.get(e.by) : null; return by && by.car ? by.car : null; },
     stateOf: (key = 'drive') => { const e = shown.get(key); return e ? e.state || null : null; },
     failed: () => { const e = shown.get('drive'); return !!(e && e.failed); },
     count: () => shown.size,
@@ -60962,7 +60966,7 @@ blood.update(dt, view.blood || []);
         if (!carView.driven(`peer:${q.id}`) && POWER_CARS[q.car.car] && Math.hypot(q.x - predicted.x, q.z - predicted.z) < PEER_STANDIN) standing.push({ key: `c:${q.id}`, kind: 'car', id: q.car.car, x: q.x, y: groundAt(q.x, q.z, q.gy), z: q.z, h: q.heading });
         if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.carHorn(q.car.car, q.x, q.z); }
       }
-      for (const e of trafficCars) if (!carView.driven(`traffic:${e.n}`) && Math.hypot(e.x - predicted.x, e.z - predicted.z) < (LITE ? TRAFFIC_STANDIN.lite : TRAFFIC_STANDIN.full)) standing.push({ key: `t:${e.n}`, kind: 'car', id: e.model, x: e.x, y: groundAt(e.x, e.z, e.y), z: e.z, h: e.h, lamps: night > 0.25 && (e.mode === 'drive' || e.mode === 'stop') });
+      for (const e of trafficCars) if (!carView.driven(`traffic:${e.n}`) && !(exiting && exiting.key === `traffic:${e.n}`) && Math.hypot(e.x - predicted.x, e.z - predicted.z) < (LITE ? TRAFFIC_STANDIN.lite : TRAFFIC_STANDIN.full)) standing.push({ key: `t:${e.n}`, kind: 'car', id: e.model, x: e.x, y: groundAt(e.x, e.z, e.y), z: e.z, h: e.h, lamps: night > 0.25 && (e.mode === 'drive' || e.mode === 'stop') });
       updatePeerKekes(dt);
       sportRidersView.update(dt, { list: view.sportRiders || [], known, eye: predicted, ahead: Math.max(0, clock - viewAt), groundY: zoneGroundY, now: clock });
       for (const r of view.sportRiders || []) { const was = riderBells.has(r.n) ? riderBells.get(r.n) : 99; if (r.bellAgo >= 0 && r.bellAgo < 0.8 && r.bellAgo < was - 0.05 && Math.hypot(r.x - predicted.x, r.z - predicted.z) < 50) { audio.cycleBell(r.x, r.z); riderBellsHeard += 1; } riderBells.set(r.n, r.bellAgo); }

@@ -123,14 +123,16 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     for (const f of frozen) f.freeze = false;
     frozen.clear();
     const wanted = new Set();
-    // (a car wanted somewhere new while it is still being fetched for that: `standIn` below)
+    // (a car wanted somewhere new while it is still being fetched for that: the hand-over below)
     const waiting = [];
+    for (const e of shown.values()) e.by = null;
+    const wait = (e, d) => waiting.push({ e, put: (o) => { o.travelled = e.travelled; place(o, d, groundY, dt, night, bodies); } });
     if (driven && POWER_CARS[driven.id]) {
       wanted.add('drive');
       const e = entry('drive', driven.id);
       e.travelled += (driven.speed || 0) * dt;
       if (e.car) place(e, driven, groundY, dt, night, bodies);
-      else waiting.push({ id: driven.id, put: (o) => { o.travelled = e.travelled; place(o, driven, groundY, dt, night, bodies); } });
+      else wait(e, driven);
     }
     const dist = (q) => Math.hypot(q.x - from.x, q.z - from.z);
     for (const r of drives.filter((q) => POWER_CARS[q.id] && dist(q) <= PEER_SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, PEER_MOST)) {
@@ -139,6 +141,7 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
       const e = entry(key, r.id);
       e.travelled += (r.speed || 0) * dt;
       if (e.car) place(e, r, groundY, dt, night, bodies);
+      else wait(e, r);
     }
     const T = TRAFFIC_DRAWN[lite ? 'lite' : 'full'];
     if (!ON_DISK) for (const r of traffic.filter((q) => POWER_CARS[q.id] && dist(q) <= T.sight).sort((a, b) => dist(a) - dist(b)).slice(0, T.most)) {
@@ -147,6 +150,7 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
       const e = entry(key, r.id, T.tier);
       e.travelled += (r.speed || 0) * dt;
       if (e.car) place(e, r, groundY, dt, night, bodies);
+      else wait(e, r);
     }
     const near = parked.filter((p) => POWER_CARS[p.car] && dist(p) <= SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, parkedMost);
     const stand = (e, p) => {
@@ -161,14 +165,15 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
       wanted.add(key);
       const e = entry(key, p.car);
       if (e.car) stand(e, p);
-      else waiting.push({ id: p.car, put: (o) => stand(o, p) });
+      else waiting.push({ e, put: (o) => stand(o, p) });
     }
     // (4 November 2026) A car got into, or out of, is wanted under another name than it was drawn by a moment ago (one
-    // of the town's taken: from `traffic:` to `drive`, fetched at the driven car's own size; the player's own left
-    // standing: from `drive` to `park:`): until it is ready under its new name, the one drawn a moment ago is drawn on
-    // in its place, so that the car never goes from sight while it is fetched.
+    // of the town's taken: from `traffic:` to `drive`, fetched at the driven car's own size; got out of again: back to
+    // `traffic:`; the player's own left standing: from `drive` to `park:`): until it is ready under its new name, the
+    // one drawn a moment ago is drawn on in its place (`by`: `driven` gives it), so that the car never goes from sight,
+    // nor is a picture put up for it, while it is fetched.
     for (const w of waiting) {
-      for (const [key, o] of shown) if (!wanted.has(key) && o.id === w.id && o.car) { wanted.add(key); w.put(o); break; }
+      for (const [key, o] of shown) if (!wanted.has(key) && o.id === w.e.id && o.car) { wanted.add(key); w.put(o); w.e.by = key; break; }
     }
     for (const [key, e] of shown) if (!wanted.has(key)) { if (e.car) e.car.dispose(); shown.delete(key); }
   }
@@ -279,7 +284,7 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     rules: DRIVE,
     // is the car being driven drawn yet (it is fetched the first time it is driven)
     ready: () => { const e = shown.get('drive'); return !!(e && e.car); },
-    driven: (key = 'drive') => { const e = shown.get(key); return e && e.car ? e.car : null; },
+    driven: (key = 'drive') => { const e = shown.get(key); if (!e) return null; if (e.car) return e.car; const by = e.by ? shown.get(e.by) : null; return by && by.car ? by.car : null; },
     stateOf: (key = 'drive') => { const e = shown.get(key); return e ? e.state || null : null; },
     failed: () => { const e = shown.get('drive'); return !!(e && e.failed); },
     count: () => shown.size,
