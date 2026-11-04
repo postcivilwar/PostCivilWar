@@ -86,17 +86,17 @@ const s0 = await stats();
 const at = await besideTalk(4);
 check('a conversation found going on in the town', !!at, at);
 if (at) {
-  let heard = null, words = '', lines = [], last = null;
+  let heard = null, words = '', lines = [], last = null, said = 0;
   for (let k = 0; k < 60 && !heard; k += 1) {
     await page.waitForTimeout(500);
-    lines = await speech();
+    lines = await speech(); said = Math.max(said, lines.filter((l) => l.voice).length);
     const s = await stats(); last = s;
     if (s.played > s0.played) heard = s;
     { const sub = await subtitle(); if (lines.some((l) => sub.includes(l.text.replace(/\[[^\]]*\]\s*/g, '').trim().slice(0, 12)))) words = sub; }
   }
   check('its lines are heard: recordings fetched, decoded and played', !!heard && heard.fetched > 0 && heard.decoded > 0 && heard.failed === 0, heard || last);
   for (let k = 0; k < 16 && !words; k += 1) { await page.waitForTimeout(500); lines = await speech(); const sub = await subtitle(); if (lines.some((l) => sub.includes(l.text.replace(/\[[^\]]*\]\s*/g, '').trim().slice(0, 12)))) words = sub; }
-  check('its words never written on the screen', lines.length > 0 && !words, { said: lines.length, written: words });
+  check('its words never written on the screen', said > 0 && !words, { said, written: words });
   await page.screenshot({ path: resolve(out, '01-conversation.png') });
 }
 // only the voices of the people about the player were fetched
