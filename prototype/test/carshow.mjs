@@ -377,14 +377,18 @@ await page.keyboard.down('w');
 let through = false;
 for (let i = 0; i < 200 && !through; i += 1) { await page.waitForTimeout(100); through = await page.evaluate(() => window.__nlw.predicted.z > -62); }
 await page.keyboard.up('w'); await page.keyboard.down('s');
-await page.waitForTimeout(2500);
+// (the brake held until the car has stopped, not for a set time: a frame drawn here in software can be the game's longest
+// step, half a second, and the car's time then runs slower than the clock's. 6 November 2026: on Stage 2's build the car
+// was still rolling after the two and a half seconds held before, 14 m on, and the player was not let out of it)
+for (let i = 0; i < 150; i += 1) { await page.waitForTimeout(100); if (await page.evaluate(() => Math.abs(window.__nlw.carState.speed) < 0.5)) break; }
 await page.keyboard.up('s');
 check('and the car drives out through it to the road', through, await page.evaluate(() => [window.__nlw.predicted.x, window.__nlw.predicted.z]));
 await shot('16-out-through-the-gate');
 
 // out: it stays where it stands
-const outPrompt = await page.evaluate(() => { const p = window.__nlw.prompt(); return p && p.text; });
-await page.evaluate(() => { const p = window.__nlw.prompt(); if (p) p.run(); });
+// (once it offers it, and taken in the same moment as it is read)
+await page.waitForFunction(() => { const p = window.__nlw.prompt(); return !!p && p.short === 'Get out'; }, null, { timeout: 20000 }).catch(() => {});
+const outPrompt = await page.evaluate(() => { const p = window.__nlw.prompt(); if (p) p.run(); return p && p.text; });
 await page.waitForTimeout(1200);
 // (since 4 November 2026 getting out takes a second and more: the door opened, out, the door slammed; the car is drawn
 // as the one driven until then, and then as one left standing. Here a frame can take a second or two)
