@@ -497,6 +497,20 @@ export function createCrowd(scene) {
     const reach = crowdAt ? crowdAt.reach : 0;
     const cam = frame.camera || null;
     if (cam) sight.setFromProjectionMatrix(seen3.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+    // (out of a car near the player, on foot: the figure made to sit in it carries on as theirs, handed over before they
+    // are drawn, so that they are never drawn for a moment as a plain figure while their own is made (a phone makes one
+    // every 0.3 s): seen on a phone as a passenger got out of a car being taken)
+    if (inCar.size) {
+      const still = new Set();
+      for (const s of frame.inCars || []) still.add(s.i);
+      for (const [i, e] of inCar) {
+        if (still.has(i)) continue;
+        const actor = actors.get(i);
+        e.rig.group.visible = true; if (e.rig.blob) e.rig.blob.visible = true;
+        if (actor && !actor.rig && known.has(i)) { actor.rig = e.rig; rigs.add(actor); } else undress(e.rig);
+        inCar.delete(i);
+      }
+    }
     crowdFigures.begin(dt);
     let c = 0;
     for (const actor of actors.values()) {
@@ -575,7 +589,7 @@ export function createCrowd(scene) {
       if (!e) {
         if (building > 0 || rigs.size + inCar.size >= (frame.maxRigs || 0)) continue;
         const before = stats.made;
-        e = { rig: dress(s.i, info, s.d < RIG.close ? 1 : 2, false) };
+        e = { rig: dress(s.i, info, s.d < RIG.close ? 1 : 2) };
         scene.add(e.rig.group);
         inCar.set(s.i, e);
         if (stats.made !== before) building = pause;
