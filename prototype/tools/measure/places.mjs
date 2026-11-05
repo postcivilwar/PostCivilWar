@@ -269,6 +269,11 @@ const PLACES = [
   ['Gateway Boulevard', -230, -566, -Math.PI / 2],
   ['Interchange Park', 0, -930, Math.PI],
   ['town looking west', 0, 20, Math.PI],
+  // (5 November 2026, the owner's brief of cars' glass and cabins: where his first video was taken at night, by the wall
+  // of the Peace Flyover's ramp, 2.8 m up, looking up it; and inside the car showroom's hall with all its cars, from its
+  // north-east corner across the three rows (stood in the hall, the game draws it as from inside its doors))
+  ['video 1 spot', 714.2, -674.3, Math.PI, 2.808],
+  ['car showroom hall', -372, -160, -1.97],
 ];
 // (TEXTURE_LIST: after each place, what is on the graphics card, picture by picture: textures-<place>.json)
 const pictureList = async (place) => {

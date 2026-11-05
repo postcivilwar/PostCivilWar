@@ -825,7 +825,7 @@ export function makeAnimatedRig(id, labelText, shadow = false, police = null, si
     }
     // a Mixamo file's bones answer to the Unreal names the rest of the game reaches for
     if (spec.rig === 'mixamo') for (const [ue, mx] of Object.entries(MIXAMO)) { const b = rig.bones.get(boneName(`mixamorig:${mx}`)); if (b && !rig.bones.has(ue)) rig.bones.set(ue, b); }
-    rig.mesh = mesh; rig.triangles = model.triangles; rig.labels = labels;
+    rig.mesh = mesh; rig.root = root; rig.triangles = model.triangles; rig.labels = labels;
     // (drawn after the marks on the ground under it: marks.js)
     standing(group);
     rig.mixer = new THREE.AnimationMixer(root);

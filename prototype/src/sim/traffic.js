@@ -1340,7 +1340,11 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
         mode: c.mode, mine: c.takenBy !== null && c.takenBy === viewerId, stopped: onRoads(c) && !c.frozen && c.v <= 0.6, hornAgo: c.hornAt ? r(real() - c.hornAt, 10) : -1,
         // (how many ride with the driver; and its doors opened and shut lately, each [door, seconds to its opening, to its
         // shutting] from now: hijack.js)
-        riders: onRoads(c) ? c.riders.length : 0, ...(c.doors && c.doors.length ? { doors: c.doors.filter((q) => q.s > real() - 1.5).map((q) => [q.d, r(q.o - real()), r(q.s - real())]) } : {}) });
+        riders: onRoads(c) ? c.riders.length : 0,
+        // (who sits where: the driver and each who rides, [person, seat]: their figures are drawn in it, seen through its
+        // glass, 5 November 2026)
+        who: onRoads(c) && typeof c.i === 'number' ? [[c.i, 'driver'], ...c.riders.map((q) => [q.i, q.seat])].filter(([i]) => !(hub.actors && hub.actors.has(i))) : [],
+        ...(c.doors && c.doors.length ? { doors: c.doors.filter((q) => q.s > real() - 1.5).map((q) => [q.d, r(q.o - real()), r(q.s - real())]) } : {}) });
     }
     return out;
   }

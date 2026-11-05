@@ -26,7 +26,7 @@ import { GameError } from './registry.js';
 import { PACE } from './actors.js';
 import { POWER_CARS } from './power-cars.js';
 import { levelAt } from './levels.js';
-import { DOOR, doorPlace, doorStand, doorOut, doorOfSeat, doorsOf, toWorld, toCar, wayRound, TWO_DOORS } from './car-doors.js';
+import { DOOR, doorPlace, doorStand, doorOut, doorOfSeat, doorsOf, toWorld, toCar, wayRound, TWO_DOORS, seatPlace } from './car-doors.js';
 
 export const HIJACK = Object.freeze({
   okada: Object.freeze({ lateral: Object.freeze([0.35, 1.6]), along: Object.freeze([-0.3, 1.1]), stand: Object.freeze([0.78, 0.25]), steps: Object.freeze([['reach', 0.5], ['pull', 1.4], ['mount', 2.2]]) }),
@@ -37,7 +37,14 @@ export const HIJACK = Object.freeze({
 // Taking a car of the town's (4 November 2026): how near it one must be (metres from its sides and ends), the pace round
 // it to the door, and how long each step takes (seconds): turning to the door, opening it, pulling the driver out (and
 // the front passenger too, from that side), getting in, slamming the door, sliding across to the wheel.
-export const CAR_TAKING = Object.freeze({ reach: 4.5, pace: 3.3, turn: 0.2, door: 0.55, pull: 1.05, pullBoth: 1.6, scramble: 0.75, enter: 0.8, shut: 0.35, slide: 0.85, out: 0.32, next: 0.55, slam: 0.5 });
+// (5 November 2026, the owner's brief, part 5: the driver pulled out onto the road and the taker getting in drawn by his
+// Mixamo moves, car-boarding.js: the pull as long as his `pulled` takes, from the hand on the driver to the driver on the
+// ground, `pulled` after which the driver is handed to the town lying there; getting in as long as his `enter` takes
+// from the door, at its pace, `enter` and `shut` together)
+export const CAR_TAKING = Object.freeze({ reach: 4.5, pace: 3.3, turn: 0.2, door: 0.55, pull: 1.75, pullBoth: 2.3, pulled: 1.7, scramble: 0.75, enter: 2.3, shut: 0.45, slide: 0.85, out: 0.32, next: 0.55, slam: 0.5 });
+// Where a driver pulled out of the seat lands, from the seat (metres: out from the car's side, back along it), as the
+// owner's `pulled` move has it (car-moves.js)
+export const PULLED_TO = Object.freeze({ out: 1.19, back: 1.67, turn: 2.2 });
 // Beside a car's front doors: from just off its side to a long step away, from a little behind the door (a little
 // behind its middle, as own-cars.js has it) to a little ahead of it; squared up a step out from it.
 export function carRule(model) {
@@ -154,10 +161,12 @@ export function createHijack({ state, players, okada, vehicles, actors, populati
       if (!doorOpen(d)) { const other = d[0] + (d[1] === 'l' ? 'r' : 'l'); if (doorsOf(model).includes(other) && doorOpen(other)) d = other; }
       return d;
     };
-    const pullAt = T.pull[0] + 0.3;
+    // (the one pulled out handed to the town once the pull has them on the ground; the one who scrambles out after them,
+    // as before)
+    const pullAt = T.pull[0] + C.pulled;
     if (driverSideIn) outs.push({ at: pullAt, i: at.person, door: 'fl', who: 'driver', fall: true });
-    else if (front) { outs.push({ at: pullAt, i: front.i, door: 'fr', who: 'front', fall: true }); outs.push({ at: pullAt + 0.75, i: at.person, door: 'fr', who: 'driver', fall: false }); }
-    else outs.push({ at: pullAt, i: at.person, door: 'fr', who: 'driver', fall: false });
+    else if (front) { outs.push({ at: pullAt, i: front.i, door: 'fr', who: 'front', fall: true }); outs.push({ at: pullAt + 0.55, i: at.person, door: 'fr', who: 'driver', fall: false }); }
+    else outs.push({ at: T.pull[0] + 0.3, i: at.person, door: 'fr', who: 'driver', fall: false });
     // the rest, a little after the door is opened, each out of the door nearest their seat (one after another where
     // two share one)
     const byDoor = new Map();
@@ -215,18 +224,28 @@ export function createHijack({ state, players, okada, vehicles, actors, populati
     const base = doorOut(h.model, o.door);
     let spot = toWorld(h.car, { along: base.along - 0.6 * k, across: base.across + Math.sign(base.across) * 0.35 * k });
     if (k && !zoneWalkable(spot.x, spot.z, [], 0.3, h.car.y)) spot = toWorld(h.car, base);
+    // (pulled out of the seat: where the pull left them, on the ground beside the car and a little behind the door, as
+    // the owner's move has it; where that is not open ground, at the door)
+    let landed = null;
+    if (o.fall) {
+      const seat = seatPlace(h.model, o.who === 'front' ? 'front' : 'driver');
+      const side = Math.sign(seat.across) || 1;
+      const to = toWorld(h.car, { along: seat.along - PULLED_TO.back, across: seat.across + side * PULLED_TO.out });
+      if (zoneWalkable(to.x, to.z, [], 0.3, h.car.y)) { spot = to; landed = h.car.h + side * PULLED_TO.turn; }
+    }
     const at = { x: spot.x, z: spot.z, y: h.car.y };
     if (o.who !== 'driver') traffic.riderOut(h.id, o.i);
     if (actors.has(o.i)) actors.drop(o.i);
     const m = actors.take(o.i, state.t, at);
     if (!m) return;
-    m.h = Math.atan2(spot.x - h.car.x, spot.z - h.car.z);
+    m.h = landed !== null ? landed : Math.atan2(spot.x - h.car.x, spot.z - h.car.z);
     if (o.who === 'driver') {
       const crime = hub.justice.offence(p, 'vehicle_theft', { victim: { kind: 'npc', id: o.i, name: people[o.i].name }, x: h.car.x, z: h.car.z, vehicle: `car:${h.id}` });
       h.crime = crime && crime.id;
       if (hub.voices) hub.voices.event('fight', spot.x, spot.z);
     }
-    if (o.fall && hub.impact && hub.impact.felled(o.i, { from: { x: p.x, z: p.z }, harm: 0, lie: 1.3, blood: false })) return;
+    // (on the ground already, the pull having put them there: lying, then up)
+    if (o.fall && hub.impact && hub.impact.felled(o.i, { from: landed !== null ? null : { x: p.x, z: p.z }, harm: 0, lie: 1.3, blood: false, down: landed !== null })) return;
     actors.flee(o.i, h.car.x, h.car.z, PACE.run, o.who === 'driver' ? 'Robbed of the car' : 'Running from the car', 20);
     m.after = real() + 9;
     if (hub.reactions) hub.reactions.react(o.i, 'flee', { seconds: 5, loop: true });

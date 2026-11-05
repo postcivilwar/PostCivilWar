@@ -28,6 +28,9 @@ import { ANIMATED, figureHere } from './animated.js';
 import { createCrowdFigures } from './crowd-figures.js';
 import { bonesOf } from './own-bike-view.js';
 import { bodyBars } from './wheel-bumps.js';
+import { seatFigure } from './car-seating.js';
+import { poseBoarding } from './car-boarding.js';
+import { carMove } from './car-moves.js';
 
 const KEKE_SEAT = vehicleMeta('keke').seats.driver;    // where a keke's driver sits, in its own frame
 const SEATED = 0.845;                                  // a seated figure's seat above its feet, for a figure of height 1
@@ -157,6 +160,7 @@ export function createCrowd(scene) {
   const mounted = new Map();       // full figures of people on motorcycles near the player, by their number
   const peerOkadas = new Map();    // the okadas other players ride (each copy of the town has its own), by player
   const rigs = new Set();
+  const inCar = new Map();         // the town's people seen sitting in its cars near the player (5 November 2026), by number
   let lastRows = null;
   let lastOkadas = null;
   let stamp = 0;
@@ -308,6 +312,9 @@ export function createCrowd(scene) {
       g.position.set(actor.x, groundOf(actor.x, actor.z, actor.y), actor.z);
       const age = down[1] + (fallsClock - fallsAt);
       rig.downState = { kind: 'knock', age, lie: down[2], rise: down[3], push: down[4] + Math.PI, facing: down[4], hard: false, from: null };
+      // (one already on the ground when the town handed them over (a driver pulled out of a car, 5 November 2026):
+      // lying from the start)
+      if (down[5]) rig.downState.age += fallTime(rig.downState);
       g.rotation.y = down[4];
       animateCharacter(rig, dt, 0, false);
       rig.blob.visible = false;
@@ -554,6 +561,41 @@ export function createCrowd(scene) {
       if (stats.made !== before) building = pause;
     }
 
+    // The town's people in its cars near the player (5 November 2026, the owner's brief, part 4: "The town's cars now show
+    // their drivers and passengers ... whole figures inside only when near"): each as their own full figure, made one
+    // at a time as others are, sat in their seat in the car as it is drawn this frame (car-seating.js), by the owner's
+    // seated moves: the driver's hands on the wheel, the others still or now and then talking; let go once their car
+    // is out of reach, or they are out of it.
+    const inCarNow = new Set();
+    for (const s of frame.inCars || []) {
+      const info = known.get(s.i);
+      const car = frame.carOf ? frame.carOf(s.key) : null;
+      if (!info || !car || !car.glazed) continue;
+      let e = inCar.get(s.i);
+      if (!e) {
+        if (building > 0 || rigs.size + inCar.size >= (frame.maxRigs || 0)) continue;
+        const before = stats.made;
+        e = { rig: dress(s.i, info, s.d < RIG.close ? 1 : 2, false) };
+        scene.add(e.rig.group);
+        inCar.set(s.i, e);
+        if (stats.made !== before) building = pause;
+      }
+      inCarNow.add(s.i);
+      const rig = e.rig;
+      if (rig.animated) animateCharacter(rig, dt, 0, false);
+      // (the driver's move at the wheel; a passenger's still, or talking now and then: one in three, by who they are)
+      const moveName = s.seat === 'driver' ? 'drive' : (s.i % 3 === 0 ? 'talk' : 'sit');
+      const move = carMove(rig, moveName);
+      // (pulled out of the seat by a player taking the car: the owner's move for it, onto the road beside the car)
+      const seated = s.pulled ? poseBoarding(rig, car, { kind: 'pulled', door: s.pulled.door, t: s.pulled.t, groundY: (x, z) => groundOf(x, z, car.group.position.y) })
+        : !!move && seatFigure(rig, car, s.seat, { steer: s.steer || 0, move, t: clockNow + (s.i % 17) * 0.37 });
+      rig.group.visible = seated;
+      if (rig.blob) rig.blob.visible = false;
+      if (rig.label) rig.label.visible = false;
+    }
+    for (const [i, e] of inCar) if (!inCarNow.has(i)) { e.rig.group.visible = true; if (e.rig.blob) e.rig.blob.visible = true; undress(e.rig); inCar.delete(i); }
+    stats.inCar = inCar.size;
+
     // okadas: the machine, its rider, and whoever is on the back
     const okadas = frame.okadas;
     if (okadas !== lastOkadas) {
@@ -782,6 +824,9 @@ export function createCrowd(scene) {
     // how many other players' okadas are drawn (for the tests)
     peerOkadas: () => peerOkadas.size,
     figureAt: (i) => actors.get(i) || null,
+    // the full figure of one of the town's people sitting in one of its cars, if drawn (for the tests)
+    inCarRig: (i) => (inCar.has(i) ? inCar.get(i).rig : null),
+    inCarCount: () => inCar.size,
     // the full figure of a townsperson or of another player, if one is on show: for a blow struck or taken
     rigOf: (key) => { if (key.startsWith('n:')) { const a = actors.get(Number(key.slice(2))); return a && a.rig ? a.rig : null; } const o = others.get(key.slice(2)); return o ? o.rig : null; },
     // marks townspeople who have their hands up (defending themselves)

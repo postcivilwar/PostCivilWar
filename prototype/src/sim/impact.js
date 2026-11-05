@@ -621,7 +621,9 @@ export function createImpact({ state, players, population, actors, conflict, tal
   // they keep going. Returns whether they went down.
   // (`lie`: seconds on the ground, where it is not a blow's; `blood` false: thrown down, not hurt, as a driver pulled out
   // of their car is: hijack.js, 4 November 2026)
-  function felled(i, { from = null, harm = 1, lie: lying = null, blood = true } = {}) {
+  // (`down`: on the ground already, put there by something drawn of its own (a driver pulled out of a car, hijack.js):
+  // the drawing begins with them lying, not falling)
+  function felled(i, { from = null, harm = 1, lie: lying = null, blood = true, down = false } = {}) {
     const now = real();
     const rec = book.npc[i] || (book.npc[i] = { at: -10, health: 100, t: state.t });
     if (rec.dead) return false;
@@ -639,7 +641,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
     rec.upAt = now + lie;
     rec.then = { at: now + lie + IMPACT.rise + rng.next() * 0.4, from: from ? { x: from.x, z: from.z } : null };
     // (for the drawing: down backwards, away from the round, as a player goes down, falls.js)
-    rec.fall = { at: now, lie, rise: IMPACT.rise, h: m.h };
+    rec.fall = { at: now, lie, rise: IMPACT.rise, h: m.h, ...(down ? { down: true } : {}) };
     if (hub.reactions && hub.reactions.end) hub.reactions.end(i);
     return true;
   }
@@ -701,7 +703,8 @@ export function createImpact({ state, players, population, actors, conflict, tal
       if (now - f.at > f.lie + f.rise + 0.5) { book.npc[key].fall = null; continue; }
       const m = actors.get(Number(key));
       if (!m || Math.hypot(m.x - x, m.z - z) > range) continue;
-      out.push([Number(key), Math.round((now - f.at) * 100) / 100, Math.round(f.lie * 100) / 100, f.rise, Math.round(f.h * 1000) / 1000]);
+      // (and 1 for one put on the ground by something drawn of its own: the drawing begins with them lying)
+      out.push([Number(key), Math.round((now - f.at) * 100) / 100, Math.round(f.lie * 100) / 100, f.rise, Math.round(f.h * 1000) / 1000, f.down ? 1 : 0]);
     }
     return out;
   }

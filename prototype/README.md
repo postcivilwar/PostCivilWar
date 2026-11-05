@@ -5131,6 +5131,15 @@ mooring posts taken for its boards, 2; a slim tree far off drawn as its picture,
 sweep, or looked at again below); the city (`test/oganiru-city.mjs`) 7 of its checks passed before the batch's two hours
 ran out.
 
+**After going live** (the same build, page `b6e88734ff62c3fc`, game `5ad8d4cb8e9cd7c2`; production deployment
+`dpl_8VLwNVBAqszX4ueZZwUQaHvm2PBd`, `version.json` checked): the feet 9/9 with a computer's settings; the night pictures
+at the spot of his first video (the Peace Flyover's ramp by its wall, 2.8 m up) and under a street lamp in the town, the
+same places and hour as before the change (the lamp's light no longer over the shoes and the trousers' hems, the post's
+foot drawn); the sweep again where its first run missed: the PowerBike showroom's forecourt from outside 0 over 2 cm (its
+plates 3, on purpose), the river bank 1 (the bench; the jetty's posts 0), the city's piece built this time 0, the
+chevrons' paint 0, by the Peace Interchange 1 (a slim tree 80 m off drawn as its picture, without its roots; near it, as
+itself, they are drawn and stood on); traffic 17/17; the land beyond the town 12/12; the town's buildings 12/12; PHONEMEM.
+
 ## Tests
 
 ```

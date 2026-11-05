@@ -25,6 +25,9 @@ import { reach } from './animated.js';
 import { bonesOf } from './own-bike-view.js';
 import { POWER_CARS } from '../sim/power-cars.js';
 import { wheelLifts, bodyOn, kickBody } from './wheel-bumps.js';
+import { seatFigure } from './car-seating.js';
+import { loadCarMoves, carMove } from './car-moves.js';
+import { fetchKept } from './glb.js';
 
 const SIGHT = 120;                  // metres within which a parked car is drawn
 const PEER_SIGHT = 220, PEER_MOST = 4;     // another player's car being driven: drawn within this, the nearest few
@@ -35,6 +38,10 @@ const PEER_SIGHT = 220, PEER_MOST = 4;     // another player's car being driven:
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
 export const TRAFFIC_DRAWN = Object.freeze({ lite: Object.freeze({ most: 2, sight: 45, tier: '512' }), full: Object.freeze({ most: 5, sight: 90, tier: '1k' }) });
 export const SPRINGS = Object.freeze({ pitch: 0.012, most: 0.05, roll: 0.0045 });
+// A car's fitted cabin (5 November 2026, the owner's brief: "full detail only near (about 15 m on a phone, 30 m on a
+// computer), simpler beyond, nothing far off"): all of it within `near` of the player, its seats, dashboard and the rest
+// as one shape within `far`, nothing beyond
+export const CABIN_SEEN = Object.freeze({ lite: Object.freeze({ near: 15, far: 45 }), full: Object.freeze({ near: 30, far: 90 }) });
 // How a driver sits (radians, metres): leaning back in the seat, less if the wheel is further than the arms reach,
 // more if the roof asks it (never past `mostRecline`), sunk into the cushion if that is still not enough, and further
 // forward on the seat (no more than `slide`) if the wheel is still out of reach; the steering wheel turned by
@@ -101,6 +108,8 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
       loadCar(id, { base, lite, length: spec ? spec.length : 4.6, priority: later ? 'low' : undefined, tier }).then((car) => {
         if (shown.get(key) !== e) { car.dispose(); return; }
         e.car = car; e.loading = false; scene.add(car.group);
+        // (a car whose people are seen: the owner's seated moves fetched, the first time, to pose them by: car-moves.js)
+        if (car.glazed) loadCarMoves((path) => fetchKept(path)).catch(() => {});
       }, (error) => { e.loading = false; e.failed = true; onError(error); });
     }
     return e;
@@ -160,7 +169,13 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     // (the brake lamps when braking, and on a car of the town's waiting at a red light, its foot on the brake)
     e.state = { head: night > 0.25 || d.lamps ? 1 : 0, tail: night > 0.25 || d.lamps ? 1 : 0, brake: (d.brake && (d.speed || 0) > 0.2) || d.held ? 1 : 0, reverse: (d.speed || 0) < -0.2 ? 1 : 0 };
     e.car.lamps(e.state);
+    // (its cabin's dials and screen lit, the engine running; the lamp over the doors while one is open at night)
+    e.car.cabinLight({ night, on: true, door: !!(d.doors && Object.values(d.doors).some((a) => a > 0.05)) });
+    e.car.cabinDetail(cabinLevel(d));
   };
+  const C = CABIN_SEEN[lite ? 'lite' : 'full'];
+  let fromNow = { x: 0, z: 0 };
+  const cabinLevel = (d) => { const far = Math.hypot(d.x - fromNow.x, d.z - fromNow.z); return far <= C.near ? 2 : far <= C.far ? 1 : 0; };
 
   // driven: { id, x, z, h, speed, steer, throttle, brake, lamps } or null (this player's); drives: [{ key, ...the
   // same }] (other players' cars being driven, near enough to see); parked: [{ key?, car, x, z, h }];
@@ -168,6 +183,7 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
   // traffic: [{ key, id, x, z, h, speed, steer, brake, held }] (the town's cars near enough to see)
   // bodies: [{ ax, az, bx, bz, r }] (wheel-bumps.js bodyBars: whoever lies on the road near, as bars on the ground)
   function update(dt, { driven = null, drives = [], parked = [], parkedMost = 4, traffic = [], groundY = () => 0, from = { x: 0, z: 0 }, night = 0, bodies = [] }) {
+    fromNow = from;
     for (const f of frozen) f.freeze = false;
     frozen.clear();
     const wanted = new Set();
@@ -206,6 +222,8 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
       const on = sitOn(e, p, groundY);
       e.car.pose({ travelled: e.travelled, steerAngle: 0, pitch: 0, roll: 0, lifts: on.lifts, doors: p.doors || null });
       e.car.lamps({});
+      e.car.cabinLight({ night, on: false, door: !!(p.doors && Object.values(p.doors).some((a) => a > 0.05)) });
+      e.car.cabinDetail(cabinLevel(p));
     };
     for (const p of near) {
       const key = p.key || `park:${p.car}`;
@@ -230,11 +248,17 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
   // if its head would otherwise touch the roof), its hands put on the wheel's rim at ten to two as the wheel is turned,
   // its feet on the pedals, its head turned a little into the turn. d: { steer } (as update has it). Gives false, and
   // does nothing, while the car is still being fetched or where no one in it can be seen (a closed shell).
-  function seat(me, d, key = 'drive') {
+  function seat(me, d, key = 'drive', where = 'driver') {
     const e = shown.get(key);
     if (!e || !e.car || !me || !me.bones || !d) return false;
     const car = e.car, spec = car.driver;
     if (!spec || !spec.seen) return false;
+    // (5 November 2026) a car with real glass and a fitted cabin: seated by the owner's own move at the wheel (or beside
+    // it), fitted to the seat (car-seating.js); the game's own figure (no bones of his) as before
+    if (car.glazed && me.animated) {
+      const move = carMove(me, where === 'driver' ? 'drive' : 'sit');
+      return seatFigure(me, car, where, { steer: d.steer || 0, move, t: Number.isFinite(d.t) ? d.t : performance.now() / 1000 });
+    }
     const bones = bonesOf(me);
     const pelvis = bones.get('pelvis'), spine = bones.get('spine_02') || bones.get('spine_01'), head = bones.get('head');
     if (!pelvis || !spine) return false;

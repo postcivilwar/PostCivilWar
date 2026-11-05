@@ -106,7 +106,12 @@ import { createSurfView } from './surf-view.js';
 import { SURF, inSurf, catchable, crestOf, surfHeight, wavesAt, waveAt } from '../sim/surf.js';
 import { createCarView } from './car-view.js';
 import { createStandins } from './vehicle-standins.js';
-import { setCarDaylight, carsHeld, trimCars } from './car-model.js';
+import { setCarDaylight, carsHeld, trimCars, carSeen } from './car-model.js';
+import { setGlassWeather } from './car-glass.js';
+import { CAR_WINDOWS } from './car-windows.js';
+import { carMove, carMovesLoaded } from './car-moves.js';
+import { boardTimes, poseBoarding } from './car-boarding.js';
+import { seatFigure } from './car-seating.js';
 import { bikesHeld, trimBikes } from './bike-model.js';
 import { buildCarshow } from './render-carshow.js';
 import { buildSports } from './render-sports.js';
@@ -148,6 +153,9 @@ const HASH = typeof location !== 'undefined' ? location.hash : '';
 const TOUCH_FIRST = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 const LITE = !HASH.includes('full') && (TOUCH_FIRST || HASH.includes('lite'));
 const MAX_RIGS = LITE ? [14, 11, 8, 5] : [26, 18, 12, 6];
+// (the town's people in its cars, seen through the glass as their own full figures within this of the player: 5 November
+// 2026, the owner's brief, "about 15 m on a phone, 30 m on a computer")
+const IN_CARS = LITE ? 15 : 30;
 const VEHICLE_BIAS = [1, 0.8, 0.6, 0.45];     // how much nearer a vehicle must be for each step of detail (quality.detail), as quality drops
 const DRIVER_SEAT = vehicleMeta('keke').seats.driver;   // where the keke's driver sits, in the keke's own frame
 const SEATED_HEIGHT = 0.845;                 // how far above its own feet a seated figure's seat is, for a figure of height 1
@@ -797,10 +805,16 @@ function start(carried) {
   // (what players have built stands in the camera's way too, as high as its walls: the boxes are gathered once a
   // frame, before the camera is placed, rather than at every point it tries)
   let builtForCamera = [];
+  // (for the tests' and the owner's pictures of a car from all round: the player's own figure out of the picture)
+  let lookHides = false;
+  // (5 November 2026, the owner's brief: getting in, getting out and taking a car, "the camera stays outside the whole
+  // time ... It never goes into the door, the car's body or the cabin": the car being got into or out of is solid to it)
+  let cameraCar = null;
+  const inCameraCar = (x, z, y) => { const c = cameraCar; if (!c) return false; const r = toCar(c, x, z); return Math.abs(r.along) < c.half + 0.25 && Math.abs(r.across) < c.wide + 0.25 && y < c.top + 0.3; };
   const builtAt = (x, z, y) => { if (y > 3.4) return false; for (const b of builtForCamera) if (x > b.x0 - 0.25 && x < b.x1 + 0.25 && z > b.z0 - 0.25 && z < b.z1 + 0.25) return true; return false; };
   const rig = createCameraRig(camera, {
     // (a roadblock or the fence at the edge of the land is low: the camera looks over it)
-    blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) || inSportsHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25, y - zoneGroundY(x, z))) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
+    blocked: (x, z, y) => inCameraCar(x, z, y) || (inPowerbikeHall(x, z) || inCarHall(x, z) || inSportsHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25, y - zoneGroundY(x, z))) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
     ground: (x, z) => zoneGroundY(x, z),
     // (half a metre up at the least, but down in the expressway's cutting, below the land round it, as far as its road:
     // 1 November 2026)
@@ -2038,6 +2052,8 @@ function start(carried) {
     for (const o of zone.okadas) { want(o.person); want(o.passenger); }
     for (const q of zone.players || []) if (q.vehicle && typeof q.vehicle.driver === 'number') want(q.vehicle.driver);
     for (const r of zone.sportRiders || []) want(r.person);
+    // (whoever sits in the town's cars near: seen through the glass of those that have it, 5 November 2026)
+    for (const t of zone.traffic || []) for (const [i] of t.who || []) want(i);
     if (!unknown.length) return;
     const faces = playerId ? [] : host.game.faces(unknown);
     if (playerId) for (let from = 0; from < unknown.length; from += 60) { const r = server.send({ type: 'people.describe', ids: unknown.slice(from, from + 60) }); if (r.ok) faces.push(...r.people); }
@@ -3764,9 +3780,33 @@ function start(carried) {
     const left = kind === 'in' ? toCar(car, at.x, at.z).across >= -0.2 : toCar(car, at.x, at.z).across >= 0;
     const door = left ? 'fl' : 'fr';
     const slide = kind === 'out' && door === 'fr' ? 0.55 : 0;
-    const B = BOARD[kind];
-    boarding = { kind, key, model, car, at, door, start: clock + slide, slide, seen: !!(CAR_PARTS[model] && CAR_PARTS[model].driver && CAR_PARTS[model].driver.seen) };
+    // (5 November 2026) a car with glass, the owner's moves fetched: got into and out of as a person does, by his moves
+    // (car-boarding.js), the door opened and shut at their own moments; otherwise as before
+    const moves = carSeen(model) && CAR_WINDOWS[model] && carMovesLoaded();
+    const B = moves ? (() => { const t = boardTimes(kind); return { open: t.open, slam: t.shut - DOOR.shutting * 0.4, end: t.length + 0.1 }; })() : BOARD[kind];
+    boarding = { kind, key, model, car, at, door, start: clock + slide, slide, seen: carSeen(model), moves: !!moves, B };
     openDoor(key, door, clock + slide + B.open, clock + slide + B.slam);
+  }
+  // The figure posed by the owner's moves while getting in or out (car-boarding.js), or taking a car (the taker in by
+  // the door, `enter` and `shut`; across to the wheel, `slide`), after the car is drawn for the frame: true if it is.
+  function boardFigure(self, taking) {
+    const car = carView.driven('drive');
+    if (!car || !car.glazed || !me.animated) return false;
+    const ground = (x, z) => zoneSurfaceY(x, z, levelAt(predicted));
+    if (boarding && boarding.moves) {
+      const t = clock - boarding.start;
+      if (t < 0) return seatFigure(me, car, 'driver', { steer: 0, move: carMove(me, 'sit'), t: clock, across: Math.max(0, 1 + t / Math.max(0.01, boarding.slide)) });
+      return poseBoarding(me, car, { kind: boarding.kind, door: boarding.door, t, from: boarding.at, groundY: ground });
+    }
+    if (taking && taking.kind === 'car' && taking.times && CAR_WINDOWS[taking.model] && carMovesLoaded()) {
+      const since = taking.t + Math.max(0, clock - viewAt);
+      if ((taking.step === 'enter' || taking.step === 'shut') && taking.times.enter) {
+        const stand = toWorld(taking.car, doorStand(taking.model, taking.door));
+        return poseBoarding(me, car, { kind: 'in', door: taking.door, t: since - taking.times.enter[0], from: stand, groundY: ground });
+      }
+      if (taking.step === 'slide') return seatFigure(me, car, 'front', { steer: 0, move: carMove(me, 'sit'), t: clock, across: taking.progress });
+    }
+    return false;
   }
   // Taking a car of the town's (hijack.js): at its door while it is opened and the driver pulled out, then in (from the
   // door to the seat, and across to the wheel from the front passenger's seat), unseen inside its closed shell. The town
@@ -3779,7 +3819,7 @@ function start(carried) {
     const front = toWorld(car, seatPlace(model, taking.door === 'fl' ? 'driver' : 'front'));
     const k = taking.step === 'enter' ? taking.progress : 1;
     const e = k * k * (3 - 2 * k);
-    const seen = !!(CAR_PARTS[model] && CAR_PARTS[model].driver && CAR_PARTS[model].driver.seen);
+    const seen = carSeen(model);
     let x = stand.x + (front.x - stand.x) * e, z = stand.z + (front.z - stand.z) * e;
     if (taking.step === 'slide') { const wheel = toWorld(car, seatPlace(model, 'driver')); x = front.x + (wheel.x - front.x) * taking.progress; z = front.z + (wheel.z - front.z) * taking.progress; }
     return { x, z, h: taking.step === 'enter' ? Math.atan2(front.x - stand.x, front.z - stand.z) * (1 - e) + car.h * e : car.h, shown: (taking.step === 'enter' && k < 0.8) || seen };
@@ -3788,7 +3828,7 @@ function start(carried) {
   function boardingPlace(self) {
     const b = boarding;
     if (!b) return null;
-    const B = BOARD[b.kind], t = clock - b.start;
+    const B = b.B || BOARD[b.kind], t = clock - b.start;
     // (done; or the player no longer as it was begun: out of the car again, on something else, put elsewhere by the town)
     const on = !!self && (!!self.driving || (self.riding !== null && self.riding !== undefined) || (self.astride !== null && self.astride !== undefined));
     const left = b.kind === 'in' ? !(self && self.incar) : !!(self && self.incar) || on;
@@ -3819,6 +3859,7 @@ function start(carried) {
       if (!e || Math.hypot(e.x - tx, e.z - tz) > 6) { e = { x: tx, z: tz, h: t.h }; trafficShown.set(t.n, e); }
       else { const k = Math.min(1, dt * 12); e.x += (tx - e.x) * k; e.z += (tz - e.z) * k; e.h += angleGap(t.h, e.h) * k; }
       e.n = t.n; e.model = t.model; e.speed = t.speed; e.steer = t.steer; e.brake = t.brake; e.held = t.held; e.mode = t.mode; e.mine = t.mine; e.hornAgo = t.hornAgo;
+      e.who = t.who || null;
       // (its doors opened and slammed lately, as the town says, on this page's clock: hijack.js)
       e.doorTimes = t.doors ? t.doors.map(([d, o, sh]) => ({ d, o: viewAt + o, s: viewAt + sh })) : null;
       // (its height, in the city: on a flyover, the viaduct, a slip road, down in the cutting; drawn on the surface there)
@@ -4010,7 +4051,7 @@ function start(carried) {
   let takenWas = null;
   function movePlayer(dt) {
     // (getting in or out of a car: a second with the hands off the controls, `boardCar`)
-    if (boarding && clock - boarding.start < BOARD[boarding.kind].end) { going.speed = 0; carState.speed = 0; return 0; }
+    if (boarding && clock - boarding.start < (boarding.B || BOARD[boarding.kind]).end) { going.speed = 0; carState.speed = 0; return 0; }
     const taken = view.self.incar && Number.isInteger(view.self.incar.taken) ? view.self.incar.taken : null;
     if (taken !== null && taken !== takenWas) { predicted.x = view.self.x; predicted.z = view.self.z; predicted.heading = view.self.heading; cam.yaw = view.self.heading; carState.speed = 0; carState.steer = 0; }
     takenWas = taken;
@@ -4651,7 +4692,10 @@ function start(carried) {
       // (whoever lies on the road near: for the wheels of a car going over them, wheel-bumps.js)
       const bodies = ownDrive || peerCars.length || trafficDrawn.length ? crowd.lying(predicted.x, predicted.z, 80) : [];
       carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, traffic: trafficDrawn, groundY: groundAt, from: predicted, night, bodies });
-      const carSeated = !!ownDrive && !!incar && carView.seat(me, ownDrive);
+      // (getting in or out, or into a car being taken, by the owner's moves where the car has glass: car-boarding.js)
+      const boardMoved = (boarding && boarding.moves) || (taking && taking.kind === 'car' && ['enter', 'shut', 'slide'].includes(taking.step)) ? boardFigure(self, taking) : false;
+      { const c = boarding ? boarding.car : taking && taking.kind === 'car' && taking.car ? taking.car : null; const m = boarding ? boarding.model : taking ? taking.model : null; const sp = m && POWER_CARS[m]; cameraCar = c && sp ? { x: c.x, z: c.z, h: c.h, half: sp.length / 2, wide: sp.width / 2, top: levelAt(predicted) + 1.2 * (sp.height || 1.5) } : null; }
+      const carSeated = boardMoved || (!!ownDrive && !!incar && carView.seat(me, ownDrive));
       carsHeard = peerCars.map((q) => ({ key: q.key, car: q.id, x: q.x, z: q.z, rev: q.rev || 0, throttle: q.throttle || 0 }));
       // the town's cars on the move are heard as other players' are (the nearest few: audio.js), and their horns
       for (const e of trafficCars) {
@@ -4700,7 +4744,7 @@ function start(carried) {
       if (me.swimming) { me.group.position.y = (me.animated ? -(me.spec.height * 0.58) - 0.22 : -0.5) + surfHeight(me.group.position.x, me.group.position.z, waveNow()); if (me.blob) me.blob.visible = false; } else if (me.wasSwimming) me.group.position.y = groundY;
       me.wasSwimming = me.swimming;
       // in the ambulance, in a closed car (or one not yet drawn), or with the eye inside its own head, the figure is not drawn
-      me.group.visible = !aboard && (board ? board.shown : (!incar || carSeated)) && !rig.hidesPlayer && !(astride && aboardShip() !== null);
+      me.group.visible = !aboard && (board ? board.shown || boardMoved : (!incar || carSeated)) && !rig.hidesPlayer && !(astride && aboardShip() !== null) && !lookHides;
       ui.setDash(driving ? { plate: driving.plate, fuel: driving.fuel, tank: driving.tank, kmh: Math.abs(car.speed) * 3.6, load: driving.load, capacity: driving.capacity } : astride && ownSurf() ? { plate: SPORTS.surfboard.name, fuel: null, kmh: Math.abs(surfState.speed) * 3.6, load: 0, capacity: 0 } : astride && (ownBoat() || aboardShip() !== null) ? { plate: ownBoat() ? SPORTS[ownBoat()].name : 'Naval ship', fuel: null, kmh: Math.abs(boatState.speed) * 3.6, load: 0, capacity: 0 } : astride && ownSport() ? { plate: SPORTS[ownSport()].name, fuel: null, kmh: Math.abs(sportState.speed) * 3.6, load: 0, capacity: 0 } : astride && !powerBike() ? { plate: 'Motorcycle', fuel: null, kmh: Math.abs(moto.speed) * 3.6, load: 0, capacity: 0 } : null);
       // one of the player's own motorcycles: its own speedometer, scaled to its engine (speedometer.js)
       if (astride && powerBike()) {
@@ -4795,7 +4839,23 @@ function start(carried) {
       // the rest of the town, the okadas and other players
       updateAmbulance(view.ambulance, dt);
 blood.update(dt, view.blood || []);
-            crowd.update({ dt, rows: view.people, okadas: view.okadas, players: peersNow(), known, eye: predicted, real: elapsed, clock, townTime: view.t, others: view.others,
+            // (whoever sits in the town's cars near, in those with glass: render-crowd.js draws them seated)
+            const inCars = [];
+            for (const e of trafficCars) {
+              if (!e.who || !e.who.length) continue;
+              const d = Math.hypot(e.x - predicted.x, e.z - predicted.z);
+              if (d > IN_CARS || !carSeen(e.model)) continue;
+              const car = carView.driven(`traffic:${e.n}`);
+              if (!car || !car.glazed) continue;
+              // (the car being taken by this player: the one at its open door pulled out of the seat, by the owner's
+              // move, from the moment the pull begins)
+              const took = taking && taking.kind === 'car' && taking.id === e.n && taking.times && taking.times.pull ? taking : null;
+              for (const [i, seat] of e.who) {
+                const pulledNow = took && ((took.door === 'fl' && seat === 'driver') || (took.door === 'fr' && seat === 'front')) ? took.t + Math.max(0, clock - viewAt) - took.times.pull[0] : -1;
+                inCars.push({ i, key: `traffic:${e.n}`, seat, steer: e.steer || 0, d, pulled: pulledNow >= 0 ? { t: pulledNow, door: took.door } : null });
+              }
+            }
+            crowd.update({ dt, rows: view.people, okadas: view.okadas, players: peersNow(), known, eye: predicted, real: elapsed, clock, townTime: view.t, others: view.others, inCars, carOf: (key) => carView.driven(key),
         own: astride ? { n: astride.n, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: Math.abs(moto.speed) } : null,
         tug: taking && taking.kind === 'okada' && taking.step !== 'reach' ? { n: taking.id, amount: Math.min(1, Math.max(0, (taking.progress - 0.23) / 0.4)), side: taking.side } : null,
         maxRigs: MAX_RIGS[quality.detail], detail: FIGURE_DETAIL[quality.detail], crowd: CROWD[quality.detail], camera, riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, falls: view.falls, reacts: view.reacts, ahead: Math.max(0, clock - viewAt) });
@@ -4980,6 +5040,8 @@ blood.update(dt, view.blood || []);
     night = skyState.night;
     setVehicleDaylight(1 - night);
     setCarDaylight(1 - night);
+    // (the cars' glass, 5 November 2026: the sky in it by day, and in the rain drops on it, from Medium up)
+    setGlassWeather({ wet: airLevel.wetTracks ? skyState.wetness : 0, daylight: 1 - night, t: clock });
     // (glass, the river and zinc give back the sky by day; in the rain the ground is wet, and dries after it)
     const groundWet = updateFinishes(dt, { daylight: 1 - night, wetness: skyState.wetness, dull: skyState.dull });
     // (the air, by the hour, the weather and the level: the clouds' shadows drifting, the haze, the mirage on hot tarmac,
@@ -5318,6 +5380,7 @@ blood.update(dt, view.blood || []);
     online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, exitGame: () => exitGame(), get exited() { return exited; }, get playing() { return playing; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },
+    hidePlayer(on) { lookHides = !!on; },
     // (and, for the surface sweep, at a level `y` with a person's `radius`: the street lamps are in the way only at a level)
     walkable: (x, z, y, radius) => zoneWalkable(x, z, structureBoxes(), Number.isFinite(radius) ? radius : undefined, y),
     // (the surface sweep, 5 November 2026: the height a person stands at here, on the level `y` there (a deck's) or on the

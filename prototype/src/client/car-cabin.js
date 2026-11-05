@@ -14,8 +14,12 @@
 // own frame. Its parts are one shape (one draw), the steering wheel another (it turns), and the dials, the screen and
 // the lamp over the door that glow at night a third (only those three ever change).
 //
-//   const cabin = makeCabin(id, spec, { scale, lite })     scale: metres to a unit of the car's model
-//   carCabinGroup.add(cabin.group)
+//   const cabin = makeCabin(id, spec, { scale, lite, fit, doors })   scale: metres to a unit of the car's model; fit: its
+//                               room inside (car-windows.js); doors: its doors as the body cuts them (car-model.js)
+//   carCabinGroup.add(cabin.group)              (in the car's own units; made in metres)
+//   cabin.doors.get('fl')       the inside of a door (armrest, handle, speaker, switches), in metres from the car's
+//                               middle as the rest: put on the door's hinge, drawn while a door is open
+//   cabin.open(any)             a door open (each door's inside drawn on its own) or every door shut (one draw)
 //   cabin.steer(angle)          radians the front wheels are turned (left positive)
 //   cabin.light({ night, on, door })   the dials and screen lit (the engine running at night), the roof lamp (a door open)
 //   cabin.dispose()
@@ -37,7 +41,7 @@ export const TRIMS = Object.freeze({
   'grey-saloon': { seat: 0x3a3c40, stitch: 0x24262a, dash: 0x1d1e20, carpet: 0x1e1f21, roof: 0x8c8c88, metal: 0x9a9ca0, fabric: true },
   'midnight-saloon': { seat: 0x1c1f2a, stitch: 0x5a6a8a, dash: 0x16171b, carpet: 0x18191d, roof: 0x34353a, metal: 0xa0a4ac, leather: true },
 });
-const PLAIN = Object.freeze({ seat: 0x3a3b3e, stitch: 0x26272a, dash: 0x1e1f21, carpet: 0x1e1f21, roof: 0x7a7a78, metal: 0x909296, fabric: true });
+export const PLAIN = Object.freeze({ seat: 0x3a3b3e, stitch: 0x26272a, dash: 0x1e1f21, carpet: 0x1e1f21, roof: 0x7a7a78, metal: 0x909296, fabric: true });
 
 // The look of leather or cloth: a small picture of its grain and its seams, tiled over every soft part (shared by all).
 let grain = null;
@@ -105,18 +109,104 @@ function slab(w, h, d, r) {
   return g;
 }
 
-// `id` the car, `spec` its measures (car-parts.js), `scale` metres to a unit of its model.
-export function makeCabin(id, spec, { scale, lite = false } = {}) {
+
+// The room inside a car's shell, from its fit (tools/vehicles/windows.py `fit_of`: its half width at a grid of places
+// along it and heights, and how high its top is over its middle line), in metres: `room(z, y)` how far out its side is
+// there (null where nothing was found), `topAt(z)` how high its roof, glass or bonnet is over the middle line.
+function shellRoom(fit, scale) {
+  if (!fit) return { room: () => null, topAt: () => null };
+  const zs = fit.z, ys = fit.y;
+  const find = (list, v) => { if (v <= list[0]) return [0, 0, 0]; const n = list.length - 1; if (v >= list[n]) return [n, n, 0]; let i = 0; while (list[i + 1] < v) i += 1; return [i, i + 1, (v - list[i]) / (list[i + 1] - list[i])]; };
+  const room = (z, y) => {
+    const [z0, z1, fz] = find(zs, z / scale), [y0, y1, fy] = find(ys, y / scale);
+    const at = (a, b) => fit.half[a][b];
+    const vals = [[at(z0, y0), (1 - fz) * (1 - fy)], [at(z1, y0), fz * (1 - fy)], [at(z0, y1), (1 - fz) * fy], [at(z1, y1), fz * fy]].filter(([v]) => v !== null);
+    if (!vals.length) return null;
+    // (the nearest of the four where the shell is narrower: never out past it)
+    const w = vals.reduce((s, [, k]) => s + k, 0);
+    const mean = w > 0 ? vals.reduce((s, [v, k]) => s + v * k, 0) / w : vals[0][0];
+    return Math.min(mean, ...vals.filter(([, k]) => k > 0.25).map(([v]) => v)) * scale;
+  };
+  const topAt = (z) => {
+    const [z0, z1, fz] = find(zs, z / scale);
+    const a = fit.top[z0], b = fit.top[z1];
+    if (a === null && b === null) return null;
+    return (a === null ? b : b === null ? a : Math.min(a + (b - a) * fz, Math.max(a, b))) * scale;
+  };
+  return { room, topAt };
+}
+
+// `id` the car, `spec` its measures (car-parts.js), `scale` metres to a unit of its model; `fit` its room inside;
+// `doors` its doors as the body cuts them: { key, side, front, rear } (the model's units along it).
+// (one cabin's shapes for each model, made the first time one is wanted and shared by every car of it: `makeCabin`)
+const made = new Map();
+export function makeCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = {}) {
+  if (!spec.driver) return null;
+  const key = `${id}|${scale.toFixed(5)}|${doors.map((q) => q.key).join('')}`;
+  let shared = made.get(key);
+  if (!shared) { shared = { ...buildCabin(id, spec, { scale, lite, fit, doors }), users: 0 }; made.set(key, shared); }
+  shared.users += 1;
+  // this car's own: its meshes of the shared shapes, its steering wheel's turn, its dials' and lamp's light
+  const mesh = new THREE.Mesh(shared.whole, shared.material); mesh.name = 'car-cabin';
+  const restMesh = new THREE.Mesh(shared.rest, shared.material); restMesh.name = 'car-cabin'; restMesh.visible = false;
+  const doorMeshes = new Map();
+  for (const [k, g] of shared.doors) { const dm = new THREE.Mesh(g, shared.material); dm.name = 'car-cabin-door'; doorMeshes.set(k, dm); }
+  const steering = new THREE.Group();
+  steering.position.fromArray(shared.wheelAt);
+  steering.rotation.order = 'YXZ'; steering.rotation.x = -shared.tilt;
+  const wheelMesh = new THREE.Mesh(shared.wheel, shared.wheelMaterial); wheelMesh.name = 'car-steering';
+  steering.add(wheelMesh);
+  const glowMaterial = new THREE.MeshBasicMaterial({ map: facesPicture(), color: 0x2a2a2a, toneMapped: false });
+  const glow = new THREE.Mesh(shared.glow, glowMaterial); glow.name = 'car-dials';
+  const lamp = new THREE.Mesh(shared.lampShape, new THREE.MeshBasicMaterial({ color: 0xfff1d0, toneMapped: false }));
+  lamp.rotation.x = Math.PI / 2; lamp.position.fromArray(shared.lampAt); lamp.visible = false;
+  for (const o of [mesh, restMesh, wheelMesh, glow, lamp, ...doorMeshes.values()]) { o.castShadow = false; o.receiveShadow = false; }
+  const group = new THREE.Group();
+  group.name = 'car-inside';
+  group.add(mesh, restMesh, steering, glow, lamp);
+  // (in the car's own units: everything here was made in metres)
+  group.scale.setScalar(1 / scale);
+  let detail = 2, open = false;
+  const show = () => { mesh.visible = detail > 0 && !open; restMesh.visible = detail > 0 && open; for (const dm of doorMeshes.values()) dm.visible = detail > 0 && open; steering.visible = detail > 1; glow.visible = detail > 1; };
+  let gone = false;
+  return {
+    group, doors: doorMeshes, measures: shared.measures,
+    open(any) { open = any; show(); },
+    // how much of it is drawn: 2 all of it (near), 1 the seats, the dashboard and the rest as one shape (further), 0
+    // nothing (far off, where the glass mostly gives back the sky)
+    detail(level) { if (level === detail) return; detail = level; show(); },
+    steer(angle) { steering.rotation.z = Math.max(-1.6, Math.min(1.6, -angle * 1.4)); },
+    light({ night = 0, on = false, door = false } = {}) {
+      const k = on ? 0.25 + 0.75 * night : 0.08;
+      glowMaterial.color.setScalar(k);
+      lamp.visible = door && night > 0.3 && detail > 0;
+    },
+    dispose() {
+      if (gone) return; gone = true;
+      glowMaterial.dispose(); lamp.material.dispose();
+      shared.users -= 1;
+      if (shared.users <= 0 && made.get(key) === shared) { made.delete(key); for (const g of [shared.whole, shared.rest, ...shared.doors.values(), shared.wheel, shared.glow, shared.lampShape]) g.dispose(); shared.material.dispose(); shared.wheelMaterial.dispose(); }
+    },
+  };
+}
+
+function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = {}) {
   const d = spec.driver;
-  if (!d) return null;
   const T = { ...PLAIN, ...(TRIMS[id] || {}) };
   const m = (v) => v * scale;                         // the model's units to metres
   const hip = d.hip.map(m), wheel = d.wheel.map(m), feet = d.feet.map((f) => f.map(m));
   const roof = d.roof ? m(d.roof) : m(spec.height) * 0.94;
   const half = m(spec.body) / 2;
   const four = !TWO_DOORS.has(id);
-  // inside the body: a little in from its sides (its skin and the doors' thickness), and the floor under the feet
-  const inner = half * 0.84;
+  const shell = shellRoom(fit, scale);
+  // inside the body: in from its sides by its skin and the doors' thickness (`edge`), where the shell was measured;
+  // elsewhere a share of its width
+  const EDGE = 0.045;
+  const inside = (z, y) => { const r = shell.room(z, y); return r === null ? half * 0.84 : Math.max(0.2, r - EDGE); };
+  // the narrowest the inside is over a stretch along the car and of heights
+  const insideOver = (z0, z1, y0, y1) => { let w = Infinity; for (let i = 0; i <= 4; i += 1) for (let j = 0; j <= 2; j += 1) w = Math.min(w, inside(z0 + (z1 - z0) * i / 4, y0 + (y1 - y0) * j / 2)); return w; };
+  // under the roof (or the glass) over a stretch along the car, less `gap`
+  const under = (z0, z1, gap = 0.02) => { let t = Infinity; for (let i = 0; i <= 6; i += 1) { const v = shell.topAt(z0 + (z1 - z0) * i / 6); if (v !== null) t = Math.min(t, v); } return Number.isFinite(t) ? t - gap : roof; };
   const floor = Math.min(feet[0][1], feet[1][1]) - 0.05;
   const belt = hip[1] + (roof - hip[1]) * 0.4;
   // where things are along the car (z, metres): the front seats' backs, the dashboard's face, the rear bench
@@ -128,21 +218,24 @@ export function makeCabin(id, spec, { scale, lite = false } = {}) {
   const box = (w, h, dd, x, y, z, hex, rx = 0, ry = 0, rz = 0) => B.box(w, h, dd, at(x, y, z, rx, ry, rz), hex);
   const soft = (w, h, dd, r, x, y, z, hex, rx = 0, ry = 0, rz = 0) => B.round(slab(w, h, dd, r), at(x, y, z, rx, ry, rz), hex);
 
-  // ---- a seat: cushion, backrest with bolsters, headrest, its frame down to the floor
-  const seat = (x, z, wide = 0.5, high = true) => {
-    const top = hip[1] - 0.06;                                // the cushion's top, a little under the hips
+  // ---- a seat: cushion, backrest with bolsters, headrest, its frame down to the floor; no wider than the room beside it
+  const seatTop = hip[1] - 0.06;                              // the cushion's top, a little under the hips
+  const seat = (x, z, wideAsked = 0.5, high = true) => {
+    const top = seatTop;
     const back = 0.32;                                        // radians the backrest leans back
+    const room = insideOver(z - 0.35, z + 0.35, top - 0.1, top + 0.5);
+    const wide = Math.max(0.36, Math.min(wideAsked, 2 * (room - Math.abs(x)) - 0.02, 2 * Math.abs(x) - 0.06));
     soft(wide, 0.13, 0.5, 0.05, x, top - 0.065, z + 0.1, T.seat, -0.08);
     // (the cushion's side bolsters)
     for (const s of [-1, 1]) soft(0.08, 0.1, 0.46, 0.035, x + s * (wide / 2 - 0.03), top - 0.02, z + 0.1, T.bolster || T.seat, -0.08);
-    const bh = Math.min(0.62, roof - top - 0.18);
+    const bh = Math.max(0.3, Math.min(0.62, under(z - 0.35, z) - top - 0.18));
     const by = top + bh / 2 * Math.cos(back), bz = z - 0.18 - bh / 2 * Math.sin(back);
     soft(wide, bh, 0.12, 0.05, x, by, bz, T.seat, -back);
     for (const s of [-1, 1]) soft(0.08, bh * 0.85, 0.16, 0.035, x + s * (wide / 2 - 0.03), by - bh * 0.04, bz + 0.03, T.bolster || T.seat, -back);
     // (the stitching down the middle of the cushion and the back)
     box(0.006, 0.004, 0.42, x, top + 0.001, z + 0.1, T.stitch, -0.08);
     if (high) {
-      const hy = top + bh * Math.cos(back) + 0.13, hz = z - 0.18 - bh * Math.sin(back) - 0.03;
+      const hy = Math.min(top + bh * Math.cos(back) + 0.13, under(z - 0.45, z - 0.2) - 0.11), hz = z - 0.18 - bh * Math.sin(back) - 0.03;
       soft(0.26, 0.19, 0.1, 0.05, x, hy, hz, T.seat, -back * 0.6);
       for (const s of [-1, 1]) box(0.012, 0.09, 0.012, x + s * 0.08, hy - 0.12, hz + 0.01, T.metal, -back);
     }
@@ -153,38 +246,50 @@ export function makeCabin(id, spec, { scale, lite = false } = {}) {
   seat(-hip[0], hip[2]);
   // ---- the back seat: a bench across, two headrests; small seats in a two-door car where there is room
   if (four) {
-    const w = inner * 2 - 0.08;
     const top = hip[1] - 0.04;
+    const w = 2 * insideOver(rearZ - 0.3, rearZ + 0.35, top - 0.1, top + 0.45) - 0.04;
+    const bh = Math.max(0.3, Math.min(0.58, under(rearZ - 0.4, rearZ) - top - 0.2));
     soft(w, 0.13, 0.48, 0.05, 0, top - 0.065, rearZ + 0.1, T.seat, -0.06);
-    soft(w, Math.min(0.58, roof - top - 0.2), 0.14, 0.05, 0, top + 0.27, rearZ - 0.2, T.seat, -0.3);
-    for (const s of [-1, 1]) soft(0.26, 0.18, 0.1, 0.05, s * hip[0], top + 0.62, rearZ - 0.31, T.seat, -0.2);
+    soft(w, bh, 0.14, 0.05, 0, top + bh / 2 - 0.02, rearZ - 0.2, T.seat, -0.3);
+    const hy = Math.min(top + bh + 0.04, under(rearZ - 0.45, rearZ - 0.2) - 0.11);
+    for (const s of [-1, 1]) soft(0.26, 0.18, 0.1, 0.05, s * Math.min(hip[0], w / 2 - 0.16), hy, rearZ - 0.31, T.seat, -0.2);
     box(w - 0.1, 0.004, 0.004, 0, top + 0.001, rearZ + 0.1, T.stitch);
     box(w, Math.max(0.02, top - 0.13 - floor), 0.44, 0, (top - 0.13 + floor) / 2, rearZ + 0.08, 0x111112);
   } else if (rearZ - 0.3 > -m(spec.length) / 2 + 0.6) {
-    for (const s of [-1, 1]) soft(0.42, 0.1, 0.36, 0.04, s * hip[0], hip[1] - 0.09, rearZ + 0.08, T.seat, -0.06);
-    soft(inner * 2 - 0.1, 0.42, 0.1, 0.04, 0, hip[1] + 0.12, rearZ - 0.12, T.seat, -0.35);
+    const w = 2 * insideOver(rearZ - 0.2, rearZ + 0.25, hip[1] - 0.15, hip[1] + 0.3) - 0.04;
+    for (const s of [-1, 1]) soft(Math.min(0.42, w / 2 - 0.02), 0.1, 0.36, 0.04, s * Math.min(hip[0], w / 4), hip[1] - 0.09, rearZ + 0.08, T.seat, -0.06);
+    soft(w - 0.06, Math.max(0.2, Math.min(0.42, under(rearZ - 0.3, rearZ) - hip[1] - 0.12)), 0.1, 0.04, 0, hip[1] + 0.12, rearZ - 0.12, T.seat, -0.35);
   }
 
-  // ---- the dashboard: across the whole width, its top under the windscreen's foot, its face to the cabin
-  const dashTop = Math.min(belt + 0.04, wheel[1] + 0.16);
+  // ---- the dashboard: across the whole width, its top under the windscreen's foot, its face to the cabin; no deeper
+  // than the windscreen leaves room for over it
   const dashLow = wheel[1] - 0.26;
-  soft(inner * 2, dashTop - dashLow, 0.42, 0.06, 0, (dashTop + dashLow) / 2, dashZ + 0.2, T.dash);
+  let dashDeep = 0.42;
+  let dashTop = Math.min(belt + 0.04, wheel[1] + 0.16);
+  for (let k = 0; k < 8 && dashDeep > 0.16 && under(dashZ, dashZ + dashDeep, 0.03) < dashTop; k += 1) dashDeep -= 0.04;
+  dashTop = Math.min(dashTop, under(dashZ, dashZ + dashDeep, 0.03));
+  const dashWide = 2 * insideOver(dashZ, dashZ + dashDeep, dashLow, dashTop);
+  soft(dashWide, dashTop - dashLow, dashDeep, 0.06, 0, (dashTop + dashLow) / 2, dashZ + dashDeep / 2, T.dash);
   // (its upper edge rolled toward the windscreen, and a strip of wood or metal across its face)
-  soft(inner * 2 - 0.04, 0.05, 0.5, 0.025, 0, dashTop, dashZ + 0.24, T.dash, 0.12);
-  box(inner * 2 - 0.12, 0.035, 0.01, 0, dashLow + (dashTop - dashLow) * 0.45, dashZ - 0.012, T.wood || T.metal);
+  soft(dashWide - 0.04, 0.05, Math.max(0.12, dashDeep * 0.9), 0.025, 0, dashTop - 0.02, dashZ + dashDeep * 0.5, T.dash, 0.12);
+  box(dashWide - 0.12, 0.035, 0.01, 0, dashLow + (dashTop - dashLow) * 0.45, dashZ - 0.012, T.wood || T.metal);
   // (the hood over the dials behind the wheel, and the dials' bezel)
-  soft(0.36, 0.09, 0.2, 0.04, hip[0], dashTop + 0.02, dashZ + 0.06, T.dash, 0.25);
+  soft(0.36, 0.09, 0.2, 0.04, hip[0], Math.min(dashTop + 0.02, under(dashZ, dashZ + 0.2, 0.06)), dashZ + 0.06, T.dash, 0.25);
   // (the centre stack: the screen's frame, the vents, the glovebox's line on the passenger's side)
   box(0.3, 0.2, 0.03, 0, dashLow + (dashTop - dashLow) * 0.7, dashZ - 0.01, 0x0b0b0c, -0.12);
-  for (const x of [-0.11, 0.11, -inner + 0.12, inner - 0.12]) {
+  for (const x of [-0.11, 0.11, -dashWide / 2 + 0.12, dashWide / 2 - 0.12]) {
     box(0.13, 0.05, 0.02, x, dashLow + (dashTop - dashLow) * 0.42, dashZ - 0.012, 0x101011);
     for (let k = 0; k < 3; k += 1) box(0.12, 0.004, 0.01, x, dashLow + (dashTop - dashLow) * 0.42 - 0.016 + k * 0.016, dashZ - 0.02, T.metal);
   }
   box(0.42, 0.004, 0.006, -hip[0], dashLow + (dashTop - dashLow) * 0.32, dashZ - 0.012, 0x0c0c0d);
   box(0.005, 0.16, 0.006, -hip[0] - 0.21, dashLow + (dashTop - dashLow) * 0.24, dashZ - 0.012, 0x0c0c0d);
   box(0.06, 0.012, 0.012, -hip[0] + 0.12, dashLow + (dashTop - dashLow) * 0.3, dashZ - 0.02, T.metal);
-  // (the firewall under it, down to the floor, closing the cabin at the front)
-  box(inner * 2, Math.max(0.05, dashLow - floor), 0.04, 0, (dashLow + floor) / 2, dashZ + 0.3, 0x141415);
+  // (the firewall under it and in front of it, down to the floor and up to the windscreen's foot, closing the cabin at
+  // the front: the engine never seen)
+  const fireZ = dashZ + dashDeep;
+  const fireTop = under(fireZ - 0.02, fireZ + 0.04, 0.005);
+  const fireWide = 2 * insideOver(fireZ - 0.05, fireZ + 0.05, floor, fireTop);
+  box(fireWide, Math.max(0.05, fireTop - floor), 0.04, 0, (fireTop + floor) / 2, fireZ, 0x141415);
 
   // ---- the centre console between the seats: the gear lever, the handbrake, the armrest
   const cy = hip[1] - 0.06;
@@ -195,50 +300,70 @@ export function makeCabin(id, spec, { scale, lite = false } = {}) {
   box(0.035, 0.03, 0.2, 0.05, cy + 0.02, hip[2] + 0.05, 0x101011, 0.18);
 
   // ---- the pedals under the driver's feet, the carpet and mats, the closing panel behind the seats
-  for (const [k, f] of feet.entries()) box(0.07, 0.11, 0.015, f[0], f[1] + 0.03, f[2] + 0.04, T.metal, -0.5);
+  for (const f of feet) box(0.07, 0.11, 0.015, f[0], f[1] + 0.03, f[2] + 0.04, T.metal, -0.5);
   box(0.06, 0.1, 0.015, hip[0] + 0.12, feet[0][1] + 0.05, feet[0][2], 0x111112, -0.6);
-  const floorLen = dashZ + 0.3 - (rearZ - 0.35);
-  box(inner * 2, 0.02, floorLen, 0, floor - 0.01, (dashZ + 0.3 + rearZ - 0.35) / 2, T.carpet);
+  const floorBack = rearZ - 0.35;
+  const floorWide = 2 * insideOver(floorBack, fireZ, floor, floor + 0.1);
+  box(floorWide, 0.02, fireZ - floorBack, 0, floor - 0.01, (fireZ + floorBack) / 2, T.carpet);
   if (T.mats) for (const z of [hip[2] + 0.38, ...(four ? [rearZ + 0.42] : [])]) for (const s of [-1, 1]) box(0.42, 0.006, 0.5, s * hip[0], floor + 0.004, z, T.mats);
-  box(inner * 2, Math.max(0.1, belt + 0.1 - floor), 0.03, 0, (belt + 0.1 + floor) / 2, rearZ - 0.38, T.carpet);
-  // (the parcel shelf behind the back seat, in a saloon)
-  box(inner * 2, 0.015, 0.36, 0, belt + 0.08, rearZ - 0.55, T.dash);
+  // (behind the back seat: a panel up to the back glass's foot and the parcel shelf over the boot, so that the boot is
+  // never seen)
+  const shelfZ = rearZ - 0.38;
+  const shelfY = Math.min(belt + 0.08, under(shelfZ - 0.36, shelfZ, 0.03));
+  const panelWide = 2 * insideOver(shelfZ - 0.02, shelfZ + 0.02, floor, shelfY);
+  box(panelWide, Math.max(0.1, shelfY - floor), 0.03, 0, (shelfY + floor) / 2, shelfZ, T.carpet);
+  box(2 * insideOver(shelfZ - 0.36, shelfZ, shelfY - 0.02, shelfY + 0.02), 0.015, 0.36, 0, shelfY, shelfZ - 0.18, T.dash);
 
-  // ---- the roof lining, the visors, the mirror
+  // ---- the roof lining, the visors, the mirror: under the roof everywhere along it
   const liningZ0 = rearZ - 0.4, liningZ1 = dashZ - 0.05;
-  box(inner * 2, 0.02, liningZ1 - liningZ0, 0, roof - 0.015, (liningZ0 + liningZ1) / 2, T.roof);
-  for (const s of [-1, 1]) box(0.32, 0.012, 0.15, s * hip[0], roof - 0.04, dashZ - 0.12, T.roof, 0.15);
-  box(0.024, 0.05, 0.02, 0, roof - 0.05, dashZ - 0.05, 0x101010);
-  box(0.24, 0.06, 0.015, 0, roof - 0.1, dashZ - 0.06, 0x18181a);
+  const liningY = under(liningZ0 + 0.1, liningZ1 - 0.1, 0.012) ;
+  const roofIn = Math.min(roof, liningY);
+  box(2 * insideOver(liningZ0, liningZ1, roofIn - 0.08, roofIn), 0.02, liningZ1 - liningZ0, 0, roofIn - 0.01, (liningZ0 + liningZ1) / 2, T.roof);
+  for (const s of [-1, 1]) box(0.32, 0.012, 0.15, s * hip[0], roofIn - 0.035, dashZ - 0.12, T.roof, 0.15);
+  box(0.024, 0.05, 0.02, 0, roofIn - 0.045, dashZ - 0.05, 0x101010);
+  box(0.24, 0.06, 0.015, 0, roofIn - 0.095, dashZ - 0.06, 0x18181a);
   // (the pillars' trim either side of the windscreen and behind the front doors, inside the body's)
   for (const s of [-1, 1]) {
-    box(0.04, roof - belt, 0.05, s * (inner - 0.02), (roof + belt) / 2, dashZ - 0.02, T.roof, -0.45);
-    if (four) box(0.05, roof - belt, 0.08, s * (inner - 0.02), (roof + belt) / 2, (hip[2] + rearZ) / 2 - 0.06, T.roof);
+    box(0.04, roofIn - belt, 0.05, s * (inside(dashZ, (roofIn + belt) / 2) - 0.02), (roofIn + belt) / 2, dashZ - 0.02, T.roof, -0.45);
+    if (four) box(0.05, roofIn - belt, 0.08, s * (inside((hip[2] + rearZ) / 2, (roofIn + belt) / 2) - 0.02), (roofIn + belt) / 2, (hip[2] + rearZ) / 2 - 0.06, T.roof);
+  }
+  // ---- seat belts across whoever sits in front: from the pillar over the shoulder to the buckle
+  for (const s of [-1, 1]) {
+    const x0 = s * (inside(hip[2] - 0.1, belt + 0.25) - 0.03), y0 = Math.min(roofIn - 0.12, belt + 0.3), z0 = hip[2] - 0.18;
+    box(0.045, 0.004, 0.25, x0 - s * 0.02, y0 - 0.12, z0, 0x161617, 0.9);
   }
 
-  // ---- the doors' insides: an armrest, a handle, a speaker, the window switches; the panel down to the floor
-  const door = (s, z0, z1) => {
-    const x = s * (inner + 0.02), zc = (z0 + z1) / 2, len = z1 - z0;
+  // ---- the doors' insides (last, each door's together: it swings with its door): an armrest, a handle, a speaker,
+  // the window switches, the panel from the floor to the window's foot, as the door the body cuts runs along the car
+  const ranges = new Map();
+  const startOf = () => B.positions.length / 3;
+  const restCount = startOf();
+  const doorList = doors.length ? doors.map((q) => ({ key: q.key, side: q.side, z0: m(q.rear), z1: m(q.front) }))
+    : [{ key: 'fl', side: 1, z0: hip[2] - 0.35, z1: dashZ - 0.05 }, { key: 'fr', side: -1, z0: hip[2] - 0.35, z1: dashZ - 0.05 }, ...(four ? [{ key: 'rl', side: 1, z0: rearZ - 0.3, z1: hip[2] - 0.38 }, { key: 'rr', side: -1, z0: rearZ - 0.3, z1: hip[2] - 0.38 }] : [])];
+  for (const q of doorList) {
+    const from = startOf();
+    const s = q.side, z0 = q.z0 + 0.03, z1 = q.z1 - 0.03, zc = (z0 + z1) / 2, len = Math.max(0.2, z1 - z0);
+    const x = s * (insideOver(z0, z1, floor + 0.05, belt) + 0.005);
     box(0.03, Math.max(0.1, belt - floor), len, x, (belt + floor) / 2, zc, T.dash);
     soft(0.07, 0.04, len * 0.45, 0.015, x - s * 0.04, hip[1] + 0.12, zc - len * 0.05, T.seat);
     box(0.015, 0.02, 0.1, x - s * 0.025, hip[1] + 0.22, zc + len * 0.25, T.metal);
     B.round(new THREE.CylinderGeometry(0.07, 0.07, 0.01, 18), at(x - s * 0.02, floor + 0.16, zc + len * 0.18, 0, 0, Math.PI / 2), 0x0d0d0e);
     box(0.04, 0.01, 0.07, x - s * 0.05, hip[1] + 0.145, zc + len * 0.15, 0x0b0b0c);
-  };
-  door(1, hip[2] - 0.35, dashZ - 0.05); door(-1, hip[2] - 0.35, dashZ - 0.05);
-  if (four) { door(1, rearZ - 0.3, hip[2] - 0.38); door(-1, rearZ - 0.3, hip[2] - 0.38); }
+    ranges.set(q.key, { from, count: startOf() - from });
+  }
 
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, map: grainPicture(), roughness: T.leather ? 0.62 : 0.92, metalness: 0 });
   // (inside is darker than outside: the roof shades it)
-  material.color.setScalar(0.82);
-  const mesh = B.build(material);
-  mesh.name = 'car-cabin';
-  mesh.castShadow = false; mesh.receiveShadow = false;
+  material.color.setScalar(0.62);
+  const whole = B.build(material).geometry;
+  // (the cabin without its doors' insides, and each door's: the same points, each drawing its own stretch of them;
+  // bounded as the whole, made before the page lets the points go)
+  const part = (from, count) => { const q = new THREE.BufferGeometry(); for (const [name, a] of Object.entries(whole.attributes)) q.setAttribute(name, a); q.setDrawRange(from, count); q.boundingSphere = whole.boundingSphere.clone(); return q; };
+  const rest = part(0, restCount);
+  const doorShapes = new Map();
+  for (const [key, r] of ranges) doorShapes.set(key, part(r.from, r.count));
 
   // ---- the steering wheel on its column, turning with the steering
-  const steering = new THREE.Group();
-  steering.position.set(wheel[0], wheel[1], wheel[2]);
-  steering.rotation.order = 'YXZ'; steering.rotation.x = -(d.tilt || 0.38);
   const W = new Batch({ uv: 'keep' });
   const R = m(d.radius || 0.038);
   W.round(new THREE.TorusGeometry(R, 0.017, 10, 36), new THREE.Matrix4(), 0x121213);
@@ -247,39 +372,25 @@ export function makeCabin(id, spec, { scale, lite = false } = {}) {
   // (our rising sun in the middle: a half disc of gold rays)
   for (let k = 0; k < 7; k += 1) { const a = Math.PI * (0.1 + 0.8 * k / 6); W.box(0.004, R * 0.18, 0.004, new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(a) * R * 0.12, Math.sin(a) * R * 0.12 - R * 0.05, -0.022), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), a - Math.PI / 2), new THREE.Vector3(1, 1, 1)), 0xc9a227); }
   W.round(new THREE.CylinderGeometry(0.03, 0.035, 0.32, 10), new THREE.Matrix4().compose(new THREE.Vector3(0, 0, 0.17), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2), new THREE.Vector3(1, 1, 1)), 0x101011);
-  const wheelMesh = W.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.1 }));
-  wheelMesh.name = 'car-steering';
-  steering.add(wheelMesh);
+  const wheelMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.1 });
+  const wheelShape = W.build(wheelMaterial).geometry;
 
-  // ---- what glows at night: the dials, the screen, and the lamp over the cabin while a door is open
-  const glowMaterial = new THREE.MeshBasicMaterial({ map: facesPicture(), color: 0x2a2a2a, toneMapped: false });
+  // ---- what glows at night: the dials and the screen (each car's own light on them: makeCabin)
   const G = new Batch({ uv: 'keep' });
   const faceAt = (w, h, x, y, z, u0, u1) => {
-    const g = new THREE.PlaneGeometry(w, h); g.rotateY(Math.PI);
-    const uv = g.attributes.uv;
+    const pg = new THREE.PlaneGeometry(w, h); pg.rotateY(Math.PI);
+    const uv = pg.attributes.uv;
     for (let i = 0; i < uv.count; i += 1) uv.setX(i, u0 + (u1 - u0) * (1 - uv.getX(i)));
-    G.add(g, at(x, y, z), 0xffffff);
+    G.add(pg, at(x, y, z), 0xffffff);
   };
-  faceAt(0.26, 0.11, hip[0], dashTop - 0.04, dashZ + 0.04, 0, 0.68);
+  faceAt(0.26, 0.11, hip[0], Math.min(dashTop - 0.04, under(dashZ, dashZ + 0.1, 0.1)), dashZ + 0.04, 0, 0.68);
   faceAt(0.25, 0.17, 0, dashLow + (dashTop - dashLow) * 0.7, dashZ - 0.028, 0.7, 1);
-  const glow = G.build(glowMaterial);
-  glow.name = 'car-dials';
-  const lamp = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.08), new THREE.MeshBasicMaterial({ color: 0xfff1d0, toneMapped: false }));
-  lamp.rotation.x = Math.PI / 2; lamp.position.set(0, roof - 0.03, (hip[2] + rearZ) / 2); lamp.visible = false;
+  const glowShape = G.build(new THREE.MeshBasicMaterial()).geometry;
 
-  const group = new THREE.Group();
-  group.name = 'car-inside';
-  group.add(mesh, steering, glow, lamp);
-  // (in the car's own units: everything here was made in metres)
-  group.scale.setScalar(1 / scale);
+  // where things are, for the tests and for seating people (metres, the car's frame from its middle, its ground)
+  const measures = { seatTop, floor, roof: roofIn, belt, dashZ, dashTop, dashDeep, fireZ, shelfZ, shelfY, rearZ, hip, wheel };
   return {
-    group,
-    steer(angle) { steering.rotation.z = Math.max(-1.6, Math.min(1.6, -angle * 1.4)); },
-    light({ night = 0, on = false, door = false } = {}) {
-      const k = on ? 0.25 + 0.75 * night : 0.08;
-      glowMaterial.color.setScalar(k);
-      lamp.visible = door && night > 0.3;
-    },
-    dispose() { mesh.geometry.dispose(); material.dispose(); wheelMesh.geometry.dispose(); wheelMesh.material.dispose(); glow.geometry.dispose(); glowMaterial.dispose(); lamp.geometry.dispose(); lamp.material.dispose(); },
+    whole, rest, doors: doorShapes, material, wheel: wheelShape, wheelMaterial, wheelAt: [wheel[0], wheel[1], wheel[2]], tilt: d.tilt || 0.38,
+    glow: glowShape, lampShape: new THREE.PlaneGeometry(0.16, 0.08), lampAt: [0, roofIn - 0.025, (hip[2] + rearZ) / 2], measures,
   };
 }

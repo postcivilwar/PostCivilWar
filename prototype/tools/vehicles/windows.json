@@ -1,0 +1,14 @@
+{
+ "_": "Settings for tools/vehicles/windows.py, a car at a time (the model's units: +z ahead, +x its left, y up). belt: how far from the hips' height to the roof the side glass may start (a share); tol, edge: how near in colour a region stays, and how sharp an edge stops it; paint, paintTop: how far from the paint's colour a pane on the sides, and seen from above, must be; zones: in each look ('left', 'right', 'top', 'front', 'back'), the shapes glass may be found in (corners in the look's own two coordinates: the sides z and y, from above z and x, in front and behind x and y); not: shapes it may not be in; panes: panes given as shapes, where the glass is painted nearly the paint's colour; seeds: more places to grow from; skip: looks not used.",
+ "grey-saloon": {},
+ "mint-sports-coupe": {
+  "_": "Its roof is black and its engine cover's louvres too: the glass found only over the windscreen and the hatch's glass seen from above, and the side windows between the belt and the roof's edge.",
+  "skip": ["front", "back"],
+  "zones": {
+   "top": [[[0.0, -0.25], [0.215, -0.25], [0.215, 0.25], [0.0, 0.25]], [[-0.41, -0.135], [-0.163, -0.135], [-0.163, 0.135], [-0.41, 0.135]]],
+   "left": [[[-0.25, 0.17], [0.16, 0.17], [0.16, 0.25], [-0.25, 0.25]]],
+   "right": [[[-0.25, 0.17], [0.16, 0.17], [0.16, 0.25], [-0.25, 0.25]]]
+  }
+ },
+ "black-luxury-suv": {"tol": 14, "edge": 30, "paint": 8}
+}

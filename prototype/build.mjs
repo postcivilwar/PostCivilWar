@@ -471,6 +471,10 @@ for (const name of readdirSync(resolve(root, 'assets/market')).filter((n) => /^b
 // photographs of each and the pictures from all round that stand in for those across the hall. The supplied car
 // files themselves are in assets/vehicles/cars/ and are not sent.
 for (const name of readdirSync(resolve(root, 'assets/vehicles/cars/game')).sort()) put(`cars/${name}`, readFileSync(resolve(root, 'assets/vehicles/cars/game', name)));
+// The owner's Mixamo moves for cars (5 November 2026: getting in, getting out, driving, sitting, talking, pulled from the
+// seat), the game's copy of them (tools/characters/car-moves.mjs; his files in assets/characters/animations/mixamo/ are
+// not sent), fetched the first time someone is seen in a car or gets into one (car-moves.js).
+put('figures/car-moves.json', readFileSync(resolve(root, 'assets/characters/animations/car-moves.json')));
 // The owner's ambulance, private jet and two trucks (17 October 2026), beside the page, where render-supplied.js
 // fetches each: the parked ones as someone comes near them, the ambulance once the town is ready; and his houses and
 // towers in town (17 October 2026), where render-town-buildings.js fetches each model as the first building drawn from
