@@ -808,13 +808,32 @@ function start(carried) {
   // (for the tests' and the owner's pictures of a car from all round: the player's own figure out of the picture)
   let lookHides = false;
   // (5 November 2026, the owner's brief: getting in, getting out and taking a car, "the camera stays outside the whole
-  // time ... It never goes into the door, the car's body or the cabin": the car being got into or out of is solid to it)
+  // time ... It never goes into the door, the car's body or the cabin": once placed, the eye is kept out of the car
+  // being got into or out of, and of its open door's sweep: `keepOutOfCar`. The car is not made solid to the camera's
+  // line from the player: with the player in it, every line would start inside it, and the eye would be drawn in too)
   let cameraCar = null;
-  const inCameraCar = (x, z, y) => { const c = cameraCar; if (!c) return false; const r = toCar(c, x, z); return Math.abs(r.along) < c.half + 0.25 && Math.abs(r.across) < c.wide + 0.25 && y < c.top + 0.3; };
+  function keepOutOfCar(eye) {
+    const c = cameraCar;
+    if (!c) return;
+    const r = toCar(c, eye.x, eye.z);
+    // (the box round it, a little off its skin; on an open door's side, as far out as the door swings)
+    const side = r.across >= 0 ? 1 : -1, door = c.doorSide === side ? c.door : 0;
+    const halfL = c.half + 0.35, halfW = c.wide + 0.35 + door, top = c.top + 0.35;
+    if (Math.abs(r.along) >= halfL || Math.abs(r.across) >= halfW || eye.y >= top) return;
+    // (out the nearest way: to the side, off an end, or over the roof)
+    const outSide = halfW - Math.abs(r.across), outEnd = halfL - Math.abs(r.along), outTop = top - eye.y;
+    let along = r.along, across = r.across;
+    if (outTop <= outSide && outTop <= outEnd) eye.y = top;
+    else if (outSide <= outEnd) across = side * halfW;
+    else along = (r.along >= 0 ? 1 : -1) * halfL;
+    const sh = Math.sin(c.h), ch = Math.cos(c.h);
+    // (the car's frame: along its heading (sin h, cos h), across to its left (cos h, -sin h))
+    eye.x = c.x + sh * along + ch * across; eye.z = c.z + ch * along - sh * across;
+  }
   const builtAt = (x, z, y) => { if (y > 3.4) return false; for (const b of builtForCamera) if (x > b.x0 - 0.25 && x < b.x1 + 0.25 && z > b.z0 - 0.25 && z < b.z1 + 0.25) return true; return false; };
   const rig = createCameraRig(camera, {
     // (a roadblock or the fence at the edge of the land is low: the camera looks over it)
-    blocked: (x, z, y) => inCameraCar(x, z, y) || (inPowerbikeHall(x, z) || inCarHall(x, z) || inSportsHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25, y - zoneGroundY(x, z))) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
+    blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) || inSportsHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25, y - zoneGroundY(x, z))) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
     ground: (x, z) => zoneGroundY(x, z),
     // (half a metre up at the least, but down in the expressway's cutting, below the land round it, as far as its road:
     // 1 November 2026)
@@ -4483,7 +4502,9 @@ function start(carried) {
   // (the game's clock against the real one: 1, unless a browser test slows everything down to look at it closely; or,
   // for a recording made in a slow headless browser, the same short step of the game's time for every frame drawn
   // however long it took to draw: `fixedStep`)
-  let timeScale = 1, fixedDt = 0;
+  // (`frameBudget`: with a fixed step, how many frames more move the game on; after them it holds, so that a recording
+  // takes each frame as it is drawn, one step apart)
+  let timeScale = 1, fixedDt = 0, frameBudget = Infinity;
   // The game's loop. The next frame is asked for before this one is drawn, and a mistake in drawing one frame is
   // written to the console and counted (`frameErrors`) rather than left to end the loop (18 October 2026, the owner's
   // brief: the game sometimes froze. Until now the next frame was asked for at the end of this one, so any error
@@ -4518,7 +4539,9 @@ function start(carried) {
   }
   function drawFrame(now) {
     const elapsed = (now - last) / 1000;
-    const frameDt = Math.min(0.5, Math.max(0.001, elapsed)), dt = fixedDt > 0 ? fixedDt : frameDt * timeScale;
+    const frameDt = Math.min(0.5, Math.max(0.001, elapsed));
+    const dt = fixedDt > 0 ? (frameBudget > 0 ? fixedDt : 1e-4) : frameDt * timeScale;
+    if (fixedDt > 0 && frameBudget > 0 && Number.isFinite(frameBudget)) frameBudget -= 1;
     last = now;
     clock += dt;
     // (until the town is built there is nothing of it to move or draw: the opening and the start screen are the page's)
@@ -4698,7 +4721,7 @@ function start(carried) {
       carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, traffic: trafficDrawn, groundY: groundAt, from: predicted, night, bodies });
       // (getting in or out, or into a car being taken, by the owner's moves where the car has glass: car-boarding.js)
       const boardMoved = (boarding && boarding.moves) || (taking && taking.kind === 'car' && ['enter', 'shut', 'slide'].includes(taking.step)) ? boardFigure(self, taking) : false;
-      { const c = boarding ? boarding.car : taking && taking.kind === 'car' && taking.car ? taking.car : null; const m = boarding ? boarding.model : taking ? taking.model : null; const sp = m && POWER_CARS[m]; cameraCar = c && sp ? { x: c.x, z: c.z, h: c.h, half: sp.length / 2, wide: sp.width / 2, top: levelAt(predicted) + 1.2 * (sp.height || 1.5) } : null; }
+      { const c = boarding ? boarding.car : taking && taking.kind === 'car' && taking.car ? taking.car : null; const m = boarding ? boarding.model : taking ? taking.model : null; const sp = m && POWER_CARS[m]; const dr = boarding ? boarding.door : taking ? taking.door : null; cameraCar = c && sp ? { x: c.x, z: c.z, h: c.h, half: sp.length / 2, wide: sp.width / 2, top: levelAt(predicted) + 1.15 * (sp.height || 1.5), doorSide: dr === 'fl' || dr === 'rl' ? 1 : dr ? -1 : 0, door: dr ? 1.05 : 0 } : null; }
       const carSeated = boardMoved || (!!ownDrive && !!incar && carView.seat(me, ownDrive));
       carsHeard = peerCars.map((q) => ({ key: q.key, car: q.id, x: q.x, z: q.z, rev: q.rev || 0, throttle: q.throttle || 0 }));
       // the town's cars on the move are heard as other players' are (the nearest few: audio.js), and their horns
@@ -4988,6 +5011,8 @@ blood.update(dt, view.blood || []);
       bonnet: playing && view && view.self.incar && ownCar() ? { ahead: ownCar().length * 0.36, height: ownCar().height * 0.66 + 0.1 } : null,
       longer: playing && view && view.self.incar && ownCar() ? Math.max(0, ownCar().length - 3) : astride && aboardShip() !== null ? 58 : astride && ownBoat() ? 2.4 : 0,
     });
+    // (getting into or out of a car, or taking one: the eye kept outside it and its open door, looking where it looked)
+    if (cameraCar && playing) { const before = camera.position.clone(); keepOutOfCar(camera.position); if (before.distanceToSquared(camera.position) > 1e-8) { camera.lookAt(cam.target.x, cam.target.y, cam.target.z); camera.updateMatrixWorld(); } }
     // a knock: the view pushed back off what was hit, a few centimetres, and let go
     const sinceKick = clock - camKick.at;
     if (sinceKick < 0.5 && camKick.amount > 0) { const k = camKick.amount * 0.07 * Math.exp(-sinceKick * 9) * Math.cos(sinceKick * 26); camera.position.x += camKick.x * k; camera.position.z += camKick.z * k; camera.position.y -= Math.abs(k) * 0.4; }
@@ -5403,7 +5428,10 @@ blood.update(dt, view.blood || []);
     slow(share = 1) { timeScale = Math.max(0.02, Math.min(1, Number(share) || 1)); return timeScale; },
     // (every frame drawn moves the game on by `seconds`, however long it took to draw: a recording in a slow headless
     // browser, frame by frame; 0 for the real time again)
-    fixedStep(seconds = 0) { fixedDt = Math.max(0, Math.min(0.25, Number(seconds) || 0)); return fixedDt; },
+    fixedStep(seconds = 0, frames = Infinity) { fixedDt = Math.max(0, Math.min(0.25, Number(seconds) || 0)); frameBudget = frames; return fixedDt; },
+    // (with a fixed step: let `n` more frames move the game on, then hold; how many are still to)
+    stepFrames(n = 1) { frameBudget = n; return frameBudget; },
+    get framesLeft() { return frameBudget; },
     // (the page's own clock, seconds: for timing frames recorded while it is slowed)
     get clock() { return clock; },
     fetchWeather: () => fetchWeather(), get realWeather() { return realWeather; },
