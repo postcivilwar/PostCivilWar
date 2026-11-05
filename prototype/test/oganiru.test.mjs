@@ -102,7 +102,8 @@ test('every lane of the city\'s roads on the ground is open to a car, and to the
       points += 1;
       assert.ok(zoneWalkable(x, z, [], 1.0, g), `${r.id}: a car's width at (${x.toFixed(1)}, ${z.toFixed(1)})`);
       assert.ok(zoneWalkable(x, z, [], 0.3), `${r.id}: the town's people at (${x.toFixed(1)}, ${z.toFixed(1)})`);
-      assert.equal(zoneSurfaceY(x, z, g), g, `${r.id}: on the ground at (${x.toFixed(1)}, ${z.toFixed(1)})`);
+      // (on the ground; or at a ramp's foot, on its road drawn 1.2 cm over it: 5 November 2026)
+      assert.ok(zoneSurfaceY(x, z, g) - g < 0.02, `${r.id}: on the ground at (${x.toFixed(1)}, ${z.toFixed(1)})`);
     }
   }
   assert.ok(points > 8000, `${points} points`);
@@ -125,8 +126,12 @@ test('the slim trees down the middle strip: their trunks are solid to a car and 
     assert.ok(!zoneWalkable(t.x, t.z, [], 0.35, 0.15), `the trunk at ${t.z.toFixed(1)} stops someone on foot`);
     assert.ok(!zoneWalkable(t.x, t.z, [], 0.35), `and the town's people`);
     assert.ok(!carFits('grey-saloon', t.x + 1.9, t.z, -Math.PI / 2, [], 0.2, 0.15), `and a car turning across the strip into it at ${t.z.toFixed(1)}`);
-    // (its leaves, high up, are not in the way of anything: what is solid is the trunk, a few tens of centimetres)
-    assert.ok(zoneWalkable(t.x + 0.9, t.z, [], 0.35, 0.15), 'beside it the strip is open');
+    // (its leaves, high up, are not in the way of anything: what is solid is the trunk and its buttresses where they stand
+    // half a metre and more, under 70 cm round; beyond, its lower roots are stood on, as drawn: 5 November 2026)
+    assert.ok(zoneWalkable(t.x + 1.1, t.z, [], 0.35, 0.15), 'beside it the strip is open');
+    let onRoot = 0;
+    for (let a = 0; a < Math.PI * 2; a += 0.1) onRoot = Math.max(onRoot, zoneGroundY(t.x + Math.sin(a) * 1.1, t.z + Math.cos(a) * 1.1));
+    assert.ok(onRoot > OGANIRU.kerb + 0.05, `on its roots round it: ${onRoot.toFixed(2)}`);
   }
   // a gap between two trees, wide enough to walk and to drive a car across the strip at a slant
   // (two next to each other, with no lamp between them)
@@ -165,7 +170,8 @@ test('a car keeps its level: up the Independence Flyover\'s ramp, over Unity Ave
   pb.lastMoveAt = w.g.state.real - 0.3;
   assert.ok(w.send(B, { type: 'car.drive', x: 2, z: -786, heading: Math.PI, speed: 8 }).ok, 'under it, going on along the avenue beneath the car on the flyover');
   assert.equal(levelAt(pb.pcar), 0);
-  assert.equal(levelAt(pa.pcar), D.level);
+  // (on its road, drawn 4 mm over the deck's level)
+  assert.ok(Math.abs(levelAt(pa.pcar) - D.level) < 0.01, `${levelAt(pa.pcar)}`);
 });
 
 test('on the flyover a car keeps inside its walls: it cannot be driven off its side, nor through its middle barrier; on the ground the embankment of its ramp is a wall', () => {
@@ -208,7 +214,7 @@ test('on foot: up a ramp a step at a time onto the expressway\'s loop, along it,
   assert.equal(walkLevel(high.x, high.z, high.y, high.x + lx * (d.half + 1.5), high.z + lz * (d.half + 1.5), [], 0.4, 0.4), null, 'not over its wall');
   // under the expressway, on the ground: the ground; on the expressway, its deck
   assert.equal(zoneSurfaceY(-30, -1130, 0), zoneGroundY(-30, -1130));
-  assert.equal(zoneSurfaceY(-30, -1130, D.level), D.level, 'on it, its deck');
+  assert.ok(Math.abs(zoneSurfaceY(-30, -1130, D.level) - (D.level + 0.004)) < 1e-9, 'on it, its deck (its road drawn 4 mm over its level)');
   // under the loop where it climbs, the ground; on it, its road where it is
   const climbing = oganiruDecksAt(-30, -1150).find((h) => h.deck.id === 'u-loop-sw');
   assert.equal(zoneSurfaceY(-30, -1150, 0), zoneGroundY(-30, -1150));

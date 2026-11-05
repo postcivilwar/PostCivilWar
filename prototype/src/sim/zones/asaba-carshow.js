@@ -21,6 +21,8 @@
 // true south, down the Kwale road). The buildings' walls are solid: nobody walks into one, and from the hall nobody
 // walks out but by the doors.
 
+import { CARSHOW_LOW_TOPS } from './carshow-footprints.js';
+
 const box = (x0, z0, x1, z1) => Object.freeze({ x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1) });
 const pt = (x, z) => Object.freeze({ x, z });
 
@@ -48,6 +50,9 @@ const BUILDINGS = Object.freeze([
   Object.freeze({
     id: 'stacked', name: 'Stacked tower', file: 'carshow-stacked.glb', source: 'modern_skyscraper_3d_model_4.glb', scale: 90, x: -510, z: -172, heading: 0,
     outline: [[-0.011, -0.3], [0.1, -0.275], [0.218, -0.255], [0.218, -0.15], [0.111, -0.061], [0.186, 0.207], [0.064, 0.207], [-0.025, 0.232], [-0.249, 0.05], [-0.243, -0.15], [-0.125, -0.246]],
+    // (and beyond it, solid too: the ramp along its north side, 18 cm up at its east end and 2 m at its west, as its
+    // model has it: 5 November 2026, walked into, the feet in it)
+    more: [[-0.0193, 0.2942, 0.137, 0.3167]],
     brand: [{ at: [0.630, 0.172, 0.715, 0.210], from: [0.630, 0.212] }, { at: [0.414, 0.646, 0.429, 0.687], from: [0.398, 0.646] }],          // another company's name, twice
   }),
   Object.freeze({
@@ -213,15 +218,20 @@ function outlineBoxes(b, cell = 2) {
   const zs = poly.map((p) => p.z), z0 = Math.min(...zs), z1 = Math.max(...zs);
   const out = [];
   for (let z = z0; z < z1; z += cell) {
-    const zc = Math.min(z1, z + cell / 2);
-    // where the row's middle line crosses the outline
-    const xs = [];
-    for (let i = 0; i < poly.length; i += 1) {
-      const a = poly[i], c = poly[(i + 1) % poly.length];
-      if ((a.z <= zc && c.z > zc) || (c.z <= zc && a.z > zc)) xs.push(a.x + ((zc - a.z) / (c.z - a.z)) * (c.x - a.x));
+    // (where the outline crosses lines across the row, its middle and four more from end to end, each a box the row's
+    // depth: the whole of the building's foot within the row. Until 5 November 2026 the middle line alone, and where the
+    // outline ran slantwise the row's box fell short of its walls, walked into, the feet in its base)
+    const ze = Math.min(z1, z + cell);
+    for (const k of [0.5, 0.02, 0.26, 0.74, 0.98]) {
+      const zc = z + (ze - z) * k;
+      const xs = [];
+      for (let i = 0; i < poly.length; i += 1) {
+        const a = poly[i], c = poly[(i + 1) % poly.length];
+        if ((a.z <= zc && c.z > zc) || (c.z <= zc && a.z > zc)) xs.push(a.x + ((zc - a.z) / (c.z - a.z)) * (c.x - a.x));
+      }
+      xs.sort((p, q) => p - q);
+      for (let i = 0; i + 1 < xs.length; i += 2) out.push(box(xs[i], z, xs[i + 1], ze));
     }
-    xs.sort((p, q) => p - q);
-    for (let i = 0; i + 1 < xs.length; i += 2) out.push(box(xs[i], z, xs[i + 1], Math.min(z1, z + cell)));
   }
   return out;
 }
@@ -251,12 +261,18 @@ function colliders() {
   out.push(box(HALL.x0, HALL.z1, HALL.x1, FRONT));
   // the two posts of the canopy over the doors (render-carshow.js, buildDoors)
   for (const s of [-1, 1]) out.push(box(DOOR_X + s * 3.5 - 0.2, FRONT + 3.0 - 0.2, DOOR_X + s * 3.5 + 0.2, FRONT + 3.0 + 0.2));
-  for (const b of BUILDINGS.slice(1)) out.push(...outlineBoxes(b));
+  for (const b of BUILDINGS.slice(1)) {
+    out.push(...outlineBoxes(b));
+    for (const [u0, v0, u1, v1] of b.more || []) { const p = onBuilding(b, u0, v0), q = onBuilding(b, u1, v1); out.push(box(p.x, p.z, q.x, q.z)); }
+  }
   // in the hall: the stands (a square inside each round one), the desks, the lounge, the plants
   for (const d of DISPLAYS) { const k = d.r * 0.72; out.push(box(d.x - k, d.z - k, d.x + k, d.z + k)); }
   out.push(...CARSHOW.desks, CARSHOW.lounge.sofa, CARSHOW.lounge.table);
   for (const c of CARSHOW.lounge.chairs) out.push(box(c.x - 0.4, c.z - 0.4, c.x + 0.4, c.z + 0.4));
   for (const p of CARSHOW.plants) out.push(box(p.x - 0.3, p.z - 0.3, p.x + 0.3, p.z + 0.3));
+  // (the post of the plate before each stand, render-carshow.js: walked through until 5 November 2026; only the post and the middle
+  // of the plate, so that the way round the stand stays open)
+  for (const d of DISPLAYS) { const px = d.x + Math.sin(d.h) * (d.r + 0.4), pz = d.z + Math.cos(d.h) * (d.r + 0.4); out.push(box(px - 0.06, pz - 0.06, px + 0.06, pz + 0.06)); }
   // on the forecourt: the planters, the flag poles and the lamp posts
   const F = CARSHOW.forecourt;
   for (const q of F.palms) out.push(box(q.x - q.r * 0.8, q.z - q.r * 0.8, q.x + q.r * 0.8, q.z + q.r * 0.8));
@@ -280,7 +296,8 @@ export function carshowGroundY(x, z) {
     for (const d of DISPLAYS) {
       const r = Math.hypot(x - d.x, z - d.z);
       if (r > d.r + 0.35) continue;
-      if (d.stand === 'hero' && r < d.r + 0.3) top = Math.max(top, 0.08);
+      // (its step's top, and its side down to its foot 5 cm wider)
+      if (d.stand === 'hero' && r < d.r + 0.3) top = Math.max(top, Math.min(0.08, (0.08 * (d.r + 0.3 - r)) / 0.05));
       if (r < d.r) top = Math.max(top, d.stand === 'turntable' ? (r < d.r * 0.74 ? 0.232 : 0.22) : d.stand === 'hero' ? 0.2 : 0.14);
     }
     return top;
@@ -289,6 +306,38 @@ export function carshowGroundY(x, z) {
   if (z > DOORS.z + 2 && z < C.z1 - 1 && Math.abs(Math.abs(x - GATE.x) - (dw + 0.1)) < 0.1) return CARSHOW_TOPS.kerb;
   if (x > GATE.x - dw && x < GATE.x + dw && z > DOORS.z + 1 && z < C.z1) return CARSHOW_TOPS.drive;
   if (x > R.x0 && x < R.x1 && z >= C.z1 && z < R.z1) return CARSHOW_TOPS.apron;
-  if (inCarCompound(x, z)) return CARSHOW_TOPS.paving;
+  if (inCarCompound(x, z)) return Math.max(CARSHOW_TOPS.paving, lowTop(x, z));
   return 0;
+}
+// (and round the buildings, what of their own is low and stood on, as their models have it: carshow-footprints.js, the
+// tops from 1.2 to 21 cm up outside each one's outline, laid in the compound as triangles in squares of 4 m)
+const LOW_CELL = 4;
+const LOW_TOPS = (() => {
+  const cells = new Map();
+  for (const b of BUILDINGS) {
+    const tris = CARSHOW_LOW_TOPS[b.id];
+    if (!tris) continue;
+    for (let i = 0; i < tris.length; i += 9) {
+      const p = [0, 1, 2].map((j) => { const at = onBuilding(b, tris[i + j * 3] / 1e5, tris[i + j * 3 + 2] / 1e5); return [at.x, (tris[i + j * 3 + 1] / 1e5) * b.scale, at.z]; });
+      const rec = Object.freeze(p.flat());
+      const xs = p.map((q) => q[0]), zs = p.map((q) => q[2]);
+      for (let a = Math.floor(Math.min(...xs) / LOW_CELL); a <= Math.floor(Math.max(...xs) / LOW_CELL); a += 1) for (let c = Math.floor(Math.min(...zs) / LOW_CELL); c <= Math.floor(Math.max(...zs) / LOW_CELL); c += 1) {
+        const key = a * 4096 + c; const list = cells.get(key); if (list) list.push(rec); else cells.set(key, [rec]);
+      }
+    }
+  }
+  return cells;
+})();
+function lowTop(x, z) {
+  const list = LOW_TOPS.get(Math.floor(x / LOW_CELL) * 4096 + Math.floor(z / LOW_CELL));
+  if (!list) return 0;
+  let top = 0;
+  for (const [ax, ay, az, bx, by, bz, cx, cy, cz] of list) {
+    const d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+    if (Math.abs(d) < 1e-12) continue;
+    const l1 = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / d, l2 = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / d, l3 = 1 - l1 - l2;
+    if (l1 < -1e-6 || l2 < -1e-6 || l3 < -1e-6) continue;
+    top = Math.max(top, l1 * ay + l2 * by + l3 * cy);
+  }
+  return top;
 }

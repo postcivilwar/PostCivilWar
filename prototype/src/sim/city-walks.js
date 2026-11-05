@@ -11,7 +11,7 @@
 //     the slip roads and the loops (the middle of each, every 8 m), along the expressway's carriageways from where it is
 //     on the ground, down through its cutting and up along its viaduct.
 // Worked out when first wanted, not before (a phone opening the town has enough to do).
-import { OGANIRU, OGANIRU_ROADS, OGANIRU_KERBED, OGANIRU_JUNCTIONS, OGANIRU_DECKS, OGANIRU_TOWERS, towerFront, OGANIRU_ROUNDABOUTS, OGANIRU_PLACES, OGANIRU_CUTTING, EXPRESSWAY_Z, expresswayY, oganiruGroundY, onOganiru, roadWidthAt, zoneWalkable } from './zone.js';
+import { OGANIRU, OGANIRU_ROADS, OGANIRU_KERBED, OGANIRU_JUNCTIONS, OGANIRU_DECKS, OGANIRU_TOWERS, towerFront, OGANIRU_ROUNDABOUTS, OGANIRU_PLACES, OGANIRU_CUTTING, EXPRESSWAY_Z, expresswayY, oganiruGroundY, onOganiru, roadWidthAt, zoneWalkable, inMouth } from './zone.js';
 import { walkLevel } from './levels.js';
 
 const KERB = OGANIRU.kerb;
@@ -148,7 +148,9 @@ function* build() {
     let prev = -1, first = -1;
     for (let a = 0; a < 360; a += 10) {
       const x = rb.x + R * Math.sin((a * Math.PI) / 180), z = rb.z + R * Math.cos((a * Math.PI) / 180);
-      if (oganiruGroundY(x, z) < KERB - 0.02) { prev = -1; continue; }
+      // (a road's mouth is crossed at its zebra, not along the ring: where its middle strip runs up to the ring, that is
+      // the strip's, not the walkway's)
+      if (inMouth(rb, x, z) || oganiruGroundY(x, z) < KERB - 0.02) { prev = -1; continue; }
       const k = add(x, z, KERB, true, 'walk');
       if (prev < 0) { run += 1; ends.push(k); }
       runOf[k] = run;

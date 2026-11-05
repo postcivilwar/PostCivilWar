@@ -32,7 +32,9 @@
 // parapet along their tops; the bridge over it is a deck at street level.
 //
 // Grid metres, as the town's: +x is true north, +z true east; the free land is west (-z). One grid metre is a metre.
-import { faceOf, feetOf, categoryOf } from '../billboards.js';
+import { faceOf, feetOf, basesOf, categoryOf } from '../billboards.js';
+import { SLIM_ROOTS } from './oganiru-roots.js';
+import { HABITATION_MODELS } from './habitation-scene.js';
 
 const KERB = 0.15;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -153,8 +155,17 @@ export const OGANIRU_ROUNDABOUTS = Object.freeze([
 ]);
 const GATE = OGANIRU_ROUNDABOUTS[0];
 const legVector = (dir) => (dir === 'n' ? [1, 0] : dir === 's' ? [-1, 0] : dir === 'e' ? [0, 1] : [0, -1]);
-// Is (x, z) in the mouth of one of a roundabout's legs (where its walkway ring is cut for the road)?
-const inMouth = (r, x, z) => r.legs.some((l) => { const [ux, uz] = legVector(l.dir); const along = (x - r.x) * ux + (z - r.z) * uz, across = Math.abs(-(x - r.x) * uz + (z - r.z) * ux); return along > 0 && across < l.half + 0.5; });
+// Is (x, z) in the mouth of one of a roundabout's legs (where its walkway ring is cut for the road)? As it is drawn
+// (render-oganiru.js, roundaboutTile): the ring in 56 pieces round it, each left out where a point 2 m beyond the
+// roundabout's edge, half way round the piece, is within a leg's road. (Until 5 November 2026 decided at the point
+// itself: at the ring's edges either side of a mouth people stood 15 cm under its paving.)
+const RING_PIECES = 56;
+export const inMouth = (r, x, z) => {
+  const a = (Math.atan2(x - r.x, z - r.z) + Math.PI * 2) % (Math.PI * 2);
+  const m = (Math.floor(a / ((Math.PI * 2) / RING_PIECES)) + 0.5) * ((Math.PI * 2) / RING_PIECES);
+  const px = Math.sin(m) * (r.outer + 2), pz = Math.cos(m) * (r.outer + 2);
+  return r.legs.some((l) => { const [ux, uz] = legVector(l.dir); return px * ux + pz * uz > 0 && Math.abs(-px * uz + pz * ux) < l.half + 0.5; });
+};
 
 // ------------------------------------------------------------------------------------- the expressway's levels --
 // Its road along x: at ground from its south end, down into the cutting (7.6 m under the Hope Avenue bridge), up out of
@@ -530,11 +541,30 @@ export function oganiruDecksAt(x, z) {
     const d2 = -left;
     const was = best.get(d);
     if (was && was.off <= along) continue;
-    const y = a.y + (b.y - a.y) * t + (a.bank + (b.bank - a.bank) * t) * d2;
+    const y = drawnDeckY(d, a, b, x, z) ?? a.y + (b.y - a.y) * t + (a.bank + (b.bank - a.bank) * t) * d2 + deckOver(d, a);
     best.set(d, { deck: d, s, d: d2, off: along, y });
   }
   for (const h of best.values()) hitsOut.push(h);
   return hitsOut;
+}
+// A deck's road as it is drawn (render-oganiru.js, decksTile): a little over where it lies, 1.2 cm where it is low (a
+// ramp's foot, over the ground drawn under it) and 4 mm higher up; each stretch from one point of its way to the next a
+// face from side to side, each side out square to the way it runs at that point, cut into two along the diagonal from
+// the first point's right to the next point's left. Its height at (x, z) as drawn, or none where (x, z) is not under
+// that face. (5 November 2026, the surface sweep: until then a ramp was stood on at the height along its middle line,
+// and on its curves and at its foot people stood up to 6 cm in it or over it.)
+const deckOver = (d, p) => (p.y < 0.35 && d.kind !== 'bridge' ? 0.012 : 0.004);
+function drawnDeckY(d, a, b, x, z) {
+  const c = (p, off) => [p.x + p.uz * off, p.y + p.bank * off + deckOver(d, p), p.z - p.ux * off];
+  const A0 = c(a, -d.half), B0 = c(b, -d.half), B1 = c(b, d.half), A1 = c(a, d.half);
+  return inFace(A0, B0, B1, x, z) ?? inFace(A0, B1, A1, x, z);
+}
+function inFace(p, q, r, x, z) {
+  const det = (q[2] - r[2]) * (p[0] - r[0]) + (r[0] - q[0]) * (p[2] - r[2]);
+  if (Math.abs(det) < 1e-12) return null;
+  const l1 = ((q[2] - r[2]) * (x - r[0]) + (r[0] - q[0]) * (z - r[2])) / det, l2 = ((r[2] - p[2]) * (x - r[0]) + (p[0] - r[0]) * (z - r[2])) / det, l3 = 1 - l1 - l2;
+  if (l1 < -1e-9 || l2 < -1e-9 || l3 < -1e-9) return null;
+  return l1 * p[1] + l2 * q[1] + l3 * r[1];
 }
 // (`d` is measured + to the left of the way the deck runs: for one running north, + to the west)
 
@@ -713,6 +743,25 @@ for (const t of OGANIRU_TOWERS) {
 // (where a tower's front is: the middle of the face it looks out of, `out` metres out from it; and the way along that face)
 export const towerFront = (t, out = 0) => { const [fx, fz] = t.face; return { x: t.x + fx * (t.dx / 2 + out), z: t.z + fz * (t.dz / 2 + out), along: [Math.abs(fz), Math.abs(fx)], half: fx ? t.dz / 2 : t.dx / 2, heading: Math.atan2(fx, fz) }; };
 
+// (each tower's steps up to its doors, as render-oganiru.js lays them: three, 8 m wide, 15 cm each over the plaza, from
+// 1.2 m in under its front out to 2.7, 1.8 and 0.9 m beyond it; stood on as they are drawn, 5 November 2026: until then
+// people stood in them, the plaza's height)
+const TOWER_STEPS = OGANIRU_TOWERS.flatMap((t) => {
+  const [fx, fz] = t.face;
+  const fx0 = t.x + fx * (t.dx / 2), fz0 = t.z + fz * (t.dz / 2);
+  return [[2.7, 0.15], [1.8, 0.3], [0.9, 0.45]].map(([out, rise]) => {
+    const ax = fx0 - fx * 1.2, az = fz0 - fz * 1.2, bx = fx0 + fx * out, bz = fz0 + fz * out, wx = Math.abs(fz) * 4, wz = Math.abs(fx) * 4;
+    return Object.freeze({ x0: Math.min(ax, bx) - wx, x1: Math.max(ax, bx) + wx, z0: Math.min(az, bz) - wz, z1: Math.max(az, bz) + wz, top: KERB + rise });
+  });
+});
+const STEP_CELLS = new Map();
+for (const b of TOWER_STEPS) {
+  for (let i = Math.floor(b.x0 / CELL); i <= Math.floor(b.x1 / CELL); i += 1) for (let j = Math.floor(b.z0 / CELL); j <= Math.floor(b.z1 / CELL); j += 1) {
+    const key = i * 4096 + j;
+    if (!STEP_CELLS.has(key)) STEP_CELLS.set(key, []);
+    STEP_CELLS.get(key).push(b);
+  }
+}
 const KERB_CELLS = new Map();
 for (const b of KERBED) {
   for (let i = Math.floor(b.x0 / CELL); i <= Math.floor(b.x1 / CELL); i += 1) for (let j = Math.floor(b.z0 / CELL); j <= Math.floor(b.z1 / CELL); j += 1) {
@@ -731,13 +780,66 @@ export function oganiruGroundY(x, z) {
     if (dg >= r.outer + r.walk + 0.5) continue;
     if (dg <= r.island) return KERB;
     if (dg <= r.outer) return 0;
-    // the walkway round it, but where a road comes in
-    return inMouth(r, x, z) ? 0 : KERB;
+    if (dg > r.outer + r.walk) break;
+    // the walkway round it, but where a road comes in: there, what the road has (its middle strip comes up to the ring:
+    // until 5 November 2026 its last metres were stood on at the road's height, 15 cm under its grass)
+    if (!inMouth(r, x, z)) return KERB;
+    break;
   }
-  const list = KERB_CELLS.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL));
-  if (list) for (const b of list) if (x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1) return KERB;
-  return 0;
+  const key = Math.floor(x / CELL) * 4096 + Math.floor(z / CELL);
+  let top = 0;
+  const steps = STEP_CELLS.get(key);
+  if (steps) for (const b of steps) if (x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1) top = Math.max(top, b.top);
+  if (!top) {
+    const list = KERB_CELLS.get(key);
+    if (list) for (const b of list) if (x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1) { top = KERB; break; }
+  }
+  // (and over a slim tree's roots, their top)
+  const trees = SLIM_CELLS.get(key);
+  if (trees) for (const t of trees) top = Math.max(top, slimRootY(t, x, z));
+  return top;
 }
+// The slim trees' roots as they are drawn (5 November 2026: until then their trunks alone were solid, 30 cm round, and
+// people stood in the buttress roots spread 1.6 m round them): solid within SLIM_CORE of the middle of its foot (of the
+// model's unit: there its buttresses stand half a metre and more), and beyond it, out to their ends, stood on
+// (oganiru-roots.js, from the owner's model; each tree at the size and turn it is drawn, render-oganiru.js).
+export const SLIM_TREE_HEIGHT = 13.4;
+export const SLIM_CORE = 0.045;
+const SLIM_UNIT = HABITATION_MODELS.slimtree ? HABITATION_MODELS.slimtree.unit : 1;
+export const slimTreeScale = (t) => (SLIM_TREE_HEIGHT * t.size) / SLIM_UNIT;
+const ROOT_G = 0.02, ROOT_O = 0.14, ROOT_N = 14;
+const ROOT_FACES = (() => {
+  const cells = Array.from({ length: ROOT_N * ROOT_N }, () => []);
+  const T = SLIM_ROOTS.tris;
+  for (let i = 0; i < T.length; i += 9) {
+    const f = Object.freeze(Array.from({ length: 9 }, (_, k) => T[i + k] / 1e5));
+    const cell = (v) => Math.floor((v + ROOT_O) / ROOT_G);
+    for (let a = Math.max(0, cell(Math.min(f[0], f[3], f[6]))); a <= Math.min(ROOT_N - 1, cell(Math.max(f[0], f[3], f[6]))); a += 1) {
+      for (let b = Math.max(0, cell(Math.min(f[2], f[5], f[8]))); b <= Math.min(ROOT_N - 1, cell(Math.max(f[2], f[5], f[8]))); b += 1) cells[b * ROOT_N + a].push(f);
+    }
+  }
+  return cells;
+})();
+// the top of a slim tree's roots at (x, z), or nothing (-Infinity)
+function slimRootY(t, x, z) {
+  const s = slimTreeScale(t), dx = (x - t.x) / s, dz = (z - t.z) / s, c = Math.cos(t.turn), sn = Math.sin(t.turn);
+  // (into the model's frame: three.js's turn about the upright, undone)
+  const px = dx * c - dz * sn, pz = dx * sn + dz * c;
+  const a = Math.floor((px + ROOT_O) / ROOT_G), b = Math.floor((pz + ROOT_O) / ROOT_G);
+  if (a < 0 || b < 0 || a >= ROOT_N || b >= ROOT_N) return -Infinity;
+  let top = -Infinity;
+  for (const f of ROOT_FACES[b * ROOT_N + a]) {
+    const det = (f[5] - f[8]) * (f[0] - f[6]) + (f[6] - f[3]) * (f[2] - f[8]);
+    if (Math.abs(det) < 1e-14) continue;
+    const l1 = ((f[5] - f[8]) * (px - f[6]) + (f[6] - f[3]) * (pz - f[8])) / det, l2 = ((f[8] - f[2]) * (px - f[6]) + (f[0] - f[6]) * (pz - f[8])) / det, l3 = 1 - l1 - l2;
+    if (l1 < -1e-9 || l2 < -1e-9 || l3 < -1e-9) continue;
+    top = Math.max(top, l1 * f[1] + l2 * f[4] + l3 * f[7]);
+  }
+  // (each tree is drawn 5 cm down into the strip)
+  return top === -Infinity ? top : t.y - 0.05 + s * top;
+}
+// (the trees round each square of the city, filled in once they are all placed: below, by OGANIRU_SOLIDS)
+const SLIM_CELLS = new Map();
 
 // --------------------------------------------------------------------------- where the land is open --
 // The city's land that can be walked and driven (its edge is fenced, closures.js): the whole of it from Stage 2.
@@ -1066,12 +1168,30 @@ export const OGANIRU_BILLBOARDS = Object.freeze([
   const feet = feetOf(type, 1).map((f) => { const fx = x + Math.cos(heading) * f.x + Math.sin(heading) * f.z, fz = z - Math.sin(heading) * f.x + Math.cos(heading) * f.z, r = f.r || 0.5; return [fx - r, fz - r, fx + r, fz + r].map((v) => Math.round(v * 10) / 10); });
   return Object.freeze({ id: `OC-${String(n + 1).padStart(2, '0')}`, type, scale: 1, category: categoryOf(face.width, face.height, false), tv: false, width: face.width, height: face.height, bottom: face.bottom, x, z, heading, region: 'city', place: `Oganiru Expressway, ${side > 0 ? 'east' : 'west'} bank`, feet, advert });
 }));
+for (const t of OGANIRU_TREES) {
+  if (t.kind !== 'slim') continue;
+  const R = SLIM_ROOTS.reach * slimTreeScale(t) + 0.01;
+  for (let i = Math.floor((t.x - R) / CELL); i <= Math.floor((t.x + R) / CELL); i += 1) for (let j = Math.floor((t.z - R) / CELL); j <= Math.floor((t.z + R) / CELL); j += 1) {
+    const key = i * 4096 + j;
+    if (!SLIM_CELLS.has(key)) SLIM_CELLS.set(key, []);
+    SLIM_CELLS.get(key).push(t);
+  }
+}
 export const OGANIRU_SOLIDS = Object.freeze([
-  ...OGANIRU_TREES.map((t) => circle(t.x, t.z, t.kind === 'slim' ? 0.3 : t.kind === 'palm' ? 0.28 : 0.42, 12, { tree: true })),
+  // (a slim tree, its trunk and its buttresses where they stand half a metre and more: SLIM_CORE; its lower roots beyond
+  // are stood on, oganiruGroundY)
+  ...OGANIRU_TREES.map((t) => circle(t.x, t.z, t.kind === 'slim' ? SLIM_CORE * slimTreeScale(t) : t.kind === 'palm' ? 0.28 : 0.42, 12, { tree: true })),
   // (the billboards' poles)
   ...OGANIRU_BILLBOARDS.flatMap((b) => b.feet.map(([x0, z0, x1, z1]) => circle((x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2 + 0.05, b.bottom + b.height + 1, { billboard: b.id }))),
+  // (and the plates and footings under them, as drawn: billboards.js basesOf; walked into until 5 November 2026)
+  ...OGANIRU_BILLBOARDS.flatMap((b) => basesOf(b.type, b.scale).map((q) => circle(b.x + Math.cos(b.heading) * q.x + Math.sin(b.heading) * q.z, b.z - Math.sin(b.heading) * q.x + Math.cos(b.heading) * q.z, q.half * Math.SQRT2, q.top, { billboard: b.id }))),
   ...OGANIRU_SIGNALS.map((s) => circle(s.x, s.z, 0.13, 5)),
   ...OGANIRU_PILLARS.map((p) => circle(p.x, p.z, p.r, p.top, { pillar: true })),
+  // (the roundabouts' middles: the gate's stepped plinth and its obelisk, the others' raised beds behind their low walls,
+  // render-oganiru.js; walked into until 5 November 2026)
+  ...OGANIRU_ROUNDABOUTS.map((r) => (r.id === 'gate' ? circle(r.x, r.z, 3.5 * Math.SQRT2, KERB + 11.2) : circle(r.x, r.z, 4.4, KERB + 0.55))),
+  // (and each one's footing, 40 cm high, 45 cm out round its foot: render-oganiru.js; walked into until 5 November 2026)
+  ...OGANIRU_PILLARS.map((p) => circle(p.x, p.z, p.r + 0.45, 0.4, { pillar: true, footing: true })),
 ]);
 // (the lamps' poles are street-lamps.js's: they can be knocked down)
 const SOLID_CELLS = new Map();
@@ -1141,7 +1261,9 @@ export function oganiruSurface(x, z, y, ground = 0) {
   let best = { y: ground, deck: null, hit: null };
   if (!Number.isFinite(y)) return best;
   for (const h of oganiruDecksAt(x, z)) {
-    if (h.y <= y + OGANIRU.step && h.y > best.y + 0.02) best = { y: h.y, deck: h.deck, hit: { ...h } };
+    // (a deck's road from a centimetre over the ground: at a ramp's foot its road is drawn from there, and until
+    // 5 November 2026 whoever stood on its first metres stood on the ground under it, up to 2.4 cm into it)
+    if (h.y <= y + OGANIRU.step && h.y > best.y + 0.01) best = { y: h.y, deck: h.deck, hit: { ...h } };
   }
   return best;
 }

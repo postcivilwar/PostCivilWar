@@ -71,7 +71,13 @@ test('each tower\'s front looks onto its street: its plaza runs out to that stre
     for (const side of [-6, 0, 6]) {
       const sx = f.x + f.along[0] * side, sz = f.z + f.along[1] * side;
       const out = fx ? Math.abs(t.front - sx) : Math.abs(t.front - sz);
-      for (let d = 0.5; d <= out + 1; d += 0.5) assert.equal(oganiruGroundY(sx + fx * d, sz + fz * d), KERB, `${t.name}: ${d} m out of its front (${side} along) is its plaza or the walkway`);
+      // (its steps up to its doors first, 8 m wide, each 15 cm, out to 0.9, 1.8 and 2.7 m: stood on, 5 November 2026)
+      const step = (d) => (Math.abs(side) >= 4 ? 0 : d <= 0.9 ? 0.45 : d <= 1.8 ? 0.3 : d <= 2.7 ? 0.15 : 0);
+      // (further out, across a plaza, another tower's steps may be met: raised all the way)
+      for (let d = 0.5; d <= out + 1; d += 0.5) {
+        const y = oganiruGroundY(sx + fx * d, sz + fz * d);
+        assert.ok(step(d) ? Math.abs(y - (KERB + step(d))) < 1e-9 : y >= KERB - 1e-9, `${t.name}: ${d} m out of its front (${side} along) is its steps, its plaza or the walkway`);
+      }
       let road = null;
       for (let d = out + 1; d <= out + 8 && !road; d += 0.5) road = roadAt(sx + fx * d, sz + fz * d);
       assert.ok(road, `${t.name}: its street within 8 m of its plaza's edge (${side} along)`);

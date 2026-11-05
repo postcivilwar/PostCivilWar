@@ -29,10 +29,10 @@ const AREAS = [
   { name: 'town-east', x0: 120, z0: -120, x1: 250, z1: 118, step: 4, at: [185, 0] },
   { name: 'bridge', x0: -215, z0: 110, x1: -195, z1: 330, step: 1.5, at: [-205, 200, 7] },
   { name: 'outskirts-road', x0: -420, z0: -60, x1: -260, z1: -20, step: 2, at: [-340, -40] },
-  { name: 'powerbike', x0: -82, z0: 18, x1: -42, z1: 58, step: 1, at: [-62, 40] },
-  { name: 'carshow-hall', x0: -446, z0: -197, x1: -358, z1: -155, step: 1.5, at: [-400, -176] },
+  { name: 'powerbike', halls: true, x0: -82, z0: 18, x1: -42, z1: 58, step: 1, at: [-62, 40] },
+  { name: 'carshow-hall', halls: true, x0: -446, z0: -197, x1: -358, z1: -155, step: 1.5, at: [-400, -176] },
   { name: 'carshow-yard', x0: -560, z0: -212, x1: -275, z1: -70, step: 4, at: [-420, -120] },
-  { name: 'sports-mall', x0: -702, z0: -182, x1: -588, z1: -72, step: 2, at: [-645, -150] },
+  { name: 'sports-mall', halls: true, x0: -702, z0: -182, x1: -588, z1: -72, step: 2, at: [-645, -150] },
   { name: 'upriver', x0: 240, z0: 60, x1: 330, z1: 125, step: 2, at: [290, 100] },
   { name: 'habitation-gate', x0: 320, z0: 40, x1: 420, z1: 130, step: 2, at: [340, 90] },
   { name: 'habitation-forest', x0: 450, z0: 40, x1: 540, z1: 130, step: 2, at: [493, 86] },
@@ -73,6 +73,7 @@ const MAP = [
 const pick = process.argv[4] ? (process.argv[4].startsWith('[') ? JSON.parse(process.argv[4]) : process.argv[4].split(',')) : null;
 const areas = !pick ? AREAS : pick.flatMap((a) => (typeof a !== 'string' ? [a] : a === 'map' ? [...AREAS, ...MAP] : [...AREAS, ...MAP].filter((b) => b.name === a || b.name.startsWith(`${a}:`))));
 const LIMIT = 0.02;
+const HAB = Z.HABITATION.bounds;
 
 // the points: where a person can stand, at each level there
 function pointsOf(a) {
@@ -81,11 +82,18 @@ function pointsOf(a) {
   // out of it, as it is drawn)
   for (let x = a.x0 + 0.0137; x <= a.x1 + 1e-6; x += a.step) for (let z = a.z0 + 0.0241; z <= a.z1 + 1e-6; z += a.step) {
     const px = +x.toFixed(4), pz = +z.toFixed(4);
-    if (Z.zoneWalkable(px, pz, [], 0.25)) pts.push([px, pz, Z.zoneGroundY(px, pz), 'ground']);
+    // (a showroom's hall is drawn as it is from inside only when someone is in it: its points are looked at from inside,
+    // in its own area, not from the squares round it)
+    if (!a.halls && (Z.inPowerbikeHall(px, pz) || Z.inCarHall(px, pz) || Z.inSportsHall(px, pz))) continue;
+    // (on the ground: where someone coming there on foot stands, as the game has it (zoneSurfaceY); at the foot of a ramp,
+    // where its road is less than a step over the ground, that is on the ramp)
+    const levels = [];
+    if (Z.zoneWalkable(px, pz, [], 0.25)) { const g = Z.zoneSurfaceY(px, pz, Z.zoneGroundY(px, pz)); levels.push(g); pts.push([px, pz, g, 'ground']); }
     if (a.decks !== false) for (const dy of Z.zoneDeckHeights(px, pz)) {
       const lv = Z.zoneLevel(px, pz, dy);
-      if (!lv.deck) continue;
+      if (!lv.deck || levels.some((y) => Math.abs(y - lv.y) < 0.01)) continue;
       if (!Z.zoneWalkable(px, pz, [], 0.25, lv.y)) continue;
+      levels.push(lv.y);
       pts.push([px, pz, lv.y, 'deck']);
     }
   }
@@ -114,6 +122,9 @@ await pastQuestion(page);
 await page.fill('#name', 'Sweep');
 await enterTown(page, { tap: PHONE, wait: 900000 });
 await page.waitForFunction(() => window.__nlw.me && window.__nlw.me.mixer, null, { timeout: 300000 });
+// (the land beyond the town and Oganiru City made at once, as for someone already out there: the game makes them a piece
+// at a time otherwise)
+await page.evaluate(() => { const n = window.__nlw; if (!n.beyond) n.buildBeyond(); n.buildCity(); });
 // (by day: nothing of the night changes what is drawn where, and the lamps' pools are marks, left out anyway)
 await page.evaluate(() => {
   // the drawn surfaces in a box: every solid, upward-facing triangle (or, drawn from both sides, either way up), in a
@@ -132,6 +143,9 @@ await page.evaluate(() => {
         if (!o.isMesh || o.isSkinnedMesh || (o.userData && o.userData.mark) || o.renderOrder >= 2) return;
         const mat = Array.isArray(o.material) ? o.material[0] : o.material;
         if (!mat || mat.transparent || mat.visible === false || mat.side === THREE.BackSide || mat.colorWrite === false) return;
+        // (leaves, ferns, the shade inside a tree's crown and the habitation's tufts of grass are walked through, not stood
+        // on; the city's grass, its middle strips and islands, is ground)
+        if (/leaves|foliage|habitation-grass|:inside/i.test(label(o))) return;
         const g = o.geometry; if (!g || !g.attributes || !g.attributes.position) return;
         found.push(o);
       });
@@ -162,8 +176,10 @@ await page.evaluate(() => {
       for (let q = 0; q < todo.length; q += 1) {
         const { o, places } = todo[q];
         const g = o.geometry, mat = Array.isArray(o.material) ? o.material[0] : o.material;
-        const attr = g.attributes.position;
+        // (let go meanwhile: the page goes on while each is read)
+        const attr = g && g.attributes && g.attributes.position;
         const [arr, idx, colours] = arrays[q];
+        if (!attr) continue;
         const stride = attr.isInterleavedBufferAttribute ? attr.data.stride : attr.itemSize, offset = attr.isInterleavedBufferAttribute ? attr.offset : 0;
         if (!arr || (g.index && !idx)) { unread += 1; continue; }
         const k = !attr.normalized ? 1 : arr instanceof Int16Array ? 1 / 32767 : arr instanceof Uint16Array ? 1 / 65535 : arr instanceof Int8Array ? 1 / 127 : arr instanceof Uint8Array ? 1 / 255 : 1;
@@ -234,17 +250,94 @@ await page.evaluate(() => {
     },
   };
 });
+// (SWEEP_PROBE='[[x, z, y], ...]': instead of the areas, for each point every mesh of the scene whose triangles lie over
+// or under it within 3 m of y, visible or not, whatever it is drawn with: what it is, and why the sweep would leave it
+// out, if it would)
+if (process.env.SWEEP_PROBE) {
+  // (each point's own: where the player stands while it is looked at, 3 m from it unless given)
+  for (const [x, z, y = 0, px = x + 3, pz = z + 3] of JSON.parse(process.env.SWEEP_PROBE)) {
+    await page.evaluate(([px, pz, y]) => window.__nlw.place(px, pz, y), [px, pz, y]);
+    await page.waitForTimeout(8000);
+    const found = await page.evaluate(async ([x, z, y]) => {
+      const n = window.__nlw, out = [];
+      const im = new THREE.Matrix4(), a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+      n.scene.updateMatrixWorld(true);
+      const meshes = []; n.scene.traverse((o) => { if (o.isMesh && o.geometry && o.geometry.attributes && o.geometry.attributes.position) meshes.push(o); });
+      for (const o of meshes) {
+        const g = o.geometry, mat = Array.isArray(o.material) ? o.material[0] : o.material;
+        // (let go meanwhile: the page goes on while each is read)
+        const attr = g && g.attributes && g.attributes.position;
+        if (!attr) continue;
+        const arr = await n.numbersOf(attr.isInterleavedBufferAttribute ? attr.data : attr); const idx = g.index ? await n.numbersOf(g.index) : null;
+        if (!arr) { out.push({ name: o.name, unread: true }); continue; }
+        const stride = attr.isInterleavedBufferAttribute ? attr.data.stride : attr.itemSize, off = attr.isInterleavedBufferAttribute ? attr.offset : 0;
+        const k = !attr.normalized ? 1 : arr instanceof Int16Array ? 1 / 32767 : arr instanceof Uint16Array ? 1 / 65535 : 1;
+        const count = o.isInstancedMesh ? o.count : 1;
+        const total = idx ? idx.length : Math.floor((arr.length - off) / stride);
+        const get = (v, i) => { const j = i * stride + off; return v.set(arr[j] * k, arr[j + 1] * k, arr[j + 2] * k); };
+        let visible = true; for (let q = o; q; q = q.parent) if (!q.visible) visible = false;
+        for (let inst = 0; inst < count; inst += 1) {
+          const p = new THREE.Matrix4().copy(o.matrixWorld); if (o.isInstancedMesh) { o.getMatrixAt(inst, im); p.multiply(im); }
+          for (let t = 0; t + 2 < total; t += 3) {
+            get(a, idx ? idx[t] : t).applyMatrix4(p); get(b, idx ? idx[t + 1] : t + 1).applyMatrix4(p); get(c, idx ? idx[t + 2] : t + 2).applyMatrix4(p);
+            if (Math.max(a.x, b.x, c.x) < x || Math.min(a.x, b.x, c.x) > x || Math.max(a.z, b.z, c.z) < z || Math.min(a.z, b.z, c.z) > z) continue;
+            const d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z); if (Math.abs(d) < 1e-12) continue;
+            const l1 = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / d, l2 = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / d, l3 = 1 - l1 - l2;
+            if (l1 < -1e-6 || l2 < -1e-6 || l3 < -1e-6) continue;
+            const yy = l1 * a.y + l2 * b.y + l3 * c.y; if (Math.abs(yy - y) > 3) continue;
+            const nx = (b.y - a.y) * (c.z - a.z) - (b.z - a.z) * (c.y - a.y), ny = (b.z - a.z) * (c.x - a.x) - (b.x - a.x) * (c.z - a.z), nz = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+            const up = ny / Math.hypot(nx, ny, nz);
+            const chain = []; for (let q = o; q && chain.length < 4; q = q.parent) chain.push(q.name || q.type);
+            out.push({ y: +yy.toFixed(3), up: +up.toFixed(2), name: chain.join('<'), visible, transparent: !!mat.transparent, side: mat.side, renderOrder: o.renderOrder, mark: !!(o.userData && o.userData.mark), alphaTest: mat.alphaTest, colorWrite: mat.colorWrite, matVisible: mat.visible, type: mat.type });
+            break;
+          }
+        }
+      }
+      return out.sort((p, q) => (q.y || 0) - (p.y || 0));
+    }, [x, z, y]);
+    console.log(`probe (${x}, ${z}) stand ${Z.zoneSurfaceY(x, z, y).toFixed(3)} walkable ${Z.zoneWalkable(x, z, [], 0.25, y)}:`);
+    for (const f of found) console.log('   ', JSON.stringify(f));
+  }
+  await browser.close(); server.close(); process.exit(0);
+}
 const report = [];
 for (const a of areas) {
   const pts = pointsOf(a);
   if (!pts.length) { console.log(a.name, 'no points'); continue; }
   const at = a.at || [(a.x0 + a.x1) / 2, (a.z0 + a.z1) / 2];
   await page.evaluate((at) => { const n = window.__nlw; n.place(at[0], at[1], at[2]); }, at);
-  await page.waitForTimeout(a.wait || 12000);
+  await page.waitForTimeout(a.wait || 8000);
+  // (and then until what is drawn round there has all come: the habitation is made near whoever comes to it; then until
+  // what is drawn there stops changing for 3 seconds, the people and the vehicles going by aside, or half a minute)
+  if (a.x1 > HAB.x0 && a.x0 < HAB.x1 && a.z1 > HAB.z0 && a.z0 < HAB.z1) await page.waitForFunction(() => window.__nlw.habitation && window.__nlw.habitation.built, null, { timeout: 120000, polling: 500 }).catch(() => console.log(`   (${a.name}: the habitation not built after two minutes)`));
+  await page.evaluate(() => { window.__settle = null; });
+  await page.waitForFunction(() => {
+    let c = 0;
+    const still = (o) => { for (let q = o; q; q = q.parent) if (q.isSkinnedMesh || /^car:|crowd|traffic|vehicle|player/i.test(q.name || '')) return false; return true; };
+    window.__nlw.scene.traverseVisible((o) => { if (o.isMesh && still(o)) c += 1; });
+    const s = window.__settle || (window.__settle = { c: -1, since: performance.now() });
+    if (c !== s.c) { s.c = c; s.since = performance.now(); }
+    return performance.now() - s.since > 3000;
+  }, null, { timeout: 30000, polling: 500 }).catch(() => console.log(`   (${a.name}: still changing after half a minute)`));
+  // (and the city's pieces round it built: each is built a few milliseconds a frame, and here a frame takes a second or
+  // more; until 5 November 2026 one still being built was taken for a hole in the road)
+  const reach = Math.hypot(a.x1 - a.x0, a.z1 - a.z0) / 2 + 40;
+  await page.waitForFunction((reach) => { const c = window.__nlw.city; if (!c || !c.ready || !c.pieces) return true; return !c.pieces().some((p) => p.d < reach && ['queued', 'building', 'compiling'].includes(p.state)); }, reach, { timeout: 240000, polling: 1000 }).catch(() => console.log(`   (${a.name}: the city's pieces round it still being built after four minutes)`));
   const ys = pts.map((p) => p[2]);
   const got = await page.evaluate(async ({ box, ylo, yhi }) => window.__sweep.collect(box, ylo, yhi), { box: { x0: a.x0 - 1, z0: a.z0 - 1, x1: a.x1 + 1, z1: a.z1 + 1 }, ylo: Math.min(...ys) - 1.5, yhi: Math.max(...ys) + 1 });
   const res = [];
   for (let i = 0; i < pts.length; i += 2000) res.push(...await page.evaluate((chunk) => window.__sweep.query(chunk), pts.slice(i, i + 2000).map((p) => [p[0], p[1], p[2], p[3]])));
+  // (where nothing is drawn at a point, or only lower than the stand, it may be in the gap between two boards of a deck
+  // (4 cm in 24): a foot there is on the boards either side. So there, 5 cm either way along and across: the highest)
+  const low = pts.map((p, i) => i).filter((i) => res[i] !== null && (!res[i].length || res[i][0][0] < pts[i][2] - LIMIT));
+  if (low.length) {
+    const near = low.flatMap((i) => [[0.05, 0], [-0.05, 0], [0, 0.05], [0, -0.05]].map(([dx, dz]) => [pts[i][0] + dx, pts[i][1] + dz, pts[i][2], pts[i][3]]));
+    const got = [];
+    for (let i = 0; i < near.length; i += 2000) got.push(...await page.evaluate((chunk) => window.__sweep.query(chunk), near.slice(i, i + 2000)));
+    low.forEach((i, k) => {
+      for (const hits of got.slice(k * 4, k * 4 + 4)) if (hits && hits.length && (!res[i].length || hits[0][0] > res[i][0][0])) res[i] = hits;
+    });
+  }
   await page.evaluate(() => { window.__sweep.grid = null; });
   const rows = pts.map((p, i) => {
     const hits = res[i];

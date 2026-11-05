@@ -302,7 +302,8 @@ function addYard(B, c, signs) {
     if (y.kind === 'parking') {
       solid.box(y.x1 - y.x0, 0.03, y.z1 - y.z0, place((y.x0 + y.x1) / 2, 0.015, (y.z0 + y.z1) / 2), 0x77756e);
       // (the bays' lines painted on it, under a centimetre proud: 5 November 2026, stood on, not in)
-      for (let i = 0; i <= y.bays; i += 1) solid.box(0.12, 0.008, (y.z1 - y.z0) * 0.6, place(y.x0 + ((y.x1 - y.x0) * i) / y.bays, 0.034, (y.z0 + y.z1) / 2), 0xe8e2d0);
+      // (the end ones inside its edges: half of each was on the bare ground beside it)
+      for (let i = 0; i <= y.bays; i += 1) solid.box(0.12, 0.008, (y.z1 - y.z0) * 0.6, place(y.x0 + 0.06 + ((y.x1 - y.x0 - 0.12) * i) / y.bays, 0.034, (y.z0 + y.z1) / 2), 0xe8e2d0);
     } else if (y.kind === 'vehicle') {
       if (y.vehicle === 'ambulance') {
         // the ambulance is not scenery: the simulation drives it, and the client draws it where it is (see makeVan)
@@ -335,7 +336,8 @@ function addYard(B, c, signs) {
       solid.box(pw, 0.025, pd, place(px, 0.012, pz), 0x7fae52);
       solid.box(pw * 0.5, 0.027, pd * 0.5, place(px, 0.013, pz), 0xb9945e);              // worn in the middle
       // (its lines, and the running track's round it, under a centimetre proud: 5 November 2026, stood on, not in)
-      for (const [x, z, sx, sz] of [[px, y.z0, pw, 0.12], [px, y.z1, pw, 0.12], [y.x0, pz, 0.12, pd], [y.x1, pz, 0.12, pd], y.goals === 'z' ? [px, pz, pw, 0.12] : [px, pz, 0.12, pd]]) solid.box(sx, 0.008, sz, place(x, 0.031, z), 0xf4f4f0);
+      // (the edge lines inside its edges: half of each was on the bare ground round it)
+      for (const [x, z, sx, sz] of [[px, y.z0 + 0.06, pw, 0.12], [px, y.z1 - 0.06, pw, 0.12], [y.x0 + 0.06, pz, 0.12, pd], [y.x1 - 0.06, pz, 0.12, pd], y.goals === 'z' ? [px, pz, pw, 0.12] : [px, pz, 0.12, pd]]) solid.box(sx, 0.008, sz, place(x, 0.031, z), 0xf4f4f0);
       for (const end of [-1, 1]) {
         const gx = y.goals === 'x' ? px + end * (pw / 2 - 0.2) : px, gz = y.goals === 'z' ? pz + end * (pd / 2 - 0.2) : pz;
         for (const side of [-1, 1]) solid.round(new THREE.CylinderGeometry(0.05, 0.05, 2.2, 6), place(gx + (y.goals === 'z' ? side * 2.6 : 0), 1.1, gz + (y.goals === 'x' ? side * 2.6 : 0)), 0xf4f4f0);

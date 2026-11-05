@@ -333,8 +333,8 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
   const group = new THREE.Group(); group.name = `car:${id}`;
   const frame = new THREE.Group(); frame.scale.setScalar(scale); group.add(frame);
   // (the car set down on its own four tyres: `onTyres`)
-  const rest = onTyres(spec);
-  frame.position.y = rest.y * scale; frame.rotation.set(rest.pitch, 0, rest.roll);
+  const tyres = onTyres(spec);
+  frame.position.y = tyres.y * scale; frame.rotation.set(tyres.pitch, 0, tyres.roll);
   // (the soft patch under it, while the sun casts no shadows: soft-patch.js; not in a showroom, whose halls have their own)
   if (patch) softPatch(group, { length, width: spec.body * scale });
   const mesh = (g) => { const m = new THREE.Mesh(g, material); m.castShadow = true; m.receiveShadow = false; return m; };
@@ -389,13 +389,13 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
   const X = new THREE.Vector3(1, 0, 0);
   const wheels = spec.wheels.map((w, k) => {
     const c = w.c || [w.x, w.y, w.z];
-    const at = new THREE.Group(); at.position.set(c[0], c[1] + rest.wheels[k], c[2]); frame.add(at);
+    const at = new THREE.Group(); at.position.set(c[0], c[1] + tyres.wheels[k], c[2]); frame.add(at);
     const steer = new THREE.Group(); at.add(steer);
     const spin = new THREE.Group(); steer.add(spin);
     const straight = new THREE.Group(); spin.add(straight);
     if (w.axle) straight.quaternion.setFromUnitVectors(new THREE.Vector3(w.axle[0], w.axle[1], w.axle[2]).normalize(), X);
     const m = mesh(geometries[k + 1]); m.position.set(-c[0], -c[1], -c[2]); straight.add(m);
-    return { at, steer, spin, r: w.r * scale, front: k < 2, y: c[1] + rest.wheels[k], x: c[0] * scale, z: c[2] * scale };
+    return { at, steer, spin, r: w.r * scale, front: k < 2, y: c[1] + tyres.wheels[k], x: c[0] * scale, z: c[2] * scale };
   });
   const springsY = spec.height * 0.35;
   // the lamps ride on the body too, at their places on the model (measured from the ground, as the body is drawn)

@@ -26,7 +26,7 @@
 // is the whole city's (its pictures and materials, the slim trees, the signals' lamps, the roadblocks and the fence) is
 // built once (`oganiruSteps`, a generator, as the land beyond the town is), on a phone only when the player is coming
 // near the city, and let go again when they are far.
-import { OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_KERBED, OGANIRU_MEDIAN_GAPS, OGANIRU_TOWERS, OGANIRU_TREES, OGANIRU_PILLARS, OGANIRU_SIGNALS, OGANIRU_SIGNS, OGANIRU_JUNCTIONS, OGANIRU_ROUNDABOUTS, OGANIRU_CUTTING, OGANIRU_STOP_LINES, OGANIRU_PLACES, EXPRESSWAY_Z, oganiruAway, expresswayY, roadWidthAt, ZONE, signalState, HABITATION_MODELS, HABITATION, habitationGroundAt, ofOganiru } from '../sim/zone.js';
+import { OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_KERBED, OGANIRU_MEDIAN_GAPS, OGANIRU_TOWERS, OGANIRU_TREES, OGANIRU_PILLARS, OGANIRU_SIGNALS, OGANIRU_SIGNS, OGANIRU_JUNCTIONS, OGANIRU_ROUNDABOUTS, OGANIRU_CUTTING, OGANIRU_STOP_LINES, OGANIRU_PLACES, EXPRESSWAY_Z, oganiruAway, expresswayY, roadWidthAt, ZONE, signalState, HABITATION_MODELS, HABITATION, habitationGroundAt, ofOganiru, SLIM_TREE_HEIGHT } from '../sim/zone.js';
 import { Batch, place, linear, noise, smoothNoise, grassTexture, surface, buildingKit, letGoOnceSent } from './render-kit.js';
 import { Mesher, Q_UV } from './render-mesher.js';
 import { letPaintedGo } from './painted.js';
@@ -201,9 +201,15 @@ const GROUND = { x0: -1500, x1: 1040, z0: -1740, z1: -12 };
 // whenever that is drawn, and the land there whenever it is not)
 const HAB = HABITATION.bounds;
 const inHabitationLand = (x, z) => x > HAB.x0 - 1 && x < HAB.x1 + 1 && z > HAB.z0 - 1 && z < HAB.z1 + 1;
-function landY(x, z) {
+// (`reach`: how far apart the points it is drawn between are. Under the habitation's ground, 0.6 m under the lowest of
+// it within that reach, so that nowhere between them does it come up through it: 5 November 2026, the surface sweep
+// found it half a metre over the habitation's ground in its hollows, where people stood under it)
+function landY(x, z, reach = 0) {
   const y = cityLandY(x, z);
-  return inHabitationLand(x, z) ? Math.min(y, habitationGroundAt(x, z) - 0.6) : y;
+  if (!inHabitationLand(x, z)) return y;
+  let low = habitationGroundAt(x, z);
+  if (reach > 0) for (let i = -4; i <= 4; i += 1) for (let k = -4; k <= 4; k += 1) low = Math.min(low, habitationGroundAt(x + (i * reach) / 4, z + (k * reach) / 4));
+  return Math.min(y, low - 0.6);
 }
 function cityLandY(x, z) {
   const away = oganiruAway(x, z);
@@ -251,7 +257,7 @@ function groundTile(T, lite) {
     c.copy(grassA).lerp(grassB, patch).lerp(dry, Math.max(0, smoothNoise(x / 55 + 9, z / 55) - 0.5) * 1.3);
     // red earth trodden along the roads' verges
     if (oganiruAway(x, z) < 1) { const nearRoad = roadEdgeNear(x, z); if (nearRoad < 7) c.lerp(earth, 0.55 * (1 - nearRoad / 7) + 0.1 * smoothNoise(x / 6, z / 6)); }
-    return { x, y: landY(x, z), z, r: c.r, g: c.g, b: c.b };
+    return { x, y: landY(x, z, step), z, r: c.r, g: c.g, b: c.b };
   };
   const grid = zs.map((z) => xs.map((x) => at(x, z)));
   const put = (v) => { pos.push(v.x, v.y, v.z); col.push(v.r, v.g, v.b); uv.push(v.x / 3.2, v.z / 3.2); };
@@ -286,7 +292,7 @@ function baseGround(lite) {
   const at = (x, z) => {
     const patch = smoothNoise(x / 34, z / 34) * 0.65 + smoothNoise(x / 9, z / 9) * 0.35;
     c.copy(grassA).lerp(grassB, patch).lerp(dry, Math.max(0, smoothNoise(x / 55 + 9, z / 55) - 0.5) * 1.3);
-    return { x, y: landY(x, z) - 0.45, z, r: c.r, g: c.g, b: c.b };
+    return { x, y: landY(x, z, step) - 0.45, z, r: c.r, g: c.g, b: c.b };
   };
   const grid = zs.map((z) => xs.map((x) => at(x, z)));
   const pos = [], col = [], uv = [];
@@ -540,11 +546,13 @@ function roundaboutTile(M, rb, lite, shade, foliage) {
     M.grass.quad(c0, p0, p1, c0, GRASS, [[c0[0] / 3.2, c0[2] / 3.2], [p0[0] / 3.2, p0[2] / 3.2], [p1[0] / 3.2, p1[2] / 3.2], [c0[0] / 3.2, c0[2] / 3.2]], UP);
     const k = i % 2 ? KERB_BLACK : KERB_WHITE;
     const m = (a0 + a1) / 2;
-    M.solid.box(0.22, KERB + 0.04, (Math.PI * 2 * rb.island) / iseg - 0.03, rb.x + Math.sin(m) * rb.island, (KERB + 0.04) / 2, rb.z + Math.cos(m) * rb.island, k, m + Math.PI / 2);
+    // (the kerbs 1.5 cm proud of what they edge, as along the city's other kerbs: kerbRun, KERB_TOP. 4 cm until 5 November
+    // 2026, stood on at the walkway's height, the feet in them)
+    M.solid.box(0.22, KERB_TOP, (Math.PI * 2 * rb.island) / iseg - 0.03, rb.x + Math.sin(m) * rb.island, KERB_TOP / 2, rb.z + Math.cos(m) * rb.island, k, m + Math.PI / 2);
     if (!mouth(m)) {
       const w0 = P(rb.outer, a0, KERB), w1 = P(rb.outer + rb.walk, a0, KERB), w2 = P(rb.outer + rb.walk, a1, KERB), w3 = P(rb.outer, a1, KERB);
       M.pave.quad(w0, w1, w2, w3, 0xe6e2d8, [[w0[0] / 2, w0[2] / 2], [w1[0] / 2, w1[2] / 2], [w2[0] / 2, w2[2] / 2], [w3[0] / 2, w3[2] / 2]], UP);
-      M.solid.box(0.22, KERB + 0.04, (Math.PI * 2 * rb.outer) / iseg - 0.03, rb.x + Math.sin(m) * rb.outer, (KERB + 0.04) / 2, rb.z + Math.cos(m) * rb.outer, k, m + Math.PI / 2);
+      M.solid.box(0.22, KERB_TOP, (Math.PI * 2 * rb.outer) / iseg - 0.03, rb.x + Math.sin(m) * rb.outer, KERB_TOP / 2, rb.z + Math.cos(m) * rb.outer, k, m + Math.PI / 2);
     }
   }
   if (rb.id === 'gate') {
@@ -1140,7 +1148,7 @@ const TREE_PICTURE_KEYS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', '
 function createSlimTrees(group, { lite, fetchFile, renderer }) {
   const info = HABITATION_MODELS.slimtree || { unit: 1, base: [0, 0, 0] };
   const copies = OGANIRU_TREES.filter((t) => t.kind === 'slim').map((t, i) => {
-    const height = 13.4 * t.size;
+    const height = SLIM_TREE_HEIGHT * t.size;
     const scale = height / info.unit;
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), t.turn);
     const off = new THREE.Vector3(info.base[0] * scale, info.base[1] * scale, info.base[2] * scale).applyQuaternion(q);

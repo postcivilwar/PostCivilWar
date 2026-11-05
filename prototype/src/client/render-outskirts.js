@@ -195,7 +195,8 @@ function addBridge(B, heads) {
     B.solid.box(W - 5.4, 0.8, 1.2, place(cx, deckBottom - 3.4, z), CONCRETE_OLD);
   }
   // where the deck meets the land on each bank: an abutment
-  B.solid.box(W + 1, 1.6, 2, place(cx, BRIDGE.farBank - 0.6, BRIDGE.land + 1), CONCRETE_OLD);
+  // (its top the deck's, under the roadway and the footways laid on it: until 5 November 2026 it stood 12 cm over them)
+  B.solid.box(W + 1, 1.6, 2, place(cx, BRIDGE.farBank - 0.8, BRIDGE.land + 1), CONCRETE_OLD);
   // (its lamps: render-lamps.js, since 31 October 2026)
 }
 

@@ -20,11 +20,12 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { parseGLB } from '../../src/client/glb.js';
-import { TOWN_TOWERS, TOWN_MODELS, ZONE_HOUSES } from '../../src/sim/zone.js';
+import { TOWN_TOWERS, TOWN_MODELS, ZONE_HOUSES, CARSHOW } from '../../src/sim/zone.js';
 
 const THREE = createRequire(import.meta.url)('../../vendor/three.min.js');
 const CELL = 0.5;                 // metres: the grid the footprint is drawn on
 const LOW = 0.15, HIGH = 2.3;     // metres above the ground: what is in the way of a person or a rider
+const TOP_FROM = 0.012;           // metres: a top lower than this is the ground's own height, near enough
 const CLOSE = 2;                  // squares: gaps up to twice this (two metres) are closed
 const SITE = new URL('../../../site/', import.meta.url);
 
@@ -47,7 +48,8 @@ function shapeOf(id) {
   const prim = json.meshes[0].primitives[0];
   const pos = accessor(prim.attributes.POSITION).array;
   const index = prim.indices !== undefined ? accessor(prim.indices).array : Uint32Array.from({ length: pos.length / 3 }, (_, i) => i);
-  const shape = { pos, index };
+  const mat = json.materials ? json.materials[prim.material || 0] : null;
+  const shape = { pos, index, both: !!(mat && mat.doubleSided) };
   shapes.set(id, shape);
   return shape;
 }
@@ -155,7 +157,78 @@ for (const h of ZONE_HOUSES.filter((q) => q.model && !q.tower)) {
   out[h.id] = f.boxes;
   report.push(`${h.id.padEnd(18)} ${h.model.padEnd(14)} ${f.boxes.length} boxes, ${f.area.toFixed(0)} m² of the ${(h.w * h.d).toFixed(0)} m² box (${((100 * f.area) / (h.w * h.d)).toFixed(0)}%)`);
 }
+// What is lower than that and stood on (5 November 2026, the owner's brief "feet on the ground": people stood at the
+// land's height on the buildings' steps, plinths and paths, up to 15 cm into them): the tops of each model's, as
+// triangles in its own frame (turned to face +z, the middle of its foot at the origin, its own units: each building
+// scales it by its `k`, turns it by its heading and sets it on its plot), those that are from 1.2 cm to 21 cm up on
+// some building of the model (each building keeps those in that band at its own size).
+const lows = {};
+const placed = [...TOWN_TOWERS, ...ZONE_HOUSES.filter((q) => q.model && !q.tower)];
+for (const id of [...new Set(placed.map((e) => e.model))]) {
+  const m = TOWN_MODELS[id];
+  const ks = placed.filter((e) => e.model === id).map((e) => e.k);
+  const kLo = Math.min(...ks), kHi = Math.max(...ks);
+  const { pos, index, both } = shapeOf(id);
+  const local = new THREE.Matrix4().makeTranslation(-m.mid[0], 0, -m.mid[1]).multiply(new THREE.Matrix4().makeRotationY(-m.front));
+  const v = new THREE.Vector3(), p = [];
+  for (let i = 0; i < pos.length; i += 3) { v.set(pos[i], pos[i + 1], pos[i + 2]).applyMatrix4(local); p.push(v.x, v.y, v.z); }
+  // (only what can be stood on: not inside the building's own solid boxes, as its first building has them; every
+  // building of a model is the same shape)
+  const first = placed.find((e) => e.model === id), solidBoxes = out[first.id] || [];
+  const c0 = Math.cos(first.heading), s0 = Math.sin(first.heading);
+  const outside = (lx, lz) => { const x = first.x + first.k * (lx * c0 + lz * s0), z = first.z + first.k * (-lx * s0 + lz * c0); return !solidBoxes.some(([x0, z0, x1, z1]) => x > x0 && x < x1 && z > z0 && z < z1); };
+  const tris = [];
+  for (let t = 0; t < index.length; t += 3) {
+    const [a, b, c] = [index[t], index[t + 1], index[t + 2]].map((k) => [p[k * 3], p[k * 3 + 1], p[k * 3 + 2]]);
+    if (![a, b, c, [(a[0] + b[0] + c[0]) / 3, 0, (a[2] + b[2] + c[2]) / 3]].some((q) => outside(q[0], q[2]))) continue;
+    const lo = Math.min(a[1], b[1], c[1]), hi = Math.max(a[1], b[1], c[1]);
+    if (hi * kHi < TOP_FROM || lo * kLo > LOW + 0.06) continue;
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], wx = c[0] - a[0], wy = c[1] - a[1], wz = c[2] - a[2];
+    const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx, len = Math.hypot(nx, ny, nz);
+    // (facing up; or either way, where the model is drawn from both sides: supplied-model.js, its material's doubleSided)
+    if (len < 1e-12 || (both ? Math.abs(ny / len) : ny / len) < 0.7) continue;
+    tris.push(...[...a, ...b, ...c].map((q) => Math.round(q * 1e4)));
+  }
+  if (tris.length) lows[id] = tris;
+  report.push(`${id.padEnd(18)} ${tris.length / 9} low tops`);
+}
+// And the same round the buildings beside the car showroom on the Kwale road (asaba-carshow.js: each is solid inside
+// the outline traced at its foot, placed at its `scale` with no turn of its own): the tops of what is low and stood on
+// outside that outline, as triangles in its own units (5 November 2026: the stacked tower's plinth along its east side,
+// 18 cm up, had people's feet in it).
+const carLows = {};
+for (const b of CARSHOW.buildings) {
+  const buf = readFileSync(new URL(b.file, SITE));
+  const { json, accessor } = parseGLB(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  const prim = json.meshes[0].primitives[0];
+  const pos = accessor(prim.attributes.POSITION).array;
+  const index = prim.indices !== undefined ? accessor(prim.indices).array : Uint32Array.from({ length: pos.length / 3 }, (_, i) => i);
+  const mat = json.materials ? json.materials[prim.material || 0] : null, both = !!(mat && mat.doubleSided);
+  const inside = (u, v) => { let c = false; for (let i = 0, j = b.outline.length - 1; i < b.outline.length; j = i, i += 1) { const [ui, vi] = b.outline[i], [uj, vj] = b.outline[j]; if ((vi > v) !== (vj > v) && u < ((uj - ui) * (v - vi)) / (vj - vi) + ui) c = !c; } return c; };
+  const tris = [];
+  for (let t = 0; t < index.length; t += 3) {
+    const [a, c1, c2] = [index[t], index[t + 1], index[t + 2]].map((k) => [pos[k * 3], pos[k * 3 + 1], pos[k * 3 + 2]]);
+    if ([a, c1, c2, [(a[0] + c1[0] + c2[0]) / 3, 0, (a[2] + c1[2] + c2[2]) / 3]].every((q) => inside(q[0], q[2]))) continue;
+    // (low all over: what rises higher, outside the outline, is a part of the building of its own, solid or not as
+    // asaba-carshow.js has it)
+    const hi = Math.max(a[1], c1[1], c2[1]) * b.scale;
+    if (hi < TOP_FROM || hi > LOW + 0.06) continue;
+    const ux = c1[0] - a[0], uy = c1[1] - a[1], uz = c1[2] - a[2], wx = c2[0] - a[0], wy = c2[1] - a[1], wz = c2[2] - a[2];
+    const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx, len = Math.hypot(nx, ny, nz);
+    if (len < 1e-12 || (both ? Math.abs(ny / len) : ny / len) < 0.7) continue;
+    tris.push(...[...a, ...c1, ...c2].map((q) => Math.round(q * 1e5)));
+  }
+  if (tris.length) carLows[b.id] = tris;
+  report.push(`carshow ${b.id.padEnd(10)} ${tris.length / 9} low tops`);
+}
 console.log(report.join('\n'));
+writeFileSync(new URL('../../src/sim/zones/carshow-footprints.js', import.meta.url),
+  '// Generated by tools/buildings/footprints.mjs. Do not edit by hand.\n' +
+  '// The tops of what is low and stood on round the buildings beside the car showroom on the Kwale road (from 1.2 cm\n' +
+  '// to 21 cm up, outside the outline each is solid within: asaba-carshow.js), by building, as triangles (nine whole\n' +
+  '// numbers each: three corners x, y, z, in hundred-thousandths of the model\'s unit) in its own frame. The ground is\n' +
+  '// their height there (5 November 2026; asaba-carshow.js `carshowGroundY`).\n' +
+  `export const CARSHOW_LOW_TOPS = Object.freeze(${JSON.stringify(carLows)});\n`);
 const total = Object.values(out).reduce((a, b) => a + b.length, 0);
 writeFileSync(new URL('../../src/sim/zones/town-footprints.js', import.meta.url),
   '// Generated by tools/buildings/footprints.mjs. Do not edit by hand.\n' +
@@ -163,5 +236,11 @@ writeFileSync(new URL('../../src/sim/zones/town-footprints.js', import.meta.url)
   '// steps from 0.15 m to 2.3 m above the ground, and what they enclose), by building, as boxes [x0, z0, x1, z1] in\n' +
   '// the town\'s metres: what is in the way, as it is drawn (not the box round the whole model, roof and overhangs\n' +
   '// included). Read by town-buildings.js and atani.js.\n' +
-  `export const TOWN_FOOTPRINTS = Object.freeze(${JSON.stringify(out)});\n`);
+  `export const TOWN_FOOTPRINTS = Object.freeze(${JSON.stringify(out)});\n` +
+  '// The tops of what is lower than that and stood on (steps, plinths and paths: from 1.2 cm to 21 cm on some building\n' +
+  '// of the model, outside its solid boxes), by model, as triangles (nine whole numbers each: three corners x, y, z, in\n' +
+  '// ten-thousandths of the model\'s unit) in its own frame: turned to face\n' +
+  '// +z, the middle of its foot at the origin, its own units (each building scales by its k, turns by its heading and\n' +
+  '// sets it on its plot). The ground is their height there (5 November 2026; town-buildings.js `townLowTop`).\n' +
+  `export const TOWN_LOW_TOPS = Object.freeze(${JSON.stringify(lows)});\n`);
 console.log(`written: ${Object.keys(out).length} buildings, ${total} boxes`);

@@ -133,6 +133,9 @@ function colliders() {
   for (const d of DISPLAYS) { const k = d.r * 0.72; out.push(box(d.x - k, d.z - k, d.x + k, d.z + k)); }
   out.push(DESK);
   for (const p of PLANTS) out.push(box(p.x - 0.3, p.z - 0.3, p.x + 0.3, p.z + 0.3));
+  // (the post of the plate before each stand, render-sports.js: walked through until 5 November 2026; only the post and the middle
+  // of the plate, so that the way round the stand stays open)
+  for (const d of DISPLAYS) { const px = d.x + Math.sin(d.h) * (d.r + 0.35), pz = d.z + Math.cos(d.h) * (d.r + 0.35); out.push(box(px - 0.06, pz - 0.06, px + 0.06, pz + 0.06)); }
   // on the forecourt: the planters and the lamp posts
   const F = SPORTS_MALL.forecourt;
   for (const q of F.palms) out.push(box(q.x - q.r * 0.8, q.z - q.r * 0.8, q.x + q.r * 0.8, q.z + q.r * 0.8));

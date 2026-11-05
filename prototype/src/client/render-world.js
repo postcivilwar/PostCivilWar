@@ -48,12 +48,15 @@ function buildGround() {
   const position = geometry.attributes.position;
   // (a row of its points on the water's edge itself, 5 November 2026: the bank flat to the edge, and only then going down
   // under the water. Its points are 7 m apart: before, it began to go down a row short of the edge, up to 21 cm under
-  // where people stood on the bank.)
-  for (let ix = 0; ix <= 170; ix += 1) {
-    const s = zoneShoreZ(position.getX(ix));
-    let best = 0, bestD = Infinity;
-    for (let iy = 0; iy <= 160; iy += 1) { const d = Math.abs(position.getZ(iy * 171 + ix) - s); if (d < bestD) { bestD = d; best = iy; } }
-    position.setZ(best * 171 + ix, s);
+  // where people stood on the bank. The row nearest the edge is laid along it, and the three rows either side drawn
+  // after it less and less, so that the rows keep their order.)
+  {
+    let J = 0;
+    for (let iy = 0; iy <= 160; iy += 1) if (Math.abs(position.getZ(iy * 171) - 150) < Math.abs(position.getZ(J * 171) - 150)) J = iy;
+    for (let ix = 0; ix <= 170; ix += 1) {
+      const delta = zoneShoreZ(position.getX(ix)) - position.getZ(J * 171 + ix);
+      for (let iy = Math.max(0, J - 3); iy <= Math.min(160, J + 3); iy += 1) position.setZ(iy * 171 + ix, position.getZ(iy * 171 + ix) + delta * (1 - Math.abs(iy - J) / 3));
+    }
   }
   const colours = new Float32Array(position.count * 3);
   const grassA = linear(0x5f9440), grassB = linear(0x8cb655), dryGrass = linear(0xa9a85a), earth = linear(ZONE_PROPS.earth), sand = linear(0xe2d2a2), bed = linear(0x6b6a4c);

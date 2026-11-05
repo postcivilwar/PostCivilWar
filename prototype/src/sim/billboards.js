@@ -93,6 +93,21 @@ export function feetOf(type, scale = 1) {
   }
 }
 
+// What each kind stands on at the ground, as render-billboards.js draws it (its own frame, as feetOf): squares, `half`
+// each way from (x, z), `top` high; for a tower, a building or a plinth its footprint (feetOf). A pole's steel plate is
+// wider than the pole (3.2 times its radius, 25 cm high, gussets to 60 cm), a mast's foot is set out from the mast and
+// the legs' footings are wider than the legs: until 5 November 2026 they were walked on, the feet in them.
+export function basesOf(type, scale = 1) {
+  const t = BILLBOARD_TYPES[type], W = t.width * scale, s = scale;
+  switch (t.supports) {
+    case 'pole': case 'twin': return (t.supports === 'twin' ? [-0.32 * W, 0.32 * W] : [(t.poleOffset || 0) * W]).map((x) => ({ x, z: -1.2 * s, half: 1.6 * t.poleRadius * s, top: 0.6 * s }));
+    case 'four': return [-0.36, -0.12, 0.12, 0.36].map((k, i) => ({ x: k * W, z: -(0.9 + (i % 2 ? 1.6 : 0.4)) * s, half: 0.4 * s, top: 0.2 * s }));
+    case 'trestle': { const out = []; for (let x = -W / 2 + 1; x <= W / 2 - 0.9; x += 3 * s) for (const z of [-0.9 * s, -2.7 * s]) out.push({ x, z, half: 0.25 * s, top: 0.18 * s }); return out; }
+    case 'mast': return [{ x: W / 2 + 1.2 * s, z: -1.2 * s, half: 0.8 * s, top: 0.3 * s }];
+    default: return [];
+  }
+}
+
 // The face's size at a scale, to a tenth of a metre, and its lower edge.
 export function faceOf(type, scale = 1) {
   const t = BILLBOARD_TYPES[type];

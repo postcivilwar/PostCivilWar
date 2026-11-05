@@ -19,6 +19,7 @@ import { houseDoor, houseBench } from '../layout.js';
 import { kekeLook, busLook, footprintBox } from '../vehicle-looks.js';
 import { BRIDGE, OUTSKIRT_COLLIDERS, OUTSKIRT_BUILDING_COLLIDERS, onOutskirts, outskirtsGroundY } from './atani-outskirts.js';
 import { ZONE_BILLBOARDS } from './atani-billboards.js';
+import { basesOf } from '../billboards.js';
 import { CITY_BUILDINGS, CITY_COLLIDERS, CITY_FURNITURE, PAVEMENTS, LANDINGS, BOULEVARD, LAWN, CITY_AREA, cityGroundY } from './atani-city.js';
 export * from './atani-city.js';
 import { POWERBIKE, POWERBIKE_COLLIDERS, powerbikeGroundY } from './atani-powerbike.js';
@@ -32,7 +33,8 @@ export * from './asaba-sports.js';
 import { SUPPLIED_VEHICLE_COLLIDERS } from './supplied-vehicles.js';
 export * from './supplied-vehicles.js';
 import { TOWN_TREES } from './atani-trees.js';
-import { TOWER_COLLIDERS, TOWER_BOXES, standsAt } from './town-buildings.js';
+import { TOWER_COLLIDERS, TOWER_BOXES, TOWN_TOWERS, standsAt } from './town-buildings.js';
+import { TOWN_LOW_TOPS } from './town-footprints.js';
 import { openClosures, closureColliders, edgeFences, fenceColliders, closureWings } from './closures.js';
 // Oganiru City, the new city on the free land west of the town (31 October 2026): its roads, flyovers and towers
 import { OGANIRU_CLOSURES, OGANIRU_EDGE_LINES, onOganiru, nearOganiru, oganiruGroundY, oganiruSurface, oganiruOnDeck, oganiruBlocked, oganiruDecksAt, oganiruStructureAt } from './oganiru.js';
@@ -642,7 +644,10 @@ export function compoundPostsAt(b) {
   for (let i = 0; i < posts; i += 1) {
     const u = 0.2 + (i * (f.length - 0.4)) / (posts - 1), v = -2.05;
     if (doors.some((d) => Math.abs(d.u - u) < POST_CLEAR)) continue;
-    out.push([f.ox + f.ax * u + f.nx * v, f.oz + f.az * u + f.nz * v]);
+    const x = f.ox + f.ax * u + f.nx * v, z = f.oz + f.az * u + f.nz * v;
+    // (nor where someone stands to be served: the hospital's is at its emergency block's veranda, where one stood)
+    if (ZONE_SERVICES.some((s) => Math.hypot(s.x - x, s.z - z) < POST_CLEAR)) continue;
+    out.push([x, z]);
   }
   return out;
 }
@@ -651,8 +656,9 @@ export function verandaPostsAt(b) {
   const posts = Math.max(2, Math.round(vw / 4.5) + 1), out = [];
   for (let i = 0; i < posts; i += 1) {
     const px = b.x - vw / 2 + 0.3 + (i * (vw - 0.6)) / (posts - 1);
-    if (Math.abs(px - b.x) < POST_CLEAR) continue;
-    out.push([px, front + dir * (depth - 0.25)]);
+    const pz = front + dir * (depth - 0.25);
+    if (Math.abs(px - b.x) < POST_CLEAR || ZONE_SERVICES.some((s) => Math.hypot(s.x - px, s.z - pz) < POST_CLEAR)) continue;
+    out.push([px, pz]);
   }
   return out;
 }
@@ -674,6 +680,10 @@ function buildFixedColliders() {
   const sh = ZONE_PROPS.shelter;
   boxes.push({ x0: sh.x - 6, x1: sh.x + 6, z0: sh.z - 2.5, z1: sh.z + 2.5 });   // motor park shelter posts
   boxes.push({ x0: -64, x1: -50, z0: -196, z1: -176 });                          // cured block stacks
+  // (the blocks stacked on the yard's apron, and the low hedges at the ends of the campus lawns: walked through until
+  // 5 November 2026, the surface sweep)
+  boxes.push({ x0: ZONE_PROPS.yardApron.x - 0.4, x1: ZONE_PROPS.yardApron.x + 1.9, z0: ZONE_PROPS.yardApron.z - 0.25, z1: ZONE_PROPS.yardApron.z + 0.25 });
+  for (const c of ZONE_COMPOUNDS) for (const y of c.yard) if (y.kind === 'lawn') for (const z of [y.z0, y.z1]) boxes.push({ x0: y.x0, x1: y.x1, z0: z - 0.25, z1: z + 0.25, barrier: true });
   // (each of the owner's houses where it really stands, not the box round its roof: town-buildings.js `standsAt`)
   for (const h of ZONE_HOUSES) if (!h.tower) { if (h.model) { const b = boxOf(h.x, h.z, h.w / 2, h.d / 2); boxes.push(...standsAt(h.id, b.x0, b.z0, b.x1, b.z1)); } else boxes.push(boxOf(h.x, h.z, h.w / 2, h.d / 2)); }
   boxes.push(...TOWER_COLLIDERS);                                                // the owner's towers (town-buildings.js)
@@ -1083,14 +1093,23 @@ export function townRoadTop(x, z) {
 // The town's own buildings (render-world.js addBuilding): along the front of each a veranda 24 cm up and 2.6 m deep, and a
 // step 12 cm up before it; whoever walks onto them stands on them.
 // (as render-world.js draws them: not the city block's own buildings, the showroom's or the towers')
-export const VERANDAS = Object.freeze(ZONE_BUILDINGS.filter((b) => b.kind !== 'city' && b.kind !== 'showroom' && b.kind !== 'tower').flatMap((b) => {
+// (and the glass showroom's (render-holaris.js `buildShowroom`, 5 November 2026): its plinth 50 cm up, 70 cm out round
+// the building, its two steps (33 and 16.5 cm), and the paved forecourt before them, 6 cm up)
+const SHOWROOM_FRONTS = ZONE_BUILDINGS.filter((b) => b.kind === 'showroom').flatMap((b) => {
+  const dir = b.door === 's' ? 1 : -1, front = b.z + (dir * b.d) / 2, at = (w, d, along, y) => Object.freeze({ x0: b.x - w / 2, x1: b.x + w / 2, z0: front + dir * along - d / 2, z1: front + dir * along + d / 2, y });
+  return [
+    Object.freeze({ x0: b.x - b.w / 2 - 0.7, x1: b.x + b.w / 2 + 0.7, z0: b.z - b.d / 2 - 0.7, z1: b.z + b.d / 2 + 0.7, y: 0.5 }),
+    at(5.2, 1.0, 1.15, 0.33), at(5.8, 1.0, 1.75, 0.165), at(7, 6.2, 4.4, 0.06),
+  ];
+});
+export const VERANDAS = Object.freeze([...SHOWROOM_FRONTS, ...ZONE_BUILDINGS.filter((b) => b.kind !== 'city' && b.kind !== 'showroom' && b.kind !== 'tower').flatMap((b) => {
   const dir = b.door === 's' ? 1 : -1, front = b.z + (dir * b.d) / 2, depth = 2.6, vw = Math.min(b.w, b.kind === 'home' ? 5 : b.w);
   const step = front + dir * (depth + 0.22);
   return [
     Object.freeze({ x0: b.x - vw / 2, x1: b.x + vw / 2, z0: Math.min(front, front + dir * depth), z1: Math.max(front, front + dir * depth), y: 0.24 }),
     Object.freeze({ x0: b.x - 0.9, x1: b.x + 0.9, z0: step - 0.225, z1: step + 0.225, y: 0.12 }),
   ];
-}));
+})]);
 const VERANDA_INDEX = indexBoxes(VERANDAS);
 function verandaTop(x, z) {
   const list = VERANDA_INDEX.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL));
@@ -1134,10 +1153,55 @@ function compoundTop(x, z) {
   for (const v of list) if (x > v.x0 && x < v.x1 && z > v.z0 && z < v.z1 && v.y > top) top = v.y;
   return top;
 }
+// The owner's buildings' low steps, plinths and paths (under 15 cm: not in the way, tools/buildings/footprints.mjs), stood
+// on as they are drawn (5 November 2026): each building's tops placed in the town, in a grid of 4 m squares, as
+// triangles; the ground is the highest of them over a point.
+const LOW_CELL = 4;
+const LOW_TOPS = (() => {
+  const cells = new Map();
+  for (const e of [...TOWN_TOWERS, ...ZONE_HOUSES.filter((h) => h.model && !h.tower)]) {
+    const tris = TOWN_LOW_TOPS[e.model];
+    if (!tris) continue;
+    const c = Math.cos(e.heading), s = Math.sin(e.heading);
+    for (let i = 0; i < tris.length; i += 9) {
+      const p = [0, 1, 2].map((j) => { const lx = tris[i + j * 3] / 1e4, ly = tris[i + j * 3 + 1] / 1e4, lz = tris[i + j * 3 + 2] / 1e4; return [e.x + e.k * (lx * c + lz * s), e.k * ly, e.z + e.k * (-lx * s + lz * c)]; });
+      const ys = p.map((q) => q[1]);
+      if (Math.max(...ys) < 0.012 || Math.min(...ys) > 0.21) continue;
+      const rec = Object.freeze(p.flat());
+      const xs = p.map((q) => q[0]), zs = p.map((q) => q[2]);
+      for (let a = Math.floor(Math.min(...xs) / LOW_CELL); a <= Math.floor(Math.max(...xs) / LOW_CELL); a += 1) for (let b = Math.floor(Math.min(...zs) / LOW_CELL); b <= Math.floor(Math.max(...zs) / LOW_CELL); b += 1) {
+        const key = a * 4096 + b; const list = cells.get(key); if (list) list.push(rec); else cells.set(key, [rec]);
+      }
+    }
+  }
+  return cells;
+})();
+function lowTop(x, z) {
+  const list = LOW_TOPS.get(Math.floor(x / LOW_CELL) * 4096 + Math.floor(z / LOW_CELL));
+  if (!list) return 0;
+  let top = 0;
+  for (const [ax, ay, az, bx, by, bz, cx, cy, cz] of list) {
+    const d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+    if (Math.abs(d) < 1e-12) continue;
+    const l1 = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / d, l2 = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / d, l3 = 1 - l1 - l2;
+    if (l1 < -1e-6 || l2 < -1e-6 || l3 < -1e-6) continue;
+    top = Math.max(top, l1 * ay + l2 * by + l3 * cy);
+  }
+  return top;
+}
+// The block yard's sand heaps (render-world.js: cones) are climbed, not walked through; the jetty's planks, 6.5 cm up, are
+// stood on (5 November 2026, the surface sweep).
+const JETTY_TOP = 0.065;
+function heapTop(x, z) {
+  let top = 0;
+  for (const [hx, hz, r, h] of ZONE_PROPS.sandHeaps) { const d = Math.hypot(x - hx, z - hz); if (d < r) top = Math.max(top, h * (1 - d / r)); }
+  if (x > ZONE_JETTY.x0 && x < ZONE_JETTY.x1 && z > ZONE_JETTY.z0 && z < ZONE_JETTY.z1) top = Math.max(top, JETTY_TOP);
+  return top;
+}
 // (the highest of what is drawn there: the town's roads, its verandas, the compounds', the PowerBike showroom's hall, the
 // road on up the river and its car park, the bridge's deck, the roads, the showrooms and the airport beyond the town;
 // else Oganiru City's ground)
-const townGround = (x, z) => Math.max(townRoadTop(x, z), verandaTop(x, z), compoundTop(x, z), powerbikeGroundY(x, z), upriverTop(x, z), outskirtsGroundY(x, z)) || oganiruGroundY(x, z);
+const townGround = (x, z) => Math.max(townRoadTop(x, z), verandaTop(x, z), compoundTop(x, z), powerbikeGroundY(x, z), upriverTop(x, z), heapTop(x, z), lowTop(x, z), outskirtsGroundY(x, z)) || oganiruGroundY(x, z);
 function cityGround(x, z) {
   const c = cityTop(x, z);
   return c === null ? townGround(x, z) : Math.max(c, verandaTop(x, z));
@@ -1168,7 +1232,15 @@ export const zoneStep = (ax, az, bx, bz) => (inHabitation(ax, az) || inHabitatio
 
 // The advertising billboards (atani-billboards.js): each one's poles, legs or base, which nobody walks through.
 // (Each box says it is a billboard's, so that the tool that places them can leave the old ones out.)
-const BILLBOARD_COLLIDERS = ZONE_BILLBOARDS.flatMap((b) => b.feet.map((f) => Object.freeze({ x0: f[0], z0: f[1], x1: f[2], z1: f[3], barrier: false, billboard: b.id })));
+const BILLBOARD_COLLIDERS = ZONE_BILLBOARDS.flatMap((b) => [
+  ...b.feet.map((f) => Object.freeze({ x0: f[0], z0: f[1], x1: f[2], z1: f[3], barrier: false, billboard: b.id })),
+  // (and the plates and footings under them, as drawn: billboards.js basesOf; walked into until 5 November 2026)
+  ...basesOf(b.type, b.scale).map((q) => {
+    const c = Math.cos(b.heading), s = Math.sin(b.heading);
+    const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([i, k]) => { const lx = q.x + i * q.half, lz = q.z + k * q.half; return [b.x + lx * c + lz * s, b.z - lx * s + lz * c]; });
+    return Object.freeze({ x0: Math.min(...corners.map((p) => p[0])), z0: Math.min(...corners.map((p) => p[1])), x1: Math.max(...corners.map((p) => p[0])), z1: Math.max(...corners.map((p) => p[1])), barrier: false, billboard: b.id, base: true });
+  }),
+]);
 // The roads not open yet, and the edge of the built land (closures.js, 19 October 2026): each roadblock and each run
 // of the fence along the edge, where they stand. (They are barriers, which give a little: contact.js.)
 export * from './closures.js';

@@ -93,6 +93,10 @@ function colliders() {
   out.push(POWERBIKE.desk, POWERBIKE.lounge.sofa, POWERBIKE.lounge.table);
   for (const c of POWERBIKE.lounge.chairs) out.push(box(c.x - 0.4, c.z - 0.4, c.x + 0.4, c.z + 0.4));
   for (const p of POWERBIKE.plants) out.push(box(p.x - 0.3, p.z - 0.3, p.x + 0.3, p.z + 0.3));
+  // (the two bollards on the forecourt, render-powerbike.js `court`: walked through until 5 November 2026)
+  for (const s of [-1, 1]) { const bx = POWERBIKE.doors.x + s * 7.4, bz = POWERBIKE.footprint.z1 + 5.6; out.push(box(bx - 0.13, bz - 0.13, bx + 0.13, bz + 0.13)); }
+  // (the plates on their posts before the stands are not solid here: the stands are so close that the way round them, and
+  // up to each one's front to read its plate, would be shut; in the two showrooms on the Kwale road their posts are)
   return Object.freeze(out);
 }
 export const POWERBIKE_COLLIDERS = colliders();
@@ -101,12 +105,15 @@ export const POWERBIKE_COLLIDERS = colliders();
 // until then people stood 1.2 cm under its floor and in its stands): the floor 1.2 cm up, and each stand, stepped onto,
 // at its top: 14 cm, the hero's 22 on a step of 8, the turntable 20 (its middle 21.2).
 export function powerbikeGroundY(x, z) {
-  if (!inPowerbikeHall(x, z)) return 0;
+  // (the forecourt paved before the porch, 5 cm up: render-powerbike.js `court`)
+  const f = POWERBIKE.footprint, d = POWERBIKE.doors;
+  if (!inPowerbikeHall(x, z)) return x > d.x - 8 && x < d.x + 8 && z > f.z1 && z < f.z1 + 6.4 ? 0.05 : 0;
   let top = 0.012;
   for (const d of POWERBIKE.displays) {
     const r = Math.hypot(x - d.x, z - d.z);
     if (r > d.r + 0.3) continue;
-    if (d.stand === 'hero' && r < d.r + 0.24) top = Math.max(top, 0.08);
+    // (its step's top, and its side down to its foot 4 cm wider)
+    if (d.stand === 'hero' && r < d.r + 0.24) top = Math.max(top, Math.min(0.08, (0.08 * (d.r + 0.24 - r)) / 0.04));
     if (r < d.r) top = Math.max(top, d.stand === 'turntable' ? (r < d.r * 0.72 ? 0.212 : 0.2) : d.stand === 'hero' ? 0.22 : 0.14);
   }
   return top;

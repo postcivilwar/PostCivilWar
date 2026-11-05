@@ -24,7 +24,9 @@ test('the library is three.js r186, made for the game, holding every name the ga
   // (and what the add-ons' script adds, at the levels that fetch it: three-post.min.js)
   const held = new Set([...symbols.names, ...(symbols.post || [])]);
   const used = new Set();
-  const tools = files(resolve(root, 'tools')).filter((f) => /\.m?js$/.test(f) && !f.startsWith(resolve(root, 'tools/three')));
+  // (not three.js's own FBX loader, as it comes, which the car moves' tool reads the owner's files with in Node: its
+  // messages name itself)
+  const tools = files(resolve(root, 'tools')).filter((f) => /\.m?js$/.test(f) && !f.startsWith(resolve(root, 'tools/three')) && !f.startsWith(resolve(root, 'tools/characters/fbx')));
   for (const f of [...client, ...files(resolve(root, 'test')).filter((f) => /\.m?js$/.test(f)), ...tools]) for (const m of readFileSync(f, 'utf8').matchAll(/\bTHREE\.([A-Za-z_][\w$]*)/g)) used.add(m[1]);
   const missing = [...used].filter((n) => !held.has(n));
   assert.deepEqual(missing, [], 'run node tools/three/make.mjs');

@@ -143,13 +143,26 @@ export function cityGroundY(x, z) {
   let on = false;
   for (const p of PAVEMENTS) if (inBox(p, x, z)) { on = true; break; }
   if (!on) return 0;
+  for (const r of RAMPS) if (inBox(r, x, z)) return rampY(r, x, z);
+  // (beside a ramp the pavement comes down to it over half a metre, as the paving is laid, in half-metre squares from its
+  // edges (render-city.js): until 5 November 2026 this had a step there, up to 11 cm over or under the paving)
+  let y = KERB;
   for (const r of RAMPS) {
-    if (!inBox(r, x, z)) continue;
-    // ('x+': at its +x edge it is at road level, at its -x edge at the pavement's height)
-    const t = r.fall === 'x-' ? (x - r.x0) / (r.x1 - r.x0) : r.fall === 'x+' ? (r.x1 - x) / (r.x1 - r.x0) : r.fall === 'z-' ? (z - r.z0) / (r.z1 - r.z0) : (r.z1 - z) / (r.z1 - r.z0);
-    return KERB * Math.max(0, Math.min(1, t));
+    const alongX = r.fall === 'x+' || r.fall === 'x-';
+    const [a, a0, a1, b, b0, b1] = alongX ? [x, r.x0, r.x1, z, r.z0, r.z1] : [z, r.z0, r.z1, x, r.x0, r.x1];
+    if (a < a0 || a > a1) continue;
+    const d = b > b1 ? b - b1 : b < b0 ? b0 - b : -1;
+    if (d < 0 || d >= RAMP_FLARE) continue;
+    const edge = alongX ? rampY(r, x, Math.max(r.z0, Math.min(r.z1, z))) : rampY(r, Math.max(r.x0, Math.min(r.x1, x)), z);
+    y = Math.min(y, edge + ((KERB - edge) * d) / RAMP_FLARE);
   }
-  return KERB;
+  return y;
+}
+const RAMP_FLARE = 0.5;
+// A ramp's height at a point on it ('x+': at its +x edge it is at road level, at its -x edge at the pavement's height)
+function rampY(r, x, z) {
+  const t = r.fall === 'x-' ? (x - r.x0) / (r.x1 - r.x0) : r.fall === 'x+' ? (r.x1 - x) / (r.x1 - r.x0) : r.fall === 'z-' ? (z - r.z0) / (r.z1 - r.z0) : (r.z1 - z) / (r.z1 - r.z0);
+  return KERB * Math.max(0, Math.min(1, t));
 }
 
 // Is a point on the city block's carriageway (for the drawing: the old road is not drawn here)?
