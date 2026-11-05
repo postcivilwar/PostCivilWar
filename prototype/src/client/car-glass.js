@@ -112,7 +112,11 @@ roughnessFactor = mix(roughnessFactor, 0.6, glassDust);`)
       // (the glass mostly gives back the sky at a slant, and is seen through face on; privacy glass behind the front
       // doors darker; dust and drops a little less clear; the drops, at Medium and up, only in the rain; its edge eased
       // in over the windows picture's eased edge)
-      .replace('#include <opaque_fragment>', `float glassFace = abs(dot(normalize(normal), normalize(vViewPosition)));
+      // (the glass's own colour a dark grey-green, not lit as a painted surface is: light passes through glass rather than
+      // being scattered by it, so the sun on it would have laid a grey haze over the people behind it, and over the
+      // SUV's privacy glass a pale grey; what it gives back of the sky and the sun, its sheen, on top)
+      .replace('#include <opaque_fragment>', `outgoingLight = vec3(0.045, 0.058, 0.052) * (0.3 + 0.7 * uDay) + totalSpecular;
+float glassFace = abs(dot(normalize(normal), normalize(vViewPosition)));
 float glassSlant = pow(1.0 - glassFace, 3.0) * uSlant;
 vec2 dropAt = vec2(vGlassAt.x * 14.0 + vGlassAt.y * 3.0, vGlassAt.z * 14.0 + uTime * 0.6);
 float glassDrops = uWet * texture2D(uDrops, dropAt).a;
