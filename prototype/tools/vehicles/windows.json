@@ -1,6 +1,16 @@
 {
- "_": "Settings for tools/vehicles/windows.py, a car at a time (the model's units: +z ahead, +x its left, y up). belt: how far from the hips' height to the roof the side glass may start (a share); tol, edge: how near in colour a region stays, and how sharp an edge stops it; paint, paintTop: how far from the paint's colour a pane on the sides, and seen from above, must be; zones: in each look ('left', 'right', 'top', 'front', 'back'), the shapes glass may be found in (corners in the look's own two coordinates: the sides z and y, from above z and x, in front and behind x and y); not: shapes it may not be in; panes: panes given as shapes, where the glass is painted nearly the paint's colour; seeds: more places to grow from; skip: looks not used.",
- "grey-saloon": {},
+ "_": "Settings for tools/vehicles/windows.py, a car at a time (the model's units: +z ahead, +x its left, y up). belt: how far from the hips' height to the roof the side glass may start (a share); tol, edge: how near in colour a region stays, and how sharp an edge stops it; paint, paintTop: how far from the paint's colour a pane on the sides, and seen from above, must be; zones: in each look ('left', 'right', 'top', 'front', 'back'), the shapes glass may be found in (corners in the look's own two coordinates: the sides z and y, from above z and x, in front and behind x and y); not: shapes it may not be in; panes: panes given as shapes, where the glass is painted nearly the paint's colour (each taken where the surface faces its look as glass does); grow: false where no glass is found by colour at all, the panes alone; seeds: more places to grow from; skip: looks not used.",
+ "grey-saloon": {
+  "_": "Its tail lamps wrap round onto its sides at the glass's height: the side glass looked for only ahead of the rear quarter window's end. Its back window is painted only a little darker than its paint: given as a shape seen from above, inside its black frame.",
+  "skip": ["back"],
+  "zones": {
+   "left": [[[-0.335, 0.15], [0.5, 0.15], [0.5, 0.4], [-0.335, 0.4]]],
+   "right": [[[-0.335, 0.15], [0.5, 0.15], [0.5, 0.4], [-0.335, 0.4]]]
+  },
+  "panes": {
+   "top": [[[-0.405, 0.1], [-0.405, -0.105], [-0.265, -0.118], [-0.265, 0.113]]]
+  }
+ },
  "mint-sports-coupe": {
   "_": "Its roof is black and its engine cover's louvres too: the glass found only over the windscreen and the hatch's glass seen from above, and the side windows between the belt and the roof's edge.",
   "skip": ["front", "back"],
@@ -10,5 +20,24 @@
    "right": [[[-0.25, 0.17], [0.16, 0.17], [0.16, 0.25], [-0.25, 0.25]]]
   }
  },
- "black-luxury-suv": {"tol": 14, "edge": 30, "paint": 8}
+ "black-luxury-suv": {
+  "_": "Its glass is painted black on black paint: no colour to find it by, so every pane is given as a shape measured on its looks: the front and rear doors' glass, the fixed pane behind the rear door and the quarter window on each side; the windscreen seen from above (its foot curved as the glass is); the tailgate's glass from behind, between its tail lamps.",
+  "grow": false,
+  "panes": {
+   "left": [
+    [[0.156, 0.276], [0.007, 0.371], [-0.013, 0.374], [-0.013, 0.276]],
+    [[-0.03, 0.276], [-0.03, 0.374], [-0.16, 0.374], [-0.16, 0.278]],
+    [[-0.167, 0.279], [-0.167, 0.373], [-0.199, 0.373], [-0.213, 0.28]],
+    [[-0.227, 0.283], [-0.227, 0.375], [-0.419, 0.375], [-0.419, 0.283]]
+   ],
+   "right": [
+    [[0.156, 0.276], [0.007, 0.371], [-0.013, 0.374], [-0.013, 0.276]],
+    [[-0.03, 0.276], [-0.03, 0.374], [-0.16, 0.374], [-0.16, 0.278]],
+    [[-0.167, 0.279], [-0.167, 0.373], [-0.199, 0.373], [-0.213, 0.28]],
+    [[-0.227, 0.283], [-0.227, 0.375], [-0.419, 0.375], [-0.419, 0.283]]
+   ],
+   "top": [[[0.105, -0.163], [0.105, 0.163], [0.218, 0.172], [0.228, 0.11], [0.233, 0.055], [0.236, 0.0], [0.233, -0.055], [0.228, -0.11], [0.218, -0.172]]],
+   "back": [[[0.172, 0.364], [-0.146, 0.364], [-0.15, 0.297], [0.177, 0.297]]]
+  }
+ }
 }

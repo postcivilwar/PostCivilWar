@@ -247,7 +247,7 @@ def find(car, cfg, sheet=None):
         kept = 0
         if name == 'top':
             fwd_ok = lambda f: (nz * f > (0.2 if f > 0 else 0.15)) & (ny < 0.99)
-        for p3 in seeds[name] + [tuple(s) for s in cfg.get('seeds', {}).get(name, [])]:
+        for p3 in (seeds[name] if cfg.get('grow', True) else []) + [tuple(s) for s in cfg.get('seeds', {}).get(name, [])]:
             sx, sy_, _ = project(np.array([p3], float), frame)
             sx, sy_ = int(sx[0]), int(sy_[0])
             if not (0 <= sy_ < depth.shape[0] and 0 <= sx < depth.shape[1]) or depth[sy_, sx] == -np.inf or tried[sy_, sx]: continue
@@ -260,6 +260,7 @@ def find(car, cfg, sheet=None):
             m = grow(img, (sx, sy_), tol=tol, edge=edge, allowed=allow)
             tried |= m
             n = int(m.sum())
+            if os.environ.get('WVERBOSE') and n > 50: print('     try', name, [round(float(v), 3) for v in p3], 'n', n, 'of', carpx, 'colour', img[m].mean(axis=0).astype(int) if n else None)
             if n < 200 or n > 0.2 * carpx: continue
             c = img[m].mean(axis=0)
             if name in ('left', 'right'):
@@ -272,11 +273,14 @@ def find(car, cfg, sheet=None):
                 tilt = np.mean((np.abs(zs_[good]) > 0.3) & (ys_[good] > 0.3) & (ys_[good] < 0.95))
                 if tilt < 0.8: continue
             region |= m; kept += 1
-        # panes given as shapes (glass painted nearly the paint's own colour): the shape, taken in to the painted edge
-        # where the colour inside it is not the paint's
+        # panes given as shapes (glass painted nearly the paint's own colour): the shape, where the surface seen faces
+        # this look as the glass does (the sides out to their side; from above, leaning, not the flat roof; in front and
+        # behind, facing that way)
         for poly in cfg.get('panes', {}).get(name, []):
             pane = inside(poly, coord[ca], coord[cb]) & ~np.isnan(Y) & (depth > -np.inf)
             if name in ('left', 'right'): pane &= (nx * (1 if name == 'left' else -1)) > 0.35
+            elif name == 'top': pane &= (ny < 0.99) & (np.abs(nz) > 0.2)
+            else: pane &= (nz * (1 if name == 'front' else -1)) > 0.4
             region |= pane; kept += 1
         if region.any():
             region = ndimage.binary_fill_holes(ndimage.binary_closing(region, iterations=cfg.get('close', 3)))

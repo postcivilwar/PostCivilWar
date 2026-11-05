@@ -5138,7 +5138,7 @@ same places and hour as before the change (the lamp's light no longer over the s
 foot drawn); the sweep again where its first run missed: the PowerBike showroom's forecourt from outside 0 over 2 cm (its
 plates 3, on purpose), the river bank 1 (the bench; the jetty's posts 0), the city's piece built this time 0, the
 chevrons' paint 0, by the Peace Interchange 1 (a slim tree 80 m off drawn as its picture, without its roots; near it, as
-itself, they are drawn and stood on); traffic 17/17; the land beyond the town 12/12; the town's buildings 12/12; PHONEMEM.
+itself, they are drawn and stood on); traffic 17/17; the land beyond the town 12/12; the town's buildings 12/12; the phone's memory 11/12 (C: back at the motor park after the trip out, 90% of the town's triangles drawn again where it asks for as many as before, more of its far squares resting by then; it has failed so now and then on earlier builds too, 1 November; run again on this build and on the one before it in turn, below).
 
 ## Tests
 

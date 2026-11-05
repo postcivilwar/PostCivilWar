@@ -319,14 +319,24 @@ function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = 
   const liningY = under(liningZ0 + 0.1, liningZ1 - 0.1, 0.012) ;
   const roofIn = Math.min(roof, liningY);
   box(2 * insideOver(liningZ0, liningZ1, roofIn - 0.08, roofIn), 0.02, liningZ1 - liningZ0, 0, roofIn - 0.01, (liningZ0 + liningZ1) / 2, T.roof);
-  for (const s of [-1, 1]) box(0.32, 0.012, 0.15, s * hip[0], roofIn - 0.035, dashZ - 0.12, T.roof, 0.15);
+  // (the visors over the front seats, in from the glass where the roof narrows at the windscreen's top)
+  const visorOut = Math.min(hip[0] + 0.16, insideOver(dashZ - 0.2, dashZ - 0.04, roofIn - 0.06, roofIn - 0.02) + 0.02);
+  const visorWide = Math.max(0.16, Math.min(0.32, visorOut - 0.06));
+  for (const s of [-1, 1]) box(visorWide, 0.012, 0.15, s * (visorOut - visorWide / 2), roofIn - 0.035, dashZ - 0.12, T.roof, 0.15);
   box(0.024, 0.05, 0.02, 0, roofIn - 0.045, dashZ - 0.05, 0x101010);
   box(0.24, 0.06, 0.015, 0, roofIn - 0.095, dashZ - 0.06, 0x18181a);
-  // (the pillars' trim either side of the windscreen and behind the front doors, inside the body's)
-  for (const s of [-1, 1]) {
-    box(0.04, roofIn - belt, 0.05, s * (inside(dashZ, (roofIn + belt) / 2) - 0.02), (roofIn + belt) / 2, dashZ - 0.02, T.roof, -0.45);
-    if (four) box(0.05, roofIn - belt, 0.08, s * (inside((hip[2] + rearZ) / 2, (roofIn + belt) / 2) - 0.02), (roofIn + belt) / 2, (hip[2] + rearZ) / 2 - 0.06, T.roof);
-  }
+  // (the pillars' trim either side of the windscreen and behind the front doors, inside the body's: a piece at a time up
+  // from the belt to the roof, each as far out as the room at its own height, so that it follows the glass leaning in)
+  const pillar = (w, dd, zLow, zHigh, rx) => {
+    const n = 4, h = (roofIn - belt) / n;
+    for (let k = 0; k < n; k += 1) {
+      const y0 = belt + k * h, z = zLow + (zHigh - zLow) * (k + 0.5) / n;
+      const x = insideOver(z - dd / 2, z + dd / 2, y0, y0 + h) - w / 2;
+      for (const s of [-1, 1]) box(w, h + 0.012, dd, s * x, y0 + h / 2, z, T.roof, rx);
+    }
+  };
+  pillar(0.04, 0.05, dashZ - 0.02 + 0.5 * (roofIn - belt) * Math.sin(0.45), dashZ - 0.02 - 0.5 * (roofIn - belt) * Math.sin(0.45), -0.45);
+  if (four) pillar(0.05, 0.08, (hip[2] + rearZ) / 2 - 0.06, (hip[2] + rearZ) / 2 - 0.06, 0);
   // ---- seat belts across whoever sits in front: from the pillar over the shoulder to the buckle
   for (const s of [-1, 1]) {
     const x0 = s * (inside(hip[2] - 0.1, belt + 0.25) - 0.03), y0 = Math.min(roofIn - 0.12, belt + 0.3), z0 = hip[2] - 0.18;
