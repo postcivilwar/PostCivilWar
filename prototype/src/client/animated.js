@@ -447,7 +447,7 @@ export function makeAnimatedRig(id, labelText, shadow = false, police = null, si
   const tall = (spec.height || 1.75) * (size > 0.5 && size < 1.5 ? size : 1);
   const V = () => new THREE.Vector3(), Q = () => new THREE.Quaternion();
   const PL = { g: V(), f: V(), b: V(), l: V(), t: V(), u: V(), v: V(), fwd: V(), up: new THREE.Vector3(0, 1, 0), fq: Q(), sq: Q(), pq: Q(), one: Q(), S: V(), K: V(), F: V(), dir: V(), pole: V(), mid: V(), knee: V(), end: V(), a: V(), c: V(), w: V(), q: Q(), r: Q(), s: Q() };
-  const legs = ['l', 'r'].map((s) => ({ s, on: false, d: 0, w: 0, rest: undefined, n: new THREE.Vector3(0, 1, 0) }));
+  const legs = ['l', 'r'].map((s) => ({ s, on: false, d: 0, w: 0, rest: undefined, n: new THREE.Vector3(0, 1, 0), kept: ['thigh', 'calf', 'foot'].map(() => ({ bone: null, clip: new THREE.Quaternion(), done: new THREE.Quaternion() })), bent: false }));
 
   const rig = {
     animated: id, figure: id, group, body: holder, lift, label, blob, mesh: null, triangles: 0, spec, speed: 0, idleTime: 0, phase: 0, scale: 1, stride: 1,
@@ -655,6 +655,7 @@ export function makeAnimatedRig(id, labelText, shadow = false, police = null, si
   // under it, from its heel to its toes and across. Not seated, lying, in the air, in the water or on stairs (whose clip
   // has its own steps).
   function plantFeet(dt) {
+    unbend();
     const ground = rig.ground;
     if (typeof ground !== 'function' || !rig.bones || rig.seated || rig.lying || rig.jumping || rig.swimming || rig.climbing || rig.held) { rig.plantDrop = 0; return; }
     group.updateMatrixWorld(true);
@@ -704,6 +705,8 @@ export function makeAnimatedRig(id, labelText, shadow = false, police = null, si
       const raise = leg.d - rig.plantDrop;
       const tilted = leg.n.y < 0.9995 && leg.w > 0.01;
       if (Math.abs(raise) < 0.002 && !tilted) continue;
+      // (each bone as its clip has it, kept: unbend)
+      [thigh, calf, foot].forEach((b, i) => { leg.kept[i].bone = b; leg.kept[i].clip.copy(b.quaternion); });
       // (the foot's own way kept through the bending of the leg, then laid along the slope while it is on the ground)
       foot.getWorldQuaternion(PL.fq);
       if (Math.abs(raise) >= 0.002) { foot.getWorldPosition(PL.t); PL.t.y += raise; legTo(thigh, calf, foot, PL.t); }
@@ -711,6 +714,21 @@ export function makeAnimatedRig(id, labelText, shadow = false, police = null, si
       foot.parent.getWorldQuaternion(PL.pq);
       foot.quaternion.copy(PL.pq.invert().multiply(PL.fq));
       foot.updateMatrixWorld(true);
+      for (const k of leg.kept) k.done.copy(k.bone.quaternion);
+      leg.bent = true;
+    }
+  }
+  // Each bone bent last frame put back as its clip had it, unless the clip has set it since. (three.js's mixer sets a
+  // bone only when its clip's value for it has changed: a figure whose clip holds still, or held still on purpose, had
+  // each frame's bending put on the last frame's, a leg raised a little more every frame, 5 November 2026: the feet
+  // test found a foot 1.7 m up.)
+  function unbend() {
+    for (const leg of legs) {
+      if (!leg.bent) continue;
+      leg.bent = false;
+      let any = false;
+      for (const k of leg.kept) if (k.bone && k.bone.quaternion.equals(k.done)) { k.bone.quaternion.copy(k.clip); any = true; }
+      if (any) group.updateMatrixWorld(true);
     }
   }
   // A bone turned so that its child is on the line to `to` (as `aim`, with nothing made each time).

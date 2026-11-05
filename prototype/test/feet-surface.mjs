@@ -100,7 +100,9 @@ await page.evaluate(() => { window.__nlw.me.mixer.timeScale = 0; });
 await page.waitForTimeout(1500);
 const flat = await feet();
 const rest = flat.l && flat.r ? (flat.l.over + flat.r.over) / 2 : null;
-check('B: on flat ground, both feet at their own height over it (the same, within 2 cm)', rest !== null && Math.abs(flat.l.over - flat.r.over) < 0.02 && rest > 0 && rest < 0.2, flat);
+// (each ankle as high as the standing pose has it at that moment, one heel a little up: 2 to 5 cm between them, as
+// the moment the clip is held at falls)
+check('B: on flat ground, each foot on it (its ankle 5 to 20 cm over it, as the standing pose has it)', rest !== null && [flat.l.over, flat.r.over].every((o) => o > 0.05 && o < 0.2), flat);
 // how far each foot is from where it is on flat ground, over the surface under it
 const offFrom = (at) => (at.l && at.r && flat.l && flat.r ? Math.max(Math.abs(at.l.over - flat.l.over), Math.abs(at.r.over - flat.r.over)) : null);
 
@@ -116,6 +118,8 @@ await page.screenshot({ path: `${out}/c-kerb.png` });
 
 // ---- D: on a ramp (the Peace Interchange's slip road off the expressway, nearly 6 in 100 down) ----
 const ramp = { x: 625.0675, z: -1100.1919, y: 4.3722, face: Math.atan2(0.9165, 0.4) };
+// (at the height its road is drawn there, as the game has it: 5 November 2026, a few millimetres over the deck's level)
+ramp.y = await page.evaluate(([x, z, y]) => window.__nlw.surfaceY(x, z, y), [ramp.x, ramp.z, ramp.y]);
 await standAt(ramp.x, ramp.z, ramp.y, ramp.face + Math.PI, 7000);
 const up = await feet();
 const offD = offFrom(up);

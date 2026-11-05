@@ -125,6 +125,10 @@ await page.waitForFunction(() => window.__nlw.me && window.__nlw.me.mixer, null,
 // (the land beyond the town and Oganiru City made at once, as for someone already out there: the game makes them a piece
 // at a time otherwise)
 await page.evaluate(() => { const n = window.__nlw; if (!n.beyond) n.buildBeyond(); n.buildCity(); });
+// (and every one of the owner's buildings in the town loaded and kept: each is fetched as one comes near, and until it
+// has come nothing of its steps is drawn; 5 November 2026, the hotel's were measured before it had come)
+await page.evaluate(() => { const t = window.__nlw.townBuildings; if (t) t.loadAll(); });
+await page.waitForFunction(() => { const t = window.__nlw.townBuildings; return !t || t.state().models.every((m) => m.state === 'ready' || m.state === 'failed'); }, null, { timeout: 600000, polling: 2000 }).catch(() => console.log('   (the town\'s buildings not all loaded after ten minutes)'));
 // (by day: nothing of the night changes what is drawn where, and the lamps' pools are marks, left out anyway)
 await page.evaluate(() => {
   // the drawn surfaces in a box: every solid, upward-facing triangle (or, drawn from both sides, either way up), in a
