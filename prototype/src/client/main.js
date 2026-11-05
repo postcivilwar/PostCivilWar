@@ -4504,7 +4504,7 @@ function start(carried) {
   // however long it took to draw: `fixedStep`)
   // (`frameBudget`: with a fixed step, how many frames more move the game on; after them it holds, so that a recording
   // takes each frame as it is drawn, one step apart)
-  let timeScale = 1, fixedDt = 0, frameBudget = Infinity;
+  let timeScale = 1, fixedDt = 0, frameBudget = Infinity, recording = null;
   // The game's loop. The next frame is asked for before this one is drawn, and a mistake in drawing one frame is
   // written to the console and counted (`frameErrors`) rather than left to end the loop (18 October 2026, the owner's
   // brief: the game sometimes froze. Until now the next frame was asked for at the end of this one, so any error
@@ -5239,6 +5239,9 @@ blood.update(dt, view.blood || []);
       if (!glow) glow = createScreenGlow(renderer);
       monitor.time('glow', () => glow.apply({ amount: airLevel.glow * (0.28 + 0.42 * night), night, wide: airLevel.glowWide, flare: airLevel.flare > 0 && !hall ? sunOnScreen(skyState) : null }));
     }
+    // (a recording for the tests and the owner's pictures: the picture as drawn, taken from the canvas in the same frame,
+    // with the game's own time; the page's buttons and words are not in it)
+    if (drewTown && recording) { try { recording.push({ t: clock, jpeg: renderer.domElement.toDataURL('image/jpeg', 0.84) }); } catch (error) { recording = null; } }
     perf.calls = renderer.info.render.calls;
     perf.triangles = renderer.info.render.triangles;
     // what the graphics card was sent for the first time in this frame
@@ -5432,6 +5435,10 @@ blood.update(dt, view.blood || []);
     // (with a fixed step: let `n` more frames move the game on, then hold; how many are still to)
     stepFrames(n = 1) { frameBudget = n; return frameBudget; },
     get framesLeft() { return frameBudget; },
+    // (every frame drawn kept as a picture, with the game's time, until it is stopped; `recorded()` hands over those
+    // kept so far and lets them go)
+    record(on = true) { recording = on ? [] : null; return !!recording; },
+    recorded() { const r = recording || []; if (recording) recording = []; return r; },
     // (the page's own clock, seconds: for timing frames recorded while it is slowed)
     get clock() { return clock; },
     fetchWeather: () => fetchWeather(), get realWeather() { return realWeather; },
