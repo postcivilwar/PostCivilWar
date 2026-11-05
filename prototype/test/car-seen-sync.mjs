@@ -26,6 +26,16 @@ const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable
 const results = [];
 const check = (name, ok, detail) => { results.push(ok); console.log(ok ? 'ok  ' : 'FAIL', name, detail === undefined ? '' : JSON.stringify(detail)); };
 
+// (bright magenta pixels in a picture of the screen, read by the page itself: no PNG reader is needed here)
+const countMagenta = (pg, buf) => pg.evaluate(async (b64) => {
+  const img = new Image(); img.src = `data:image/png;base64,${b64}`; await img.decode();
+  const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height).data; let hit = 0;
+  for (let i = 0; i < d.length; i += 4) { const r = d[i], gg = d[i + 1], b = d[i + 2]; if (r > 90 && b > 90 && gg < 0.6 * Math.min(r, b)) hit += 1; }
+  return hit;
+}, buf.toString('base64'));
+
 async function player(label, size) {
   const context = await browser.newContext({ viewport: size, deviceScaleFactor: 1, serviceWorkers: 'block' });
   const page = await context.newPage(); page.setDefaultTimeout(300000);
@@ -105,11 +115,9 @@ const painted = seen && await B.page.evaluate((id) => {
   return k;
 }, seen.id);
 await B.page.waitForTimeout(2000);
-const { PNG } = await import('/opt/npm-tools/node_modules/pngjs/lib/png.js').catch(() => ({ PNG: null }));
 const buf = await B.page.screenshot({ path: resolve(out, 'seen-2-painted.png') });
-let hit = null;
-if (PNG) { const png = PNG.sync.read(buf); hit = 0; for (let i = 0; i < png.data.length; i += 4) { const r = png.data[i], g = png.data[i + 1], b = png.data[i + 2]; if (r > 90 && b > 90 && g < 0.6 * Math.min(r, b)) hit += 1; } }
-check('the first player is seen through the car\'s glass (their figure painted bright magenta, found on the second player\'s screen)', hit === null ? false : hit > 150, { painted, magenta: hit });
+const hit = await countMagenta(B.page, buf);
+check('the first player is seen through the car\'s glass (their figure painted bright magenta, found on the second player\'s screen)', hit > 150, { painted, magenta: hit });
 await A.shot('seen-0-driver');
 const failed = results.filter((r) => !r).length;
 console.log(`${results.length - failed}/${results.length} passed`);

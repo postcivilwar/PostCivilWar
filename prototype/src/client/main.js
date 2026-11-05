@@ -3783,7 +3783,9 @@ function start(carried) {
     // (5 November 2026) a car with glass, the owner's moves fetched: got into and out of as a person does, by his moves
     // (car-boarding.js), the door opened and shut at their own moments; otherwise as before
     const moves = carSeen(model) && CAR_WINDOWS[model] && carMovesLoaded();
-    const B = moves ? (() => { const t = boardTimes(kind); return { open: t.open, slam: t.shut - DOOR.shutting * 0.4, end: t.length + 0.1 }; })() : BOARD[kind];
+    // (`go`: while the body moves between the door and the seat, as his moves have it: getting in, turning and sitting
+    // down after the door is open; getting out, from the legs swung out to the step clear of the door)
+    const B = moves ? (() => { const t = boardTimes(kind); return { open: t.open, go: kind === 'in' ? [0.22 * t.length, 0.62 * t.length] : [0.2 * t.length, 0.72 * t.length], slam: t.shut - DOOR.shutting * 0.4, end: t.length + 0.1 }; })() : BOARD[kind];
     boarding = { kind, key, model, car, at, door, start: clock + slide, slide, seen: carSeen(model), moves: !!moves, B };
     openDoor(key, door, clock + slide + B.open, clock + slide + B.slam);
   }
@@ -4478,8 +4480,10 @@ function start(carried) {
   }
 
   let last = performance.now();
-  // (the game's clock against the real one: 1, unless a browser test slows everything down to look at it closely)
-  let timeScale = 1;
+  // (the game's clock against the real one: 1, unless a browser test slows everything down to look at it closely; or,
+  // for a recording made in a slow headless browser, the same short step of the game's time for every frame drawn
+  // however long it took to draw: `fixedStep`)
+  let timeScale = 1, fixedDt = 0;
   // The game's loop. The next frame is asked for before this one is drawn, and a mistake in drawing one frame is
   // written to the console and counted (`frameErrors`) rather than left to end the loop (18 October 2026, the owner's
   // brief: the game sometimes froze. Until now the next frame was asked for at the end of this one, so any error
@@ -4514,7 +4518,7 @@ function start(carried) {
   }
   function drawFrame(now) {
     const elapsed = (now - last) / 1000;
-    const frameDt = Math.min(0.5, Math.max(0.001, elapsed)), dt = frameDt * timeScale;
+    const frameDt = Math.min(0.5, Math.max(0.001, elapsed)), dt = fixedDt > 0 ? fixedDt : frameDt * timeScale;
     last = now;
     clock += dt;
     // (until the town is built there is nothing of it to move or draw: the opening and the start screen are the page's)
@@ -5397,6 +5401,9 @@ blood.update(dt, view.blood || []);
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },
     // everything at a share of its speed (a fall seen frame by frame in a slow headless browser), and back to 1
     slow(share = 1) { timeScale = Math.max(0.02, Math.min(1, Number(share) || 1)); return timeScale; },
+    // (every frame drawn moves the game on by `seconds`, however long it took to draw: a recording in a slow headless
+    // browser, frame by frame; 0 for the real time again)
+    fixedStep(seconds = 0) { fixedDt = Math.max(0, Math.min(0.25, Number(seconds) || 0)); return fixedDt; },
     // (the page's own clock, seconds: for timing frames recorded while it is slowed)
     get clock() { return clock; },
     fetchWeather: () => fetchWeather(), get realWeather() { return realWeather; },
