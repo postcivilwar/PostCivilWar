@@ -5170,7 +5170,9 @@ surface faces its look as glass does:
   front and rear doors' glass, the fixed pane behind the rear door and the quarter window on each side, the windscreen
   seen from above with its foot curved as the glass is, the tailgate's glass between its tail lamps).
 Written beside the car's other files: `<id>-windows-1k.png` and `-512.png` (white where glass, on the colour picture's
-own layout, the edge eased over a point so the cut is smooth however near it is seen, and carried out past the
+own layout; found on that layout at 2048 and each point written the share of its points there that are glass, its edge
+eased over a point, so that the cut runs smoothly between the points of the picture however near it is seen, not along
+them in steps (found at 1024 first, the SUV's door glass showed steps of about 1.5 cm close up); carried out past the
 picture's pieces so none shows a seam), `<id>-glass.bin` (a bit for each of the body's triangles: set where any of it is
 glass), and `src/client/car-windows.js` (for each car: those files, how low its side glass comes, whether its glass behind
 the front doors is privacy glass, and the room inside its shell for fitting a cabin: how far out its side is at 33 places
@@ -5199,10 +5201,12 @@ under the windscreen with the hood over the dials, the centre stack's frame, ven
 carried forward to the windscreen's foot and the firewall under it closing the cabin at the front (the engine never
 seen; a wall up to the glass, first tried, stood behind half the SUV's windscreen), the centre console with the gear lever, the pedals,
 carpet and mats, the panel and parcel shelf behind the back seat (the boot never seen), the roof lining, the visors and
-the mirror, the pillars' trim, seat belts, and the doors' insides (armrest, handle, speaker, window switches), each
+the mirror, seat belts, and the doors' insides (armrest, handle, speaker, window switches), each
 swinging with its door. Our own designs, no maker's name or badge anywhere: the steering wheel a three-spoke rim with our
-rising sun at its middle, the dials lit by night. Every piece is kept inside the shell at every height it stands at (the pillars' trim and the
-visors step in with the glass as it leans in toward the roof). One set of shapes for each model, shared by every car of
+rising sun at its middle, the dials lit by night. The pillars as seen from a seat are the body's own, drawn from inside
+as the dark trim (pieces of trim set against them, first tried, stood in the windscreen's and the side windows' view as
+a staircase of blocks where the glass leans in, the SUV's most). Every piece is kept inside the shell at every height it
+stands at (the visors step in with the glass as it leans in toward the roof). One set of shapes for each model, shared by every car of
 it, one material: the cabin is one draw while its doors are shut, the wheel and the lit dials one each. Full detail
 within 30 m on a computer and 15 m on a phone; beyond that to 90 m (45 m) the seats, dashboard and the rest only; further
 off nothing (the glass mostly gives back the sky there). No light of its own but the dials' glow and the lamp over the

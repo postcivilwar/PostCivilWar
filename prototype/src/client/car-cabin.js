@@ -374,20 +374,9 @@ function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = 
   for (const s of [-1, 1]) box(visorWide, 0.012, 0.15, s * (visorOut - visorWide / 2), visorY, dashZ - 0.12, T.roof, 0.15);
   box(0.024, 0.05, 0.02, 0, roofIn - 0.045, dashZ - 0.05, 0x101010);
   box(0.24, 0.06, 0.015, 0, roofIn - 0.095, dashZ - 0.06, 0x18181a);
-  // (the pillars' trim either side of the windscreen and behind the front doors, inside the body's: a piece at a time up
-  // from the belt to the lining, each as far out as the room at its own height and a little above it (the shell is
-  // measured at heights a hand apart, and rounds in sharply to the roof), so that it follows the glass leaning in; the
-  // lining over its top)
-  const pillar = (w, dd, zLow, zHigh, rx) => {
-    const n = 4, h = (roofIn - 0.05 - belt) / n;
-    for (let k = 0; k < n; k += 1) {
-      const y0 = belt + k * h, z = zLow + (zHigh - zLow) * (k + 0.5) / n;
-      const x = insideOver(z - dd / 2, z + dd / 2, y0, Math.min(roofIn, y0 + h + 0.06)) - w / 2;
-      for (const s of [-1, 1]) box(w, h + 0.012, dd, s * x, y0 + h / 2, z, T.roof, rx);
-    }
-  };
-  pillar(0.04, 0.05, dashZ - 0.02 + 0.5 * (roofIn - belt) * Math.sin(0.45), dashZ - 0.02 - 0.5 * (roofIn - belt) * Math.sin(0.45), -0.45);
-  if (four) pillar(0.05, 0.08, (hip[2] + rearZ) / 2 - 0.06, (hip[2] + rearZ) / 2 - 0.06, 0);
+  // (the pillars, as seen from a seat, are the body's own, drawn from inside as the dark trim (car-glass.js): pieces of
+  // trim set against them, first tried, stood in the windscreen's and the side windows' view as a staircase of blocks
+  // where the glass leans in, the SUV's most)
   // ---- seat belts across whoever sits in front: from the pillar over the shoulder to the buckle
   for (const s of [-1, 1]) {
     const x0 = s * (inside(hip[2] - 0.1, belt + 0.25) - 0.03), y0 = Math.min(roofIn - 0.12, belt + 0.3), z0 = hip[2] - 0.18;

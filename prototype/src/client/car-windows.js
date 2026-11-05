@@ -9,8 +9,8 @@ export const CAR_WINDOWS = Object.freeze({
    "512": "black-luxury-suv-windows-512.png"
   },
   "tris": "black-luxury-suv-glass.bin",
-  "count": 6069,
-  "belt": 0.2804,
+  "count": 5924,
+  "belt": 0.2805,
   "privacy": true,
   "fit": {
    "z": [
@@ -1660,8 +1660,8 @@ export const CAR_WINDOWS = Object.freeze({
    "512": "grey-saloon-windows-512.png"
   },
   "tris": "grey-saloon-glass.bin",
-  "count": 367,
-  "belt": 0.2254,
+  "count": 371,
+  "belt": 0.2268,
   "privacy": false,
   "fit": {
    "z": [
@@ -3311,8 +3311,8 @@ export const CAR_WINDOWS = Object.freeze({
    "512": "mint-sports-coupe-windows-512.png"
   },
   "tris": "mint-sports-coupe-glass.bin",
-  "count": 615,
-  "belt": 0.1853,
+  "count": 687,
+  "belt": 0.1854,
   "privacy": false,
   "fit": {
    "z": [

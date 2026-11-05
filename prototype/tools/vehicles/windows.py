@@ -39,7 +39,10 @@ GAME = os.path.join(ROOT, 'assets', 'vehicles', 'cars', 'game')
 SPECS = os.path.join(ROOT, 'assets', 'vehicles', 'cars', 'cars.json')
 SETTINGS = os.path.join(os.path.dirname(__file__), 'windows.json')
 JS = os.path.join(ROOT, 'src', 'client', 'car-windows.js')
-R = 1024                       # the colour picture's layout, at this size, for finding the glass
+R = 2048                       # the colour picture's layout, at this size, for finding the glass (twice the largest
+                               # written: each point of that one the share of its four here that is glass, so that the
+                               # cut runs smoothly between its points rather than along them in steps)
+AT = R // 1024                 # (how many of these points to one of a 1024 picture's, for the tidying's reaches)
 OUT = {'1k': 1024, '512': 512}  # the sizes written
 # privacy glass behind the front doors (the brief: "the back side windows and the back window darker on the SUVs, the
 # State Limousine and the luxury cars")
@@ -294,9 +297,9 @@ def find(car, cfg, sheet=None):
     lab, nlab = ndimage.label(glass)
     if nlab:
         sizes = ndimage.sum(glass, lab, range(1, nlab + 1))
-        glass = np.isin(lab, 1 + np.nonzero(sizes >= cfg.get('speck', 30))[0])
+        glass = np.isin(lab, 1 + np.nonzero(sizes >= cfg.get('speck', 30) * AT * AT)[0])
     g = glass.copy()
-    for _ in range(2):
+    for _ in range(2 * AT):
         pad = np.pad(g, 1)
         nb = sum(pad[1 + dy:1 + dy + R, 1 + dx:1 + dx + R] for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx)
         g = (g | (nb >= 5)) & covered
@@ -318,7 +321,7 @@ def write(car, spec, uv, body, T, covered, glass):
         Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), 'L').save(os.path.join(GAME, f'{car}-windows-{name}.png'), optimize=True)
     # the triangles any of whose glass is drawn: any covering a point near the glass, or with a corner or its middle on
     # the glass (one too small to cover a point of the picture)
-    near = ndimage.binary_dilation(glass, iterations=2)
+    near = ndimage.binary_dilation(glass, iterations=2 * AT)
     tri = np.zeros(len(body), bool)
     owners = T[near & covered]
     tri[owners[owners >= 0]] = True
