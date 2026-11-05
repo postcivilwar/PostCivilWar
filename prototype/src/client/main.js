@@ -5397,6 +5397,8 @@ blood.update(dt, view.blood || []);
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },
     // everything at a share of its speed (a fall seen frame by frame in a slow headless browser), and back to 1
     slow(share = 1) { timeScale = Math.max(0.02, Math.min(1, Number(share) || 1)); return timeScale; },
+    // (the page's own clock, seconds: for timing frames recorded while it is slowed)
+    get clock() { return clock; },
     fetchWeather: () => fetchWeather(), get realWeather() { return realWeather; },
     // the sky the player chooses (Settings, Time and weather), as the panel sets it
     setSky: (choice) => { prefs.skyTime = SKY_TIMES[choice.time] !== undefined ? choice.time : 'real'; prefs.skyWeather = SKY_WEATHERS[choice.weather] ? choice.weather : 'real'; writeStored(PREFS_KEY, prefs); return skyChoice(); },

@@ -70,8 +70,11 @@ const EXTRA = ['REVISION', 'ColorManagement', 'SRGBColorSpace', 'LinearSRGBColor
 
 const files = (dir) => readdirSync(dir).flatMap((name) => { const p = join(dir, name); return statSync(p).isDirectory() ? files(p) : [p]; });
 const used = new Set(EXTRA);
-// (the game, its tests, and the tools that draw with the game's own code: the turntables, the vehicles' pictures...)
-for (const file of [...files(resolve(root, 'src')), ...files(resolve(root, 'test')), ...files(resolve(root, 'tools')).filter((f) => !f.startsWith(resolve(root, 'tools/three')))].filter((f) => /\.(m?js|html)$/.test(f))) {
+// (the game, its tests, and the tools that draw with the game's own code: the turntables, the vehicles' pictures...; not
+// three.js's own FBX loader copied for tools/characters/car-moves.mjs, which takes what it uses from three.js's modules
+// and names `THREE.FBXLoader` only in its messages)
+const skip = [resolve(root, 'tools/three'), resolve(root, 'tools/characters/fbx')];
+for (const file of [...files(resolve(root, 'src')), ...files(resolve(root, 'test')), ...files(resolve(root, 'tools')).filter((f) => !skip.some((s) => f.startsWith(s)))].filter((f) => /\.(m?js|html)$/.test(f))) {
   for (const m of readFileSync(file, 'utf8').matchAll(/\bTHREE\.([A-Za-z_][\w$]*)/g)) used.add(m[1]);
 }
 // (the add-ons' own imports from the library: vendor/three-r186/addons/, POST below)

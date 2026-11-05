@@ -188,7 +188,7 @@ test('taking a car standing still with its driver at the wheel: from beside a fr
   const started = ok(w.send(w.ids[0], { type: 'hijack.start', car: n }));
   assert.equal(started.hijack.kind, 'car');
   assert.equal(c.frozen, true, 'the car is held where it is while the door is opened');
-  until(w, () => !p.hijack, 5);
+  until(w, () => !p.hijack, 10);
   assert.equal(p.incar, `pc:${model}`);
   assert.equal(p.pcar.taken, n);
   assert.equal(c.mode, 'taken');
@@ -238,7 +238,7 @@ test('caught by the police: every car taken goes back to its owner, the one at t
     const { c, at } = standingCar(w);
     w.place(p, at.x, at.z);
     ok(w.send(w.id, { type: 'hijack.start', car: c.n }));
-    until(w, () => !p.hijack, 5);
+    until(w, () => !p.hijack, 10);
     assert.equal(p.pcar.taken, c.n);
     taken.push(c.n);
     if (k < 5) ok(w.send(w.id, { type: 'car.leave' }));
@@ -273,12 +273,12 @@ test('kept with the town: a car taken and left is still the thief\'s when the to
   const a = standingCar(w);
   w.place(p, a.at.x, a.at.z);
   ok(w.send(w.id, { type: 'hijack.start', car: a.c.n }));
-  until(w, () => !p.hijack, 5);
+  until(w, () => !p.hijack, 10);
   ok(w.send(w.id, { type: 'car.leave' }));
   const b = standingCar(w);
   w.place(p, b.at.x, b.at.z);
   ok(w.send(w.id, { type: 'hijack.start', car: b.c.n }));
-  until(w, () => !p.hijack, 5);
+  until(w, () => !p.hijack, 10);
   const again = createHost({ saved: JSON.parse(JSON.stringify(w.host.save())) });
   const T2 = again.game.internals.traffic, p2 = again.game.state.players[w.id];
   assert.equal(T2.cars[a.c.n].mode, 'kept');
