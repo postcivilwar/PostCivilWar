@@ -4722,6 +4722,16 @@ function start(carried) {
       // (getting in or out, or into a car being taken, by the owner's moves where the car has glass: car-boarding.js)
       const boardMoved = (boarding && boarding.moves) || (taking && taking.kind === 'car' && ['enter', 'shut', 'slide'].includes(taking.step)) ? boardFigure(self, taking) : false;
       { const c = boarding ? boarding.car : taking && taking.kind === 'car' && taking.car ? taking.car : null; const m = boarding ? boarding.model : taking ? taking.model : null; const sp = m && POWER_CARS[m]; const dr = boarding ? boarding.door : taking ? taking.door : null; cameraCar = c && sp ? { x: c.x, z: c.z, h: c.h, half: sp.length / 2, wide: sp.width / 2, top: levelAt(predicted) + 1.15 * (sp.height || 1.5), doorSide: dr === 'fl' || dr === 'rl' ? 1 : dr ? -1 : 0, door: dr ? 1.05 : 0 } : null; }
+      // (taking a car, at its door: the camera eased round behind the player, a little toward the car's back and up,
+      // showing the player, the door and the driver pulled out, as the owner's video 3 does; not while the player is
+      // turning the view by hand)
+      if (taking && taking.kind === 'car' && taking.car && ['turn', 'door', 'pull', 'enter', 'shut'].includes(taking.step) && clock - cam.lastDrag > 2) {
+        const fx = Math.sin(taking.car.h), fz = Math.cos(taking.car.h), H = predicted.heading;
+        const back = (d) => -Math.sin(H + d) * fx - Math.cos(H + d) * fz;
+        const yaw = H + (back(0.55) < back(-0.55) ? 0.55 : -0.55);
+        cam.yaw += angleGap(yaw, cam.yaw) * Math.min(1, dt * 2.2);
+        cam.pitch += (0.34 - cam.pitch) * Math.min(1, dt * 1.6);
+      }
       const carSeated = boardMoved || (!!ownDrive && !!incar && carView.seat(me, ownDrive));
       carsHeard = peerCars.map((q) => ({ key: q.key, car: q.id, x: q.x, z: q.z, rev: q.rev || 0, throttle: q.throttle || 0 }));
       // the town's cars on the move are heard as other players' are (the nearest few: audio.js), and their horns

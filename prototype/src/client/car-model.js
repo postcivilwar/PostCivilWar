@@ -136,9 +136,15 @@ function sortDoors(id, spec, position, index) {
     let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
     const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
     if (Math.abs(ny) > 0.78) continue;
+    // (all of a triangle within the door, not only its middle: a long one reaching from the door's edge to the pillar
+    // or the mirror, swung open with the door, would be drawn stretched out across the road)
+    const zLo = Math.min(position[a + 2], position[b + 2], position[c + 2]), zHi = Math.max(position[a + 2], position[b + 2], position[c + 2]);
+    const yLo = Math.min(position[a + 1], position[b + 1], position[c + 1]), yHi = Math.max(position[a + 1], position[b + 1], position[c + 1]);
+    const slack = 0.012 * spec.length;
+    if (yLo < sill - slack || yHi > top + slack) continue;
     for (let k = 0; k < regions.length; k += 1) {
       const [, side, z0, z1] = regions[k];
-      if (cz < z0 || cz > z1) continue;
+      if (cz < z0 || cz > z1 || zLo < z0 - slack || zHi > z1 + slack) continue;
       const out = side * cx;
       if (!((out > half * 0.55 && side * nx > 0.2) || (out > half * 0.74 && side * nx < -0.2))) continue;
       tag[t] = k; counts[k] += 1;
