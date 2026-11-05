@@ -1130,9 +1130,10 @@ function buildUpriver(lite) {
   tar.box((p.x0 + p.x1) / 2, 0.05, (p.z0 + p.z1) / 2, ax, ay, az, p.x1 - p.x0, 0.06, p.z1 - p.z0, 1);
   const tarMesh = tar.build(new THREE.MeshStandardMaterial({ color: linear(0x56555a), roughness: 0.94, metalness: 0, map: grainTexture({ low: 0.66, coarse: 0.3, speck: 0.45, seed: 3 }) }));
   const paint = new Pieces();
-  for (let x = x0 + 2; x < r.x1 - 2; x += 9) paint.box(x + 1.5, 0.085, (r.z0 + r.z1) / 2, ax, ay, az, 3, 0.02, 0.14, 1);
-  for (const z of [r.z0 + 0.25, r.z1 - 0.25]) paint.box((x0 + r.x1) / 2, 0.085, z, ax, ay, az, r.x1 - x0, 0.02, 0.12, 1);
-  for (let x = p.x0 + 3; x < p.x1 - 2; x += 2.6) for (const z of [p.z0 + 3, p.z1 - 14]) paint.box(x, 0.085, z, ax, ay, az, 0.12, 0.02, 5, 1);
+  // (the lines a centimetre proud of the tar, 5 November 2026; people and vehicles stand on the tar, habitation.js upriverTop)
+  for (let x = x0 + 2; x < r.x1 - 2; x += 9) paint.box(x + 1.5, 0.085, (r.z0 + r.z1) / 2, ax, ay, az, 3, 0.01, 0.14, 1);
+  for (const z of [r.z0 + 0.25, r.z1 - 0.25]) paint.box((x0 + r.x1) / 2, 0.085, z, ax, ay, az, r.x1 - x0, 0.01, 0.12, 1);
+  for (let x = p.x0 + 3; x < p.x1 - 2; x += 2.6) for (const z of [p.z0 + 3, p.z1 - 14]) paint.box(x, 0.085, z, ax, ay, az, 0.12, 0.01, 5, 1);
   const paintMesh = paint.build(new THREE.MeshStandardMaterial({ color: linear(0xe6e2d6), roughness: 0.8, metalness: 0 }));
   shoulder.castShadow = tarMesh.castShadow = paintMesh.castShadow = false;
   group.add(shoulder, tarMesh, paintMesh);

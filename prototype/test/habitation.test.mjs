@@ -69,8 +69,11 @@ test('Waterside Road goes on out of the town past the habitation\'s sign to the 
   assert.ok(sign.x > 250 && sign.x < 275, `the sign at ${sign.x}, just past the town's end at 250`);
   assert.ok(HABITATION.gate.x - sign.x < 90, `the gate ${(HABITATION.gate.x - sign.x).toFixed(0)} m past the sign`);
   assert.ok(HABITATION.bounds.x0 > 250 && HABITATION.gate.x > P.x1 && HABITATION.gate.z > P.z0 && HABITATION.gate.z < P.z1);
-  // and level with the town: the road and the car park lie at the town's ground
-  for (let x = 250; x < R.x1; x += 5) assert.equal(zoneGroundY(x, (R.z0 + R.z1) / 2), 0);
+  // and level with the town: the road and the car park lie at the town's ground, stood on at their tar as the town's
+  // Waterside Road is (5 November 2026: 8 cm up, as they are drawn)
+  for (let x = 250.5; x < R.x1; x += 5) assert.equal(zoneGroundY(x, (R.z0 + R.z1) / 2), zoneGroundY(240, (R.z0 + R.z1) / 2));
+  assert.equal(zoneGroundY(240, (R.z0 + R.z1) / 2), 0.08);
+  assert.equal(zoneGroundY((P.x0 + P.x1) / 2, (P.z0 + P.z1) / 2), 0.08);
 });
 
 test('the gate\'s footbridge takes the way on, on foot, from the car park over the stream into the habitation and onto its first path', () => {

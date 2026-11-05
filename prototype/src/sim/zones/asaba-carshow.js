@@ -268,3 +268,27 @@ export const CARSHOW_COLLIDERS = colliders();
 // the compound, so that the line of the fence itself, in the gateway, is ground too)
 const R = CARSHOW.drive.fromRoad;
 export const CARSHOW_AREAS = Object.freeze([C, box(R.x0, C.z1 - 0.5, R.x1, R.z1)]);
+
+// What is stood on, as render-carshow.js lays it (5 November 2026, the owner's brief "feet on the ground": until then
+// people and cars stood at the land's height, the paving 3 cm over their shoes and tyres): the paving 3 cm up, the drive
+// to the doors 3.4 cm and the apron out to the road 3.2, the kerbs along the drive 14 cm; in the hall its floor 1.2 cm
+// up, and each stand, stepped onto, at its top: 14 cm, the hero's 20 on a step of 8, the turntable 22 (its middle 23.2).
+export const CARSHOW_TOPS = Object.freeze({ paving: 0.03, drive: 0.034, apron: 0.032, kerb: 0.14, floor: 0.012 });
+export function carshowGroundY(x, z) {
+  if (inCarHall(x, z)) {
+    let top = CARSHOW_TOPS.floor;
+    for (const d of DISPLAYS) {
+      const r = Math.hypot(x - d.x, z - d.z);
+      if (r > d.r + 0.35) continue;
+      if (d.stand === 'hero' && r < d.r + 0.3) top = Math.max(top, 0.08);
+      if (r < d.r) top = Math.max(top, d.stand === 'turntable' ? (r < d.r * 0.74 ? 0.232 : 0.22) : d.stand === 'hero' ? 0.2 : 0.14);
+    }
+    return top;
+  }
+  const dw = CARSHOW.drive.width / 2;
+  if (z > DOORS.z + 2 && z < C.z1 - 1 && Math.abs(Math.abs(x - GATE.x) - (dw + 0.1)) < 0.1) return CARSHOW_TOPS.kerb;
+  if (x > GATE.x - dw && x < GATE.x + dw && z > DOORS.z + 1 && z < C.z1) return CARSHOW_TOPS.drive;
+  if (x > R.x0 && x < R.x1 && z >= C.z1 && z < R.z1) return CARSHOW_TOPS.apron;
+  if (inCarCompound(x, z)) return CARSHOW_TOPS.paving;
+  return 0;
+}

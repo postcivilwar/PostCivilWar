@@ -942,6 +942,15 @@ const R = UPRIVER.road, PARK = UPRIVER.park, V = UPRIVER.verge;
 export const onUpriver = (x, z) => (x > R.x0 - 1 && x < R.x1 && z > R.z0 - V && z < R.z1 + V) || (x > PARK.x0 && x < PARK.x1 + 2 && z > PARK.z0 && z < PARK.z1 + V);
 // (the road keeps level with the town's ground; the land round it lies a little above or below)
 export const upriverGroundY = (x, z) => 0;
+// What is stood on there, as render-habitation.js `buildUpriver` lays it, as the town's roads are (5 November 2026, the
+// owner's brief "feet on the ground": until then people and vehicles stood 8 cm down in its tar): the road's tar 8 cm up
+// from the town's end of it (x 250) and the car park's, on laterite 4 cm up that shows 1.3 m either side of the road and
+// 1 m round the car park.
+export function upriverTop(x, z) {
+  if (x > PARK.x0 - 1 && x < PARK.x1 + 1 && z > PARK.z0 - 1 && z < PARK.z1 + 1) return x > PARK.x0 && x < PARK.x1 && z > PARK.z0 && z < PARK.z1 ? 0.08 : 0.04;
+  if (x > 249.9 && x < R.x1 && z > R.z0 - 1.3 && z < R.z1 + 1.3) return z > R.z0 && z < R.z1 ? 0.08 : 0.04;
+  return 0;
+}
 
 // -------------------------------------------------------------------------------------- what stands --
 // Every trunk, plant and rock that stands where one could otherwise walk (habitation-scene.js puts them; each a box

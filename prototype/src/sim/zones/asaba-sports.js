@@ -143,3 +143,25 @@ export const SPORTS_COLLIDERS = colliders();
 // the ground that can be walked and driven on: inside the railings, and the drive out to the road
 const R = SPORTS_MALL.drive.fromRoad;
 export const SPORTS_AREAS = Object.freeze([C, box(R.x0, C.z1 - 0.5, R.x1, R.z1)]);
+
+// What is stood on, as render-sports.js lays it (5 November 2026, the owner's brief "feet on the ground": until then
+// people stood at the land's height, the paving 3 cm over their shoes): the paving 3 cm up, the walk to the doors 3.4 cm
+// and the apron out to the road 3.2, the kerbs along the walk 14 cm; in the hall its floor 1.2 cm up, and each stand,
+// stepped onto, at its top (raised to its own height; the boat's platform 1.2 cm more in its middle).
+export const SPORTS_TOPS = Object.freeze({ paving: 0.03, walk: 0.034, apron: 0.032, kerb: 0.14, floor: 0.012 });
+export function sportsGroundY(x, z) {
+  if (x > HALL.x0 && x < HALL.x1 && z > HALL.z0 && z < HALL.z1) {
+    let top = SPORTS_TOPS.floor;
+    for (const d of DISPLAYS) {
+      const r = Math.hypot(x - d.x, z - d.z);
+      if (r < d.r) top = Math.max(top, d.lift + (d.stand === 'platform' && r < d.r * 0.86 ? 0.012 : 0));
+    }
+    return top;
+  }
+  const W = WALK, half = (W.x1 - W.x0) / 2;
+  if (z > W.z0 + 0.5 && z < W.z1 - 0.5 && Math.abs(Math.abs(x - DOOR_X) - (half + 0.1)) < 0.1) return SPORTS_TOPS.kerb;
+  if (x > W.x0 && x < W.x1 && z > W.z0 && z < W.z1) return SPORTS_TOPS.walk;
+  if (x > R.x0 && x < R.x1 && z >= C.z1 && z < R.z1) return SPORTS_TOPS.apron;
+  if (x > C.x0 && x < C.x1 && z > C.z0 && z < C.z1) return SPORTS_TOPS.paving;
+  return 0;
+}

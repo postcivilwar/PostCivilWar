@@ -21,7 +21,7 @@ import { BRIDGE, OUTSKIRT_COLLIDERS, OUTSKIRT_BUILDING_COLLIDERS, onOutskirts, o
 import { ZONE_BILLBOARDS } from './atani-billboards.js';
 import { CITY_BUILDINGS, CITY_COLLIDERS, CITY_FURNITURE, PAVEMENTS, LANDINGS, BOULEVARD, LAWN, CITY_AREA, cityGroundY } from './atani-city.js';
 export * from './atani-city.js';
-import { POWERBIKE, POWERBIKE_COLLIDERS } from './atani-powerbike.js';
+import { POWERBIKE, POWERBIKE_COLLIDERS, powerbikeGroundY } from './atani-powerbike.js';
 export * from './atani-powerbike.js';
 import { CARSHOW_COLLIDERS } from './asaba-carshow.js';
 export * from './asaba-carshow.js';
@@ -38,7 +38,7 @@ import { openClosures, closureColliders, edgeFences, fenceColliders, closureWing
 import { OGANIRU_CLOSURES, OGANIRU_EDGE_LINES, onOganiru, nearOganiru, oganiruGroundY, oganiruSurface, oganiruOnDeck, oganiruBlocked, oganiruDecksAt, oganiruStructureAt } from './oganiru.js';
 export * from './oganiru.js';
 // the habitation at the far end of the River Niger, and the road up the river to it (20 October 2026)
-import { HABITATION, onUpriver, onHabitation, habitationGroundY, habitationStep, HABITATION_COLLIDERS, habitationRootAt, habitationRailsAt } from './habitation.js';
+import { HABITATION, onUpriver, onHabitation, habitationGroundY, habitationStep, HABITATION_COLLIDERS, habitationRootAt, habitationRailsAt, upriverTop } from './habitation.js';
 export * from './habitation.js';
 export * from './town-buildings.js';
 import { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } from './atani-town.js';
@@ -629,10 +629,41 @@ export function zoneShedWalls(s) {
   return walls;
 }
 
+// The posts along a compound building's veranda (render-town.js addEnterable draws them where this says: a column on a
+// plinth 30 cm square, 2.05 m out from its front wall, one about every 5 m), and along a town building's (render-world.js
+// addBuilding: on the veranda's front edge, one about every 4.5 m, the plinth 32 cm square). Solid since 5 November 2026
+// (until then walked through, the feet in their plinths); none in the way out of a door (before, one stood squarely in
+// front of the halls' and the mosque's doors).
+const POST_CLEAR = 1.3;
+export function compoundPostsAt(b) {
+  if (b.kind === 'church' || !b.veranda || !b.frame) return [];
+  const f = b.frame, posts = Math.max(2, Math.round(f.length / 5) + 1), out = [];
+  const doors = (b.doors || []).map((d) => ({ u: (d.x - f.ox) * f.ax + (d.z - f.oz) * f.az, v: (d.x - f.ox) * f.nx + (d.z - f.oz) * f.nz })).filter((d) => Math.abs(d.v) < 0.5);
+  for (let i = 0; i < posts; i += 1) {
+    const u = 0.2 + (i * (f.length - 0.4)) / (posts - 1), v = -2.05;
+    if (doors.some((d) => Math.abs(d.u - u) < POST_CLEAR)) continue;
+    out.push([f.ox + f.ax * u + f.nx * v, f.oz + f.az * u + f.nz * v]);
+  }
+  return out;
+}
+export function verandaPostsAt(b) {
+  const dir = b.door === 's' ? 1 : -1, front = b.z + (dir * b.d) / 2, depth = 2.6, vw = Math.min(b.w, b.kind === 'home' ? 5 : b.w);
+  const posts = Math.max(2, Math.round(vw / 4.5) + 1), out = [];
+  for (let i = 0; i < posts; i += 1) {
+    const px = b.x - vw / 2 + 0.3 + (i * (vw - 0.6)) / (posts - 1);
+    if (Math.abs(px - b.x) < POST_CLEAR) continue;
+    out.push([px, front + dir * (depth - 0.25)]);
+  }
+  return out;
+}
+const compoundPosts = (b) => compoundPostsAt(b).map(([x, z]) => boxOf(x, z, 0.15, 0.15));
+const verandaPosts = (b) => verandaPostsAt(b).map(([x, z]) => boxOf(x, z, 0.16, 0.16));
+
 function buildFixedColliders() {
   const boxes = [];
   // (the showroom tower is hollow at its foot: its walls are round its hall, which is walked in)
   for (const b of ZONE_BUILDINGS) if (b.kind !== 'tower') boxes.push(boxOf(b.x, b.z, b.w / 2, b.d / 2));
+  for (const b of ZONE_BUILDINGS) if (b.kind !== 'tower' && b.kind !== 'city' && b.kind !== 'showroom') boxes.push(...verandaPosts(b));
   boxes.push(...CITY_COLLIDERS, ...POWERBIKE_COLLIDERS);
   for (const s of ZONE_STALLS) boxes.push({ x0: s.x - 1.5, x1: s.x + 1.5, z0: s.z - 0.9, z1: s.z + 0.9 });
   for (const m of ZONE_MOULD_STATIONS) boxes.push({ x0: m.x - 0.7, x1: m.x + 0.7, z0: m.z - 0.6, z1: m.z + 0.6 });
@@ -654,6 +685,8 @@ function buildFixedColliders() {
       for (const item of b.items) if (item.solid) boxes.push(boxOf(item.x, item.z, item.sx / 2, item.sz / 2));
       if (b.tower) boxes.push({ x0: b.tower.x0, x1: b.tower.x1, z0: b.tower.z0, z1: b.tower.z1 });
       if (b.apse) boxes.push({ ...b.apse });
+      // (the posts of its veranda, 5 November 2026: walked through until then, the feet in their plinths)
+      boxes.push(...compoundPosts(b));
     }
     for (const y of c.yard) {
       if (YARD_SOLIDS[y.kind]) boxes.push(boxOf(y.x, y.z, ...YARD_SOLIDS[y.kind]));
@@ -1077,7 +1110,34 @@ function cityTop(x, z) {
   if (inAny(LANDINGS, x, z)) return ROAD_TOPS.city;
   return null;
 }
-const townGround = (x, z) => Math.max(townRoadTop(x, z), verandaTop(x, z)) || outskirtsGroundY(x, z) || oganiruGroundY(x, z);
+// The compounds' own floors and yards (render-town.js addEnterable and addYard, 5 November 2026: until then whoever
+// stood on them stood at the land's height, in them): each building's floor 4 cm up and its veranda 3.5 cm, a church's
+// chancel on its dais 10 cm up and the dais's step 5 cm; in the yards the car parks, the assembly grounds and the lawns
+// 3 cm up, the pitches 2.6.
+export const COMPOUND_TOPS = Object.freeze({ floor: 0.04, veranda: 0.035, dais: 0.1, daisStep: 0.05, yard: 0.03, pitch: 0.026 });
+export const COMPOUND_SURFACES = Object.freeze(ZONE_COMPOUNDS.flatMap((c) => [
+  ...c.buildings.flatMap((b) => [
+    { x0: b.x0 - 0.05, x1: b.x1 + 0.05, z0: b.z0 - 0.05, z1: b.z1 + 0.05, y: COMPOUND_TOPS.floor },
+    ...(b.veranda ? [{ x0: b.veranda.x0, x1: b.veranda.x1, z0: b.veranda.z0, z1: b.veranda.z1, y: COMPOUND_TOPS.veranda }] : []),
+    ...b.items.filter((i) => i.kind === 'dais').flatMap((i) => [
+      { x0: i.x - i.sx / 2 - 0.15, x1: i.x + i.sx / 2 + 0.15, z0: i.z - i.sz / 2, z1: i.z + i.sz / 2, y: COMPOUND_TOPS.daisStep },
+      { x0: i.x - i.sx / 2, x1: i.x + i.sx / 2, z0: i.z - i.sz / 2, z1: i.z + i.sz / 2, y: COMPOUND_TOPS.dais },
+    ]),
+  ]),
+  ...c.yard.filter((y) => y.kind === 'parking' || y.kind === 'assembly' || y.kind === 'lawn' || y.kind === 'pitch').map((y) => ({ x0: y.x0, x1: y.x1, z0: y.z0, z1: y.z1, y: y.kind === 'pitch' ? COMPOUND_TOPS.pitch : COMPOUND_TOPS.yard })),
+]).map(Object.freeze));
+const COMPOUND_INDEX = indexBoxes(COMPOUND_SURFACES);
+function compoundTop(x, z) {
+  const list = COMPOUND_INDEX.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL));
+  if (!list) return 0;
+  let top = 0;
+  for (const v of list) if (x > v.x0 && x < v.x1 && z > v.z0 && z < v.z1 && v.y > top) top = v.y;
+  return top;
+}
+// (the highest of what is drawn there: the town's roads, its verandas, the compounds', the PowerBike showroom's hall, the
+// road on up the river and its car park, the bridge's deck, the roads, the showrooms and the airport beyond the town;
+// else Oganiru City's ground)
+const townGround = (x, z) => Math.max(townRoadTop(x, z), verandaTop(x, z), compoundTop(x, z), powerbikeGroundY(x, z), upriverTop(x, z), outskirtsGroundY(x, z)) || oganiruGroundY(x, z);
 function cityGround(x, z) {
   const c = cityTop(x, z);
   return c === null ? townGround(x, z) : Math.max(c, verandaTop(x, z));

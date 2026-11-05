@@ -170,6 +170,9 @@ export function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
   const z0 = -35, z1 = 108;                                 // between the junctions (the junctions are the cross roads' own)
   B.road.add(groundStrip(BOULEVARD.x0, z0, BOULEVARD.x1, z1, (x) => crownY(x), 0.5), ident, 0xffffff);
   const mark = (x0, zA, x1, zB, hex) => {
+    // (a mark wider than half a metre across the crowned road laid in pieces, each at the crown's height where it lies:
+    // laid whole and flat, a stop line stood 2.4 cm proud at its end, 5 November 2026, the surface sweep)
+    if (x1 - x0 > 0.6) { const n = Math.ceil((x1 - x0) / 0.5); for (let k = 0; k < n; k += 1) mark(x0 + ((x1 - x0) * k) / n, zA, x0 + ((x1 - x0) * (k + 1)) / n, zB, hex); return; }
     const x = (x0 + x1) / 2, z = (zA + zB) / 2, inBlock = z > z0 && z < z1 && Math.abs(x) <= BOULEVARD.x1;
     const y = inBlock ? crownY(x) : ROAD_TOP;
     B.paint.box(x1 - x0, 0.006, zB - zA, place(x, y + 0.004, z), hex);
@@ -225,8 +228,12 @@ export function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
         if (PAVEMENTS.some((q) => q !== p && ox > q.x0 && ox < q.x1 && oz > q.z0 && oz < q.z1)) continue;
         const h = groundTop(x, z) + 0.008;
         const shade = 0.92 + hash(i, e.at) * 0.1;
-        if (e.axis === 'z') B.concrete.box(0.2, h, b - a, place(x, h / 2, m), 0xc9c5bc, shade);
-        else B.concrete.box(b - a, h, 0.2, place(m, h / 2, z), 0xc9c5bc, shade);
+        // (tipped with the paving where it comes down a ramp to the road, its top on the pavers at both its ends: laid
+        // flat, a stone on a ramp stood up to 4 cm proud at its lower end, 5 November 2026, the surface sweep)
+        const [xa, za, xb, zb] = e.axis === 'z' ? [x, a, x, b] : [a, z, b, z];
+        const tip = Math.atan2(groundTop(xb, zb) - groundTop(xa, za), b - a);
+        if (e.axis === 'z') B.concrete.box(0.2, h, b - a, place(x, h / 2, m, 0, 1, 1, 1, -tip, 0), 0xc9c5bc, shade);
+        else B.concrete.box(b - a, h, 0.2, place(m, h / 2, z, 0, 1, 1, 1, 0, tip), 0xc9c5bc, shade);
       }
     }
   }

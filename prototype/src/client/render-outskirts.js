@@ -9,7 +9,7 @@
 // anything, and nothing on it says it is any real bridge.
 
 import { programsReady } from './program-ready.js';
-import { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS, oganiruAway } from '../sim/zone.js';
+import { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS, oganiruAway, bridgeDeckY } from '../sim/zone.js';
 import { Chunked, createSight, place, linear, noise, smoothNoise, grassTexture, grainTexture, textTexture, surface, buildingKit } from './render-kit.js';
 import { addTree, CITY_FLAT } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
@@ -38,8 +38,12 @@ function buildGround() {
     // the road's verges are trodden red earth
     if (z > -62 && z < -18) c.lerp(earth, 0.55 * Math.max(0, 1 - Math.abs(z + 40) / 22));
     // hills only well away from where anyone goes, and none near the town's own edge or the river
-    const rise = Math.max(0, Math.min(1, (far - 40) / 160)) * Math.max(0, Math.min(1, (-232 - x) / 60)) * Math.max(0, Math.min(1, (120 - z) / 60));
+    // (rising only from 6 m beyond the town's edge, and within it lying under the town's own ground, since 5 November
+    // 2026: until then this land rose from 18 m inside the town, over the town's ground where people walked, their feet
+    // in it up to 33 cm)
+    const rise = Math.max(0, Math.min(1, (far - 40) / 160)) * Math.max(0, Math.min(1, (ZONE.bounds.minX - 6 - x) / 60)) * Math.max(0, Math.min(1, (120 - z) / 60));
     let y = rise * (2 + smoothNoise(x / 90, z / 90) * 9);
+    if (x > ZONE.bounds.minX - 6) y = Math.min(y, -0.06);
     // (flat on Oganiru City's land and a little round it, since 1 November 2026: its roads lie on this ground south of
     // the airport and beyond the Kwale road's end; the hills rise again well clear of it, render-oganiru.js)
     const city = oganiruAway(x, z);
@@ -64,14 +68,15 @@ function addRoad(B, r) {
   B.roads.box(w, 0.06, d, place(cx, 0.05, cz), TAR);
   if (r.bays) {
     // a car park: rows of bays in white
-    for (let x = r.x0 + 3; x < r.x1 - 2; x += 2.6) for (const zz of [r.z0 + 3, r.z0 + 30, r.z0 + 52, r.z1 - 6]) B.paint.box(0.12, 0.02, 5, place(x, 0.085, zz), LINE);
+    for (let x = r.x0 + 3; x < r.x1 - 2; x += 2.6) for (const zz of [r.z0 + 3, r.z0 + 30, r.z0 + 52, r.z1 - 6]) B.paint.box(0.12, 0.01, 5, place(x, 0.085, zz), LINE);
     return;
   }
   const length = along ? w : d;
-  for (let s = 4; s < length - 4; s += 9) B.paint.box(along ? 3 : 0.16, 0.02, along ? 0.16 : 3, place(along ? r.x0 + s : cx, 0.085, along ? cz : r.z0 + s), LINE);
+  // (the lines a centimetre proud of the tar, 5 November 2026)
+  for (let s = 4; s < length - 4; s += 9) B.paint.box(along ? 3 : 0.16, 0.01, along ? 0.16 : 3, place(along ? r.x0 + s : cx, 0.085, along ? cz : r.z0 + s), LINE);
   if (r.edgeLines) for (const side of [-1, 1]) {
-    if (along) B.paint.box(w, 0.02, 0.14, place(cx, 0.084, cz + side * (d / 2 - 0.5)), LINE, 0.9);
-    else B.paint.box(0.14, 0.02, d, place(cx + side * (w / 2 - 0.5), 0.084, cz), LINE, 0.9);
+    if (along) B.paint.box(w, 0.01, 0.14, place(cx, 0.084, cz + side * (d / 2 - 0.5)), LINE, 0.9);
+    else B.paint.box(0.14, 0.01, d, place(cx + side * (w / 2 - 0.5), 0.084, cz), LINE, 0.9);
   }
 }
 
@@ -107,14 +112,16 @@ function addSign(B, s, signs) {
 // ------------------------------------------------------------------------------------------ the bridge --
 function addBridge(B, heads) {
   const b = BRIDGE, cx = (b.x0 + b.x1) / 2, W = b.x1 - b.x0;
-  const Y = (z) => zoneGroundY(cx, z);
+  // (the deck's own height: its roadway's tar 8 cm thick and its footways laid on it, as people stand on them: bridgeDeckY,
+  // outskirtsGroundY)
+  const Y = (z) => bridgeDeckY(z);
   // the deck, in short lengths that follow the rise and fall of the approaches
   const step = 3;
   for (let z = b.start; z < b.end - 0.01; z += step) {
     const z2 = Math.min(b.end, z + step), zm = (z + z2) / 2, y1 = Y(z), y2 = Y(z2), ym = (y1 + y2) / 2;
     const pitch = -Math.atan2(y2 - y1, z2 - z), len = Math.hypot(z2 - z, y2 - y1) + 0.04;
     // the roadway, and a footway on each side a step up
-    B.roads.box(b.roadway.x1 - b.roadway.x0, 0.06, len, place(cx, ym + 0.03, zm, 0, 1, 1, 1, pitch), TAR);
+    B.roads.box(b.roadway.x1 - b.roadway.x0, 0.08, len, place(cx, ym + 0.04, zm, 0, 1, 1, 1, pitch), TAR);
     for (const side of [-1, 1]) B.solid.box((W - (b.roadway.x1 - b.roadway.x0)) / 2, 0.22, len, place(cx + side * ((b.roadway.x1 - b.roadway.x0) / 2 + (W - (b.roadway.x1 - b.roadway.x0)) / 4), ym + 0.1, zm, 0, 1, 1, 1, pitch), CONCRETE);
     // the slab under it all, and its edge beams
     B.solid.box(W, 0.9, len, place(cx, ym - 0.45, zm, 0, 1, 1, 1, pitch), z < 150 ? CONCRETE : STEEL_DARK, 0.9);
@@ -199,32 +206,33 @@ function addAirport(B, glass, signs, heads) {
   // the runway: concrete, a white line down the middle, the threshold bars at each end, edge lights all along
   const R = A.runway, rz = (R.z0 + R.z1) / 2;
   slab(R, 0x6b6b6e, 0.05);
-  for (let x = R.x0 + 60; x < R.x1 - 60; x += 30) B.paint.box(15, 0.02, 0.45, place(x + 7.5, 0.1, rz), LINE);
+  // (its markings a centimetre proud of it, as are the taxiway's and the apron's, 5 November 2026: stood on, not in)
+  for (let x = R.x0 + 60; x < R.x1 - 60; x += 30) B.paint.box(15, 0.01, 0.45, place(x + 7.5, 0.095, rz), LINE);
   for (const [end, dir] of [[R.x0, 1], [R.x1, -1]]) {
-    for (let k = -7; k <= 7; k += 1) if (k) B.paint.box(30, 0.02, 1.4, place(end + dir * 22, 0.1, rz + k * 2.4), LINE);
+    for (let k = -7; k <= 7; k += 1) if (k) B.paint.box(30, 0.01, 1.4, place(end + dir * 22, 0.095, rz + k * 2.4), LINE);
     // the touchdown zone: pairs of bars further in
-    for (const at of [150, 210]) for (const s of [-1, 1]) B.paint.box(22, 0.02, 3, place(end + dir * at, 0.1, rz + s * 7), LINE);
+    for (const at of [150, 210]) for (const s of [-1, 1]) B.paint.box(22, 0.01, 3, place(end + dir * at, 0.095, rz + s * 7), LINE);
   }
   for (let x = R.x0; x <= R.x1; x += 30) for (const z of [R.z0 + 0.6, R.z1 - 0.6]) { B.solid.box(0.25, 0.3, 0.25, place(x, 0.2, z), 0x3a3d42); B.glow.box(0.2, 0.08, 0.2, place(x, 0.38, z), 0xfff4d8); }
   // the runway's numbers, painted on it at each end
   for (const [text, x, turn] of [[R.designators[0], R.x0 + 70, -Math.PI / 2], [R.designators[1], R.x1 - 70, Math.PI / 2]]) {
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(14, 22), new THREE.MeshBasicMaterial({ map: textTexture([text], { width: 256, height: 384, background: '#6b6b6e', colour: '#efeee9', size: 260 }), transparent: false }));
-    mesh.rotation.set(-Math.PI / 2, 0, turn); mesh.position.set(x, 0.11, rz); signs.push(mesh);
+    mesh.rotation.set(-Math.PI / 2, 0, turn); mesh.position.set(x, 0.1, rz); signs.push(mesh);
   }
   // the taxiway and its links: darker, with a yellow line down the middle and blue edge lights
   for (const t of [A.taxiway, ...A.links]) {
     slab(t, 0x59595c, 0.055);
     const along = t.x1 - t.x0 > t.z1 - t.z0;
-    B.paint.box(along ? t.x1 - t.x0 : 0.3, 0.02, along ? 0.3 : t.z1 - t.z0, place((t.x0 + t.x1) / 2, 0.105, (t.z0 + t.z1) / 2), YELLOW);
+    B.paint.box(along ? t.x1 - t.x0 : 0.3, 0.01, along ? 0.3 : t.z1 - t.z0, place((t.x0 + t.x1) / 2, 0.1, (t.z0 + t.z1) / 2), YELLOW);
     if (along) for (let x = t.x0; x <= t.x1; x += 40) for (const z of [t.z0 + 0.4, t.z1 - 0.4]) B.glow.box(0.18, 0.2, 0.18, place(x, 0.2, z), 0x6fa8ff);
   }
   // the apron, and where aircraft will stand when there are any: a yellow line in to each stand, its number
   slab(A.apron, 0x8d8b86, 0.06);
   A.stands.forEach((s, i) => {
-    B.paint.box(0.3, 0.02, 60, place(s.x, 0.11, s.z - 10), YELLOW);
-    B.paint.box(8, 0.02, 0.3, place(s.x, 0.11, s.z + 17), YELLOW);
+    B.paint.box(0.3, 0.01, 60, place(s.x, 0.105, s.z - 10), YELLOW);
+    B.paint.box(8, 0.01, 0.3, place(s.x, 0.105, s.z + 17), YELLOW);
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ map: textTexture([String(i + 1)], { width: 128, height: 128, background: '#8d8b86', colour: '#d8b33a', size: 100 }) }));
-    mesh.rotation.set(-Math.PI / 2, 0, Math.PI); mesh.position.set(s.x + 4, 0.115, s.z + 20); signs.push(mesh);
+    mesh.rotation.set(-Math.PI / 2, 0, Math.PI); mesh.position.set(s.x + 4, 0.106, s.z + 20); signs.push(mesh);
   });
 
   // the terminal: glass to the front and the back, a long roof on steel columns over a canopy out over the kerb

@@ -1,7 +1,7 @@
 // Beyond the town: the road south toward Kwale, Asaba Airport and the bridge, as the simulation knows them.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { zoneWalkable, zoneGroundY, zoneSwimmable, BRIDGE, AIRPORT, ONITSHA_ROAD, OUTSKIRT_ROADS, OUTSKIRT_SIGNS, ZONE_ROADS, ZONE_BUILDINGS, ZONE } from '../src/sim/zone.js';
+import { zoneWalkable, zoneGroundY, zoneSwimmable, BRIDGE, AIRPORT, ONITSHA_ROAD, OUTSKIRT_ROADS, OUTSKIRT_SIGNS, OUTSKIRT_TOPS, ZONE_ROADS, ZONE_BUILDINGS, ZONE } from '../src/sim/zone.js';
 import { createHost } from '../src/sim/host.js';
 
 const walkLine = (x0, z0, x1, z1, step = 0.5) => { const n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / step); for (let i = 0; i <= n; i += 1) { const x = x0 + ((x1 - x0) * i) / n, z = z0 + ((z1 - z0) * i) / n; if (!zoneWalkable(x, z)) return { x, z }; } return null; };
@@ -37,9 +37,11 @@ test('the bridge: up from Waterside Road, over the river at 7 m, down to the far
   let last = zoneGroundY(x, 100);
   assert.equal(last, 0);
   for (let z = 100; z < BRIDGE.end; z += 0.25) { const y = zoneGroundY(x, z); assert.ok(Math.abs(y - last) < 0.06, `a step at ${z}: ${last} to ${y}`); last = y; }
-  assert.equal(zoneGroundY(x, 225), BRIDGE.height);
+  // (stood on at its roadway's tar, 8 cm thick on the deck, and on its footways a step up: as it is drawn, 5 November 2026)
+  assert.equal(zoneGroundY(x, 225), BRIDGE.height + OUTSKIRT_TOPS.tar);
+  assert.equal(zoneGroundY(BRIDGE.roadway.x0 - 0.5, 225), BRIDGE.height + OUTSKIRT_TOPS.footway);
   assert.ok(zoneSwimmable(x, 170) && zoneGroundY(x, 170) > 5, 'the river is under it');
-  assert.equal(zoneGroundY(x, BRIDGE.end - 2), BRIDGE.farBank);
+  assert.equal(zoneGroundY(x, BRIDGE.end - 2), BRIDGE.farBank + OUTSKIRT_TOPS.tar);
   // the rails, and the sides of the embankment: nobody steps off, nobody climbs on from the beach
   assert.ok(walkLine(x, 225, x - 12, 225), 'off the side over the water');
   assert.ok(walkLine(-230, 130, -190, 130), 'across the embankment from the beach');

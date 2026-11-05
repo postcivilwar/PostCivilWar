@@ -233,8 +233,9 @@ function buildForecourt(group, { lite }) {
   for (const bay of P.bays) {
     const n = Math.floor((bay.x1 - bay.x0) / bay.width);
     for (const [z, sgn] of [[bay.z0 + bay.depth / 2, 1], [bay.z1 - bay.depth / 2, -1]]) {
-      for (let k = 0; k <= n; k += 1) paint.box(0.12, 0.012, bay.depth, place(bay.x0 + k * bay.width, 0.046, z), 0xf4f4ef);
-      paint.box(n * bay.width, 0.012, 0.12, place(bay.x0 + (n * bay.width) / 2, 0.046, z - sgn * bay.depth / 2), 0xf4f4ef);
+      // (the lines a centimetre proud of the paving, 5 November 2026: stood on, not in)
+      for (let k = 0; k <= n; k += 1) paint.box(0.12, 0.012, bay.depth, place(bay.x0 + k * bay.width, 0.036, z), 0xf4f4ef);
+      paint.box(n * bay.width, 0.012, 0.12, place(bay.x0 + (n * bay.width) / 2, 0.036, z - sgn * bay.depth / 2), 0xf4f4ef);
     }
   }
   for (const side of [-1, 1]) kerb.box(0.2, 0.14, W.z1 - W.z0 - 1, place(P.doors.x + side * ((W.x1 - W.x0) / 2 + 0.1), 0.07, (W.z0 + W.z1) / 2), 0xd8d3c7);
@@ -451,7 +452,8 @@ function buildHall() {
     const h0 = s.lift;
     gloss.round(new THREE.CylinderGeometry(s.r, s.r * 1.015, h0, 64), place(s.x, h0 / 2, s.z), WHITE);
     if (s.stand === 'platform') gloss.round(new THREE.CylinderGeometry(s.r * 0.86, s.r * 0.86, 0.012, 64), place(s.x, h0 + 0.006, s.z), 0x1f5f86);
-    glow.round(new THREE.TorusGeometry(s.r * 1.02, 0.025, 6, 96), place(s.x, 0.03, s.z, 0, 1, 1, 1, Math.PI / 2), 0x7dffb5);
+    // (the light round its foot half in the floor, a centimetre proud of it: 5 November 2026, stood on, not in)
+    glow.round(new THREE.TorusGeometry(s.r * 1.02, 0.025, 6, 96), place(s.x, 0, s.z, 0, 1, 1, 1, Math.PI / 2), 0x7dffb5);
     if (s.upright) for (const k2 of [-0.32, 0.32]) metal.box(0.05, 1.35, 0.05, place(s.x + Math.cos(s.h) * k2 - Math.sin(s.h) * 0.42, h0 + 0.675, s.z - Math.sin(s.h) * k2 - Math.cos(s.h) * 0.42), GREY);
     const item = SPORTS[s.item];
     const a = s.h, px = s.x + Math.sin(a) * (s.r + 0.35), pz = s.z + Math.cos(a) * (s.r + 0.35);

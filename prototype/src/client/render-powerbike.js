@@ -364,8 +364,9 @@ function buildHall() {
     if (s.stand !== 'turntable') {
       if (s.stand === 'hero') gloss.round(new THREE.CylinderGeometry(s.r + 0.2, s.r + 0.24, 0.08, 48), place(s.x, 0.04, s.z), WHITE);
       gloss.round(new THREE.CylinderGeometry(s.r, s.r * 1.02, h0, 48), place(s.x, h0 / 2, s.z), WHITE);
-      glow.round(new THREE.TorusGeometry(s.r * 1.03, 0.022, 6, 64), place(s.x, 0.03, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
-    } else glow.round(new THREE.TorusGeometry(s.r + 0.08, 0.03, 6, 72), place(s.x, 0.03, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
+      // (the light round its foot half in the floor, a centimetre proud of it: 5 November 2026, stood on, not in)
+      glow.round(new THREE.TorusGeometry(s.r * 1.03, 0.022, 6, 64), place(s.x, 0, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
+    } else glow.round(new THREE.TorusGeometry(s.r + 0.08, 0.03, 6, 72), place(s.x, -0.006, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
     // the plate, on a short post at the front of the stand, leaning back to be read
     const bike = POWER_BIKES[s.bike];
     const a = s.h, px = s.x + Math.sin(a) * (s.r + 0.32), pz = s.z + Math.cos(a) * (s.r + 0.32);

@@ -7,7 +7,7 @@
 // part of that one building is put away, so the room can be seen from above.
 // THREE is the global from three.min.js.
 
-import { ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_BUILDINGS, ZONE_RANKS, ZONE_SPOTS, ZONE_CAST, CITY_AREA, zoneShedWalls } from '../sim/zone.js';
+import { ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_BUILDINGS, ZONE_RANKS, ZONE_SPOTS, ZONE_CAST, CITY_AREA, zoneShedWalls, compoundPostsAt } from '../sim/zone.js';
 import { Batch, Chunked, createSight, place, linear, textTexture, noise, shadeOf, addPitchedRoof, buildingKit } from './render-kit.js';
 import { addVehicle } from './render-vehicles.js';
 import { houseBench } from '../sim/layout.js';
@@ -188,9 +188,8 @@ function addEnterable(lower, upper, inner, b, signs) {
   const vw = v.x1 - v.x0, vd = v.z1 - v.z0;
   const tilt = 0.16;
   upper.roofs.box(vw + (alongX ? 0.6 : 0.5), 0.06, vd + (alongX ? 0.5 : 0.6), place((v.x0 + v.x1) / 2 - f.nx * 0.2, h * 0.84, (v.z0 + v.z1) / 2 - f.nz * 0.2, 0, 1, 1, 1, alongX ? -f.nz * tilt : 0, alongX ? 0 : f.nx * tilt), b.roof, 0.92, alongX ? 'plan' : 'planZ');
-  const posts = Math.max(2, Math.round(f.length / 5) + 1);
-  for (let i = 0; i < posts; i += 1) {
-    const [px, pz] = at(0.2 + (i * (f.length - 0.4)) / (posts - 1), -2.05);
+  // (where the town's layout has them, solid: none in the way out of a door, compoundPostsAt)
+  for (const [px, pz] of compoundPostsAt(b)) {
     upper.solid.round(new THREE.CylinderGeometry(0.08, 0.1, h * 0.78, 8), place(px, h * 0.39, pz), 0xeeeae0);
     lower.solid.box(0.3, 0.14, 0.3, place(px, 0.07, pz), 0xd9d4c6);
   }
@@ -302,7 +301,8 @@ function addYard(B, c, signs) {
   for (const y of c.yard) {
     if (y.kind === 'parking') {
       solid.box(y.x1 - y.x0, 0.03, y.z1 - y.z0, place((y.x0 + y.x1) / 2, 0.015, (y.z0 + y.z1) / 2), 0x77756e);
-      for (let i = 0; i <= y.bays; i += 1) solid.box(0.12, 0.02, (y.z1 - y.z0) * 0.6, place(y.x0 + ((y.x1 - y.x0) * i) / y.bays, 0.04, (y.z0 + y.z1) / 2), 0xe8e2d0);
+      // (the bays' lines painted on it, under a centimetre proud: 5 November 2026, stood on, not in)
+      for (let i = 0; i <= y.bays; i += 1) solid.box(0.12, 0.008, (y.z1 - y.z0) * 0.6, place(y.x0 + ((y.x1 - y.x0) * i) / y.bays, 0.034, (y.z0 + y.z1) / 2), 0xe8e2d0);
     } else if (y.kind === 'vehicle') {
       if (y.vehicle === 'ambulance') {
         // the ambulance is not scenery: the simulation drives it, and the client draws it where it is (see makeVan)
@@ -334,13 +334,14 @@ function addYard(B, c, signs) {
       const pw = y.x1 - y.x0, pd = y.z1 - y.z0, px = (y.x0 + y.x1) / 2, pz = (y.z0 + y.z1) / 2;
       solid.box(pw, 0.025, pd, place(px, 0.012, pz), 0x7fae52);
       solid.box(pw * 0.5, 0.027, pd * 0.5, place(px, 0.013, pz), 0xb9945e);              // worn in the middle
-      for (const [x, z, sx, sz] of [[px, y.z0, pw, 0.12], [px, y.z1, pw, 0.12], [y.x0, pz, 0.12, pd], [y.x1, pz, 0.12, pd], y.goals === 'z' ? [px, pz, pw, 0.12] : [px, pz, 0.12, pd]]) solid.box(sx, 0.03, sz, place(x, 0.03, z), 0xf4f4f0);
+      // (its lines, and the running track's round it, under a centimetre proud: 5 November 2026, stood on, not in)
+      for (const [x, z, sx, sz] of [[px, y.z0, pw, 0.12], [px, y.z1, pw, 0.12], [y.x0, pz, 0.12, pd], [y.x1, pz, 0.12, pd], y.goals === 'z' ? [px, pz, pw, 0.12] : [px, pz, 0.12, pd]]) solid.box(sx, 0.008, sz, place(x, 0.031, z), 0xf4f4f0);
       for (const end of [-1, 1]) {
         const gx = y.goals === 'x' ? px + end * (pw / 2 - 0.2) : px, gz = y.goals === 'z' ? pz + end * (pd / 2 - 0.2) : pz;
         for (const side of [-1, 1]) solid.round(new THREE.CylinderGeometry(0.05, 0.05, 2.2, 6), place(gx + (y.goals === 'z' ? side * 2.6 : 0), 1.1, gz + (y.goals === 'x' ? side * 2.6 : 0)), 0xf4f4f0);
         solid.box(y.goals === 'z' ? 5.3 : 0.1, 0.1, y.goals === 'x' ? 5.3 : 0.1, place(gx, 2.2, gz), 0xf4f4f0);
       }
-      if (y.track) for (const off of [1.6, 3.0]) for (const [x, z, sx, sz] of [[px, y.z0 - off, pw + off * 2, 0.1], [px, y.z1 + off, pw + off * 2, 0.1], [y.x0 - off, pz, 0.1, pd + off * 2], [y.x1 + off, pz, 0.1, pd + off * 2]]) solid.box(sx, 0.02, sz, place(x, 0.02, z), 0xe8e2d0);
+      if (y.track) for (const off of [1.6, 3.0]) for (const [x, z, sx, sz] of [[px, y.z0 - off, pw + off * 2, 0.1], [px, y.z1 + off, pw + off * 2, 0.1], [y.x0 - off, pz, 0.1, pd + off * 2], [y.x1 + off, pz, 0.1, pd + off * 2]]) solid.box(sx, 0.008, sz, place(x, 0.006, z), 0xe8e2d0);
     } else if (y.kind === 'swing') {
       for (const side of [-1, 1]) { solid.round(new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6), place(y.x + side * 1.5, 1.25, y.z - 0.4, 0, 1, 1, 1, 0.3, 0), 0x2f6fab); solid.round(new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6), place(y.x + side * 1.5, 1.25, y.z + 0.4, 0, 1, 1, 1, -0.3, 0), 0x2f6fab); }
       solid.box(3.2, 0.1, 0.1, place(y.x, 2.45, y.z), 0x2f6fab);
@@ -423,7 +424,8 @@ function addShed(B, s, signs) {
   if (city) solid.box(sx + 0.7, 0.12, sz + 0.7, place(s.x + fx * 0.25, 2.46, s.z + fz * 0.25), 0x34383d);
   else roofs.box(sx + 0.9, 0.05, sz + 0.9, place(s.x + fx * 0.3, 2.42, s.z + fz * 0.3, 0, 1, 1, 1, alongX ? fz * 0.12 : 0, alongX ? 0 : -fx * 0.12), [0x8f989e, 0x7a2f22, 0x355e3b, 0x4f6272][Math.abs(Math.round(s.x + s.z)) % 4], 1, alongX ? 'plan' : 'planZ');
   for (const side of [-1, 1]) solid.box(0.08, 2.4, 0.08, place(s.x + fx * (alongX ? sz : sx) / 2 + (alongX ? side * (sx / 2 - 0.05) : 0), 1.2, s.z + fz * (alongX ? sz : sx) / 2 + (alongX ? 0 : side * (sz / 2 - 0.05))), 0x6a5038);
-  solid.box(sx, 0.03, sz, place(s.x, 0.015, s.z), 0x9c958a);
+  // (its floor a centimetre and a half up, not three: whoever stands in it stands on the town's ground, 5 November 2026)
+  solid.box(sx, 0.015, sz, place(s.x, 0.0075, s.z), 0x9c958a);
   const board = sign(s.sign, Math.min(s.w + 0.6, Math.max(3, s.sign.length * 0.26)), 0.5, ['#f5c518', '#171a2e']);
   board.position.set(s.x + fx * ((alongX ? sz : sx) / 2 + 0.5), 2.85, s.z + fz * ((alongX ? sz : sx) / 2 + 0.5));
   board.rotation.y = Math.atan2(fx, fz);

@@ -426,9 +426,10 @@ function buildForecourt(group, { lite }) {
   for (const side of [-1, 1]) {
     for (let k = 0; k < 9; k += 1) {
       const x = G.x + side * (dw + 2.0 + k * 2.7);
-      for (const z of [-92, -112]) paint.box(0.12, 0.012, 5.0, place(x, 0.046, z), 0xf4f4ef);
+      for (const z of [-92, -112]) paint.box(0.12, 0.012, 5.0, place(x, 0.036, z), 0xf4f4ef);
     }
-    for (const z of [-89.5, -94.5, -109.5, -114.5]) paint.box(9 * 2.7, 0.012, 0.12, place(G.x + side * (dw + 2.0 + 4 * 2.7), 0.046, z), 0xf4f4ef);
+    // (the lines a centimetre proud of the paving, 5 November 2026: stood on, not in)
+    for (const z of [-89.5, -94.5, -109.5, -114.5]) paint.box(9 * 2.7, 0.012, 0.12, place(G.x + side * (dw + 2.0 + 4 * 2.7), 0.036, z), 0xf4f4ef);
     kerb.box(0.2, 0.14, C.z1 - P.doors.z - 3, place(G.x + side * (dw + 0.1), 0.07, (C.z1 + P.doors.z + 1) / 2), 0xd8d3c7);
   }
   const pm = paint.build(surface({ vertexColors: true, roughness: 0.6, metalness: 0 })); pm.receiveShadow = true; group.add(pm);
@@ -585,8 +586,9 @@ function buildHall() {
     if (s.stand !== 'turntable') {
       if (s.stand === 'hero') gloss.round(new THREE.CylinderGeometry(s.r + 0.25, s.r + 0.3, 0.08, 64), place(s.x, 0.04, s.z), WHITE);
       gloss.round(new THREE.CylinderGeometry(s.r, s.r * 1.015, h0, 64), place(s.x, h0 / 2, s.z), WHITE);
-      glow.round(new THREE.TorusGeometry(s.r * 1.02, 0.025, 6, 96), place(s.x, 0.03, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
-    } else glow.round(new THREE.TorusGeometry(s.r + 0.1, 0.035, 6, 96), place(s.x, 0.03, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
+      // (the light round its foot half in the floor, a centimetre proud of it: 5 November 2026, stood on, not in)
+      glow.round(new THREE.TorusGeometry(s.r * 1.02, 0.025, 6, 96), place(s.x, 0, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
+    } else glow.round(new THREE.TorusGeometry(s.r + 0.1, 0.035, 6, 96), place(s.x, -0.01, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
     const car = POWER_CARS[s.car];
     const a = s.h, px = s.x + Math.sin(a) * (s.r + 0.4), pz = s.z + Math.cos(a) * (s.r + 0.4);
     metal.box(0.05, 0.55, 0.05, place(px, 0.275, pz), GREY);

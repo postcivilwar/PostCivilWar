@@ -3,7 +3,7 @@
 // kind of surface, so the whole town costs a few draw calls.
 // THREE is the global from three.min.js.
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, zoneShoreZ, zoneWalkable, oganiruAway, POWERBIKE , HABITATION, RIVER_HEAD, RIVER_FAR, UPRIVER, CITY_AREA } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, zoneShoreZ, zoneWalkable, oganiruAway, POWERBIKE , HABITATION, RIVER_HEAD, RIVER_FAR, UPRIVER, CITY_AREA, verandaPostsAt } from '../sim/zone.js';
 import { Batch, Chunked, createSight, place, linear, lathe, textTexture, noise, smoothNoise, grainTexture, grassTexture, rippleNormalTexture, shadeOf, addPitchedRoof, addWindow, buildingKit, surface, isLite } from './render-kit.js';
 import { addVehicle } from './render-vehicles.js';
 import { makeVehicleModel } from './vehicle-models.js';
@@ -46,6 +46,15 @@ function buildGround() {
   geometry.rotateX(-Math.PI / 2);
   geometry.translate((gx0 + gx1) / 2, 0, (b.minZ + b.maxZ) / 2);
   const position = geometry.attributes.position;
+  // (a row of its points on the water's edge itself, 5 November 2026: the bank flat to the edge, and only then going down
+  // under the water. Its points are 7 m apart: before, it began to go down a row short of the edge, up to 21 cm under
+  // where people stood on the bank.)
+  for (let ix = 0; ix <= 170; ix += 1) {
+    const s = zoneShoreZ(position.getX(ix));
+    let best = 0, bestD = Infinity;
+    for (let iy = 0; iy <= 160; iy += 1) { const d = Math.abs(position.getZ(iy * 171 + ix) - s); if (d < bestD) { bestD = d; best = iy; } }
+    position.setZ(best * 171 + ix, s);
+  }
   const colours = new Float32Array(position.count * 3);
   const grassA = linear(0x5f9440), grassB = linear(0x8cb655), dryGrass = linear(0xa9a85a), earth = linear(ZONE_PROPS.earth), sand = linear(0xe2d2a2), bed = linear(0x6b6a4c);
   const c = new THREE.Color();
@@ -65,7 +74,9 @@ function buildGround() {
     let y = 0;
     if (toShore < 0) { y = Math.max(-3.2, toShore * 0.16); c.lerp(bed, Math.min(1, -toShore / 10)); }
     const outside = Math.max(b.minX - x, x - b.maxX, b.minZ - z, 0);
-    if (outside > 0 && toShore > 0) y = Math.min(9, outside * 0.03) * smoothNoise(x / 60, z / 60);
+    // (flat for 2 m beyond the town's edge, 5 November 2026: rising from it, the ground came up to 2 cm over where people
+    // stood just inside it)
+    if (outside > 0 && toShore > 0) y = Math.min(9, Math.max(0, outside - 2) * 0.03) * smoothNoise(x / 60, z / 60);
     // (level with the habitation's own ground where it begins)
     if (x > b.maxX && toShore > 0) y *= Math.max(0, Math.min(1, (HABITATION_EDGE - x) / 40));
     // (the road on from the town's end to the habitation's gate and its car park lie on the land: under them and a few
@@ -74,7 +85,9 @@ function buildGround() {
       const off = (q) => Math.hypot(Math.max(q.x0 - x, 0, x - q.x1), Math.max(q.z0 - z, 0, z - q.z1));
       const near = Math.min(off(UPRIVER.road), off(UPRIVER.park));
       // (wide enough that this coarse ground has a row of its points under the road and both its sides)
-      if (near < 16 && y > -0.06) { const k = Math.max(0, Math.min(1, (near - 6) / 10)); y = -0.06 + (y + 0.06) * k * k * (3 - 2 * k); }
+      // (brought down to the town's own ground there, not under it: 5 November 2026, by the town's end it lay 6 cm under
+      // where people stood)
+      if (near < 16 && y > 0) { const k = Math.max(0, Math.min(1, (near - 6) / 10)); y *= k * k * (3 - 2 * k); }
     }
     // beyond the town towards Onitsha the land is drawn by render-outskirts.js: this lies just under it
     if (x < b.minX - 6 && z > -650 && z < 140 && toShore > 0) y = -0.12;
@@ -253,10 +266,8 @@ function addBuilding(B, signs, b) {
   solid.box(1.8, 0.12, 0.45, place(b.x, 0.06, front + dir * (depth + 0.22)), 0x8d877b);
   roofs.box(vw + 0.7, 0.06, depth + 0.6, place(b.x, base + b.h * 0.8, front + (dir * depth) / 2, 0, 1, 1, 1, dir * 0.16, 0), b.roof, 0.92, 'plan');
   solid.box(vw + 0.2, 0.16, 0.16, place(b.x, base + b.h * 0.72 - 0.02, front + dir * (depth - 0.25)), 0xe4e0d4);
-  const posts = Math.max(2, Math.round(vw / 4.5) + 1);
-  for (let i = 0; i < posts; i += 1) {
-    const px = b.x - vw / 2 + 0.3 + (i * (vw - 0.6)) / (posts - 1);
-    const pz = front + dir * (depth - 0.25);
+  // (where the town's layout has them, solid: none in the way out of the door, verandaPostsAt)
+  for (const [px, pz] of verandaPostsAt(b)) {
     solid.round(new THREE.CylinderGeometry(0.1, 0.12, b.h * 0.72 - 0.24, 12), place(px, 0.24 + (b.h * 0.72 - 0.24) / 2, pz), 0xeeeae0);
     solid.box(0.32, 0.14, 0.32, place(px, 0.31, pz), 0xd9d4c6);
     solid.box(0.28, 0.1, 0.28, place(px, base + b.h * 0.72 - 0.15, pz), 0xd9d4c6);

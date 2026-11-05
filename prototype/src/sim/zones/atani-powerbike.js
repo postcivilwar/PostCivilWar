@@ -96,3 +96,18 @@ function colliders() {
   return Object.freeze(out);
 }
 export const POWERBIKE_COLLIDERS = colliders();
+
+// What is stood on in the hall, as render-powerbike.js lays it (5 November 2026, the owner's brief "feet on the ground":
+// until then people stood 1.2 cm under its floor and in its stands): the floor 1.2 cm up, and each stand, stepped onto,
+// at its top: 14 cm, the hero's 22 on a step of 8, the turntable 20 (its middle 21.2).
+export function powerbikeGroundY(x, z) {
+  if (!inPowerbikeHall(x, z)) return 0;
+  let top = 0.012;
+  for (const d of POWERBIKE.displays) {
+    const r = Math.hypot(x - d.x, z - d.z);
+    if (r > d.r + 0.3) continue;
+    if (d.stand === 'hero' && r < d.r + 0.24) top = Math.max(top, 0.08);
+    if (r < d.r) top = Math.max(top, d.stand === 'turntable' ? (r < d.r * 0.72 ? 0.212 : 0.2) : d.stand === 'hero' ? 0.22 : 0.14);
+  }
+  return top;
+}

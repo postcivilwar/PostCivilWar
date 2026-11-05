@@ -18,8 +18,8 @@
 // beyond it; grid -z is true west, inland; grid -x is true south, down the road toward Kwale and Warri.
 // One grid metre is one metre on the ground.
 
-import { CARSHOW, CARSHOW_AREAS } from './asaba-carshow.js';
-import { SPORTS_MALL, SPORTS_AREAS } from './asaba-sports.js';
+import { CARSHOW, CARSHOW_AREAS, carshowGroundY } from './asaba-carshow.js';
+import { SPORTS_MALL, SPORTS_AREAS, sportsGroundY } from './asaba-sports.js';
 
 const box = (x0, z0, x1, z1) => Object.freeze({ x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1) });
 const road = (id, name, x0, z0, x1, z1, surface, extra = {}) => Object.freeze({ id, name, x0, z0, x1, z1, surface, ...extra });
@@ -45,16 +45,31 @@ export const BRIDGE = Object.freeze({
 
 // How high the ground (or the deck) is at a point: 0 in town; the approach, the deck and the far bank where
 // they are. Pure: for walking, driving, the camera and drawing alike.
+// (what is stood on there, since 5 November 2026, the owner's brief "feet on the ground": the bridge's roadway is tar
+// 8 cm thick on its deck and its footways a step of 21 cm up; the roads out here tar 8 cm up on a bed of laterite 4 cm
+// up that shows 1.3 m either side; the airport's runway 9 cm up, its taxiways 9.5, its apron 10, its terminal's floor
+// 18 and the pavement under its canopy 20: as render-outskirts.js draws them. Until then people and vehicles stood at
+// the deck's or the land's own height, down in them.)
+export const OUTSKIRT_TOPS = Object.freeze({ tar: 0.08, bed: 0.04, bedWidth: 1.3, footway: 0.21, runway: 0.09, taxiway: 0.095, apron: 0.1, hall: 0.18, canopy: 0.2 });
 export function outskirtsGroundY(x, z) {
   const b = BRIDGE;
   if (z > b.start && x > b.x0 - 0.01 && x < b.x1 + 0.01 && z < b.end + 6) {
-    if (z <= b.up) return b.height * smoothRamp((z - b.start) / (b.up - b.start));
-    if (z <= b.down) return b.height;
-    if (z <= b.land) return b.farBank + (b.height - b.farBank) * smoothRamp((b.land - z) / (b.land - b.down));
-    return b.farBank;
+    // (on the deck, as far as it is drawn: the roadway between its footways, to the far bank's barrier)
+    const top = z < b.end ? (x > b.roadway.x0 && x < b.roadway.x1 ? OUTSKIRT_TOPS.tar : OUTSKIRT_TOPS.footway) : 0;
+    return bridgeDeckY(z) + top;
   }
   if (inFarBank(x, z)) return b.farBank;
-  return 0;
+  return outskirtsTop(x, z);
+}
+// The bridge's deck under its roadway and footways (render-outskirts.js lays them on it): rising from the town's end of
+// it to its height over the water and down onto the far bank.
+export function bridgeDeckY(z) {
+  const b = BRIDGE;
+  if (z <= b.start) return 0;
+  if (z <= b.up) return b.height * smoothRamp((z - b.start) / (b.up - b.start));
+  if (z <= b.down) return b.height;
+  if (z <= b.land) return b.farBank + (b.height - b.farBank) * smoothRamp((b.land - z) / (b.land - b.down));
+  return b.farBank;
 }
 // a ramp that starts and ends level (no kink to trip a wheel)
 function smoothRamp(t) { const u = Math.max(0, Math.min(1, t)); return u * u * (3 - 2 * u); }
@@ -107,6 +122,31 @@ export const OUTSKIRT_AREAS = Object.freeze([
   ...SPORTS_AREAS,                                                      // the Post Civil War Sports Mall's compound, and its drive from the road
 ]);
 export const onOutskirts = (x, z) => OUTSKIRT_AREAS.some((a) => x > a.x0 && x < a.x1 && z > a.z0 && z < a.z1);
+
+// What is drawn on the land out here and stood on (OUTSKIRT_TOPS): the roads (not the bridge's, on its deck) and the
+// airport's runway, taxiway and its links, apron, terminal floor and the pavement under its canopy.
+const OUTSKIRT_SURFACES = Object.freeze([
+  ...OUTSKIRT_ROADS.filter((r) => !r.deck).flatMap((r) => {
+    const along = r.x1 - r.x0 > r.z1 - r.z0, w = OUTSKIRT_TOPS.bedWidth;
+    return [
+      { x0: r.x0 - (along ? 0 : w), x1: r.x1 + (along ? 0 : w), z0: r.z0 - (along ? w : 0), z1: r.z1 + (along ? w : 0), y: OUTSKIRT_TOPS.bed },
+      { x0: r.x0, x1: r.x1, z0: r.z0, z1: r.z1, y: OUTSKIRT_TOPS.tar },
+    ];
+  }),
+  { ...A.runway, y: OUTSKIRT_TOPS.runway },
+  ...[A.taxiway, ...A.links].map((t) => ({ ...t, y: OUTSKIRT_TOPS.taxiway })),
+  { ...A.apron, y: OUTSKIRT_TOPS.apron },
+  { x0: A.terminal.x0, x1: A.terminal.x1, z0: A.terminal.z0, z1: A.terminal.z1, y: OUTSKIRT_TOPS.hall },
+  { x0: A.terminal.x0 - 3, x1: A.terminal.x1 + 3, z0: A.terminal.z1 - 0.5, z1: A.terminal.z1 + 11.5, y: OUTSKIRT_TOPS.canopy },
+].map((s) => Object.freeze({ x0: s.x0, x1: s.x1, z0: s.z0, z1: s.z1, y: s.y })));
+const SURFACES_BOX = OUTSKIRT_SURFACES.reduce((b, s) => ({ x0: Math.min(b.x0, s.x0), z0: Math.min(b.z0, s.z0), x1: Math.max(b.x1, s.x1), z1: Math.max(b.z1, s.z1) }), { x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity });
+// (and the showrooms' compounds, as they lay them: asaba-carshow.js, asaba-sports.js)
+export function outskirtsTop(x, z) {
+  if (x < SURFACES_BOX.x0 || x > SURFACES_BOX.x1 || z < SURFACES_BOX.z0 || z > SURFACES_BOX.z1) return 0;
+  let top = Math.max(carshowGroundY(x, z), sportsGroundY(x, z));
+  for (const s of OUTSKIRT_SURFACES) if (s.y > top && x > s.x0 && x < s.x1 && z > s.z0 && z < s.z1) top = s.y;
+  return top;
+}
 
 // What stands up and cannot be walked through. The bridge's rails and the sides of its embankment are walls,
 // so that a person on the beach cannot step up onto the deck from the side, nor one on the deck off it.
