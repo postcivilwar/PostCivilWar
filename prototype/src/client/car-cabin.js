@@ -296,12 +296,21 @@ function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = 
   box(0.42, 0.004, 0.006, -hip[0], dashLow + (dashTop - dashLow) * 0.32, dashZ - 0.012, 0x0c0c0d);
   box(0.005, 0.16, 0.006, -hip[0] - 0.21, dashLow + (dashTop - dashLow) * 0.24, dashZ - 0.012, 0x0c0c0d);
   box(0.06, 0.012, 0.012, -hip[0] + 0.12, dashLow + (dashTop - dashLow) * 0.3, dashZ - 0.02, T.metal);
-  // (the firewall under it and in front of it, down to the floor and up to the windscreen's foot, closing the cabin at
-  // the front: the engine never seen)
+  // (the firewall in front of the footwell, from the floor up to the dashboard's top; and the dashboard's top carried on
+  // forward to the windscreen's foot, low under the glass: the cabin closed at the front, the engine never seen, and
+  // through the windscreen the dashboard's top, not a wall behind the glass. A wall up to the glass was first tried: on
+  // the SUV, whose windscreen's foot is a third of a metre ahead of the dashboard, it stood behind half the windscreen)
   const fireZ = dashZ + dashDeep;
-  const fireTop = under(fireZ - 0.02, fireZ + 0.04, 0.005, true);
+  const fireTop = Math.min(dashTop, under(fireZ - 0.02, fireZ + 0.04, 0.005, true));
   const fireWide = 2 * insideOver(fireZ - 0.05, fireZ + 0.05, floor, fireTop);
   box(fireWide, Math.max(0.05, fireTop - floor), 0.04, 0, (fireTop + floor) / 2, fireZ, 0x141415);
+  // (where the glass comes down to the dashboard's height, ahead of it: no further than eight tenths of a metre)
+  let deckEnd = fireZ;
+  for (let z = fireZ; z < fireZ + 0.8; z += 0.025) { const low = shell.lowAt(z); if (low === null || low < dashTop + 0.02) break; deckEnd = z; }
+  if (deckEnd > fireZ + 0.02) {
+    const deckWide = 2 * insideOver(fireZ, deckEnd, dashTop - 0.04, dashTop);
+    box(deckWide, 0.03, deckEnd - fireZ + 0.02, 0, dashTop - 0.015, (fireZ + deckEnd) / 2, T.dash);
+  }
 
   // ---- the centre console between the seats: the gear lever, the handbrake, the armrest
   const cy = hip[1] - 0.06;
