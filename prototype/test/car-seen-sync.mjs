@@ -65,11 +65,16 @@ await A.page.evaluate(() => { const n = window.__nlw; for (let r = 0; r < 12; r 
 let target = null;
 for (let k = 0; k < 40 && !target; k += 1) {
   target = await A.page.evaluate((model) => {
-    const n = window.__nlw, g = n.host.game, T = g.internals.traffic, eye = n.view.self;
-    const c = T.cars.filter((q) => q.mode === 'stop' && !q.frozen && g.state.real < q.until - 8 && Math.hypot(q.x - eye.x, q.z - eye.z) < 160).sort((a, b) => Math.hypot(a.x - eye.x, a.z - eye.z) - Math.hypot(b.x - eye.x, b.z - eye.z))[0];
+    const n = window.__nlw, g = n.host.game, T = g.internals.traffic, eye = n.view.self, pop = g.internals.population;
+    // (one with no police officer within 60 m: a car taken in front of an officer makes its taker a prisoner at once, and
+    // this test is of the car seen by the other player; its first run took one by the Police Post)
+    const o = {};
+    const police = pop.people.filter((q) => q.job === 'police').map((q) => { pop.locate(q.index, g.state.t, o); return { x: o.x, z: o.z, out: o.pose !== 4 }; }).filter((q) => q.out);
+    const officer = (c) => Math.min(Infinity, ...police.map((q) => Math.hypot(q.x - c.x, q.z - c.z)));
+    const c = T.cars.filter((q) => q.mode === 'stop' && !q.frozen && g.state.real < q.until - 8 && Math.hypot(q.x - eye.x, q.z - eye.z) < 260 && officer(q) > 60).sort((a, b) => Math.hypot(a.x - eye.x, a.z - eye.z) - Math.hypot(b.x - eye.x, b.z - eye.z))[0];
     if (!c) return null;
     c.model = model; c.until = g.state.real + 1200;
-    return { n: c.n, x: c.x, z: c.z, h: c.h };
+    return { n: c.n, x: c.x, z: c.z, h: c.h, officer: +officer(c).toFixed(1) };
   }, MODEL);
   if (!target) await A.page.waitForTimeout(5000);
 }
@@ -93,7 +98,9 @@ const seen = await B.page.waitForFunction((name) => {
   if (!car || !rig) return null;
   return { id: q.id, model: q.car.car, glazed: !!car.glazed };
 }, A.username, { timeout: 300000 }).then((h) => h.jsonValue()).catch(() => null);
-check('the second player sees the first player\'s car, the Grey Saloon, drawn with its glass and cabin', !!seen && seen.model === MODEL && seen.glazed, seen);
+// (and, should it not, whether the first player is still in the car: the police's word on them)
+const stillIn = seen ? null : await A.page.evaluate(() => { const n = window.__nlw, p = n.host.game.state.players[n.playerId]; return { incar: n.view.self.incar, custody: p.custody, law: p.law && p.law.state }; });
+check('the second player sees the first player\'s car, the Grey Saloon, drawn with its glass and cabin', !!seen && seen.model === MODEL && seen.glazed, seen || stillIn);
 await B.page.waitForTimeout(4000);
 const sitting = seen && await B.page.evaluate((id) => {
   const n = window.__nlw, THREE = n.THREE;
