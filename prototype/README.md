@@ -5225,7 +5225,10 @@ three of the town's passengers talking now and then), then set in the seat in th
 frame (its body's pitch and roll on its springs included): hips where the seat's are; leant back further, then sunk a
 little, if the head would touch the roof; the driver's seat slid back for long legs; both hands on the wheel's rim at ten
 to two as it turns, the feet on the pedals; a passenger's feet on the floor. The town's people in its cars are drawn as
-their own full figures within 30 m on a computer and 15 m on a phone, made one at a time as the crowd's others are.
+their own full figures within 30 m on a computer and 15 m on a phone, made one at a time as the crowd's others are;
+getting out, each keeps the figure made to sit in the car, handed over before they are drawn on foot (a phone, which
+makes one every 0.3 s, drew a passenger stepping out of a car being taken as a plain figure for a moment while their
+own was made: `render-crowd.js`).
 
 ### Getting in, getting out, and taking a car (`src/client/car-boarding.js`, `main.js`, `src/sim/hijack.js`)
 
