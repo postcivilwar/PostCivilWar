@@ -9,6 +9,7 @@ import { VEHICLE_SLOTS, vehicleMeta, vehicleGeometry, vehicleTriangles } from '.
 import { resolveLook } from '../sim/vehicle-looks.js';
 import { softPatchUnder } from './soft-patch.js';
 import { letPaintedGo } from './painted.js';
+import { standing } from './marks.js';
 
 const SLOT = Object.fromEntries(VEHICLE_SLOTS.map((name, i) => [name, i]));
 const N = VEHICLE_SLOTS.length;
@@ -434,6 +435,8 @@ export function makeVehicleModel(look, { plate = null, region = '', level = 0, s
       for (const e of extras) e.geometry.dispose();
     },
   };
+  // (drawn after the marks on the ground under it: marks.js)
+  standing(group);
   api.setLevel(level);
   shared.live.add(api);
   return api;

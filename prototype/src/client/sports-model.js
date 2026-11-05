@@ -13,6 +13,7 @@ import { SPORTS_PARTS } from './sports-parts.js';
 import { surface } from './render-kit.js';
 import { fetchKept, letGoOnceDrawn, decodeAtMost } from './glb.js';
 import { deviceKind } from './budget.js';
+import { standing } from './marks.js';
 
 // (a page opened from the disk cannot fetch its models' files: none is asked for there, rather than one failure in the
 // console for each, again and again; the town's riders and the navy's ships are then not drawn. As for the cars,
@@ -201,6 +202,8 @@ export async function loadSport(id, { base = 'sports/', tier = null, own = false
   const helm = names.includes('helm') ? pivot(frame, V(spec.helm.p), 'helm') : null;
   const helmAxis = spec.helm ? V(spec.helm.axis).normalize() : null;
   const q = new THREE.Quaternion();
+  // (drawn after the marks on the ground under it: marks.js)
+  standing(group);
   return {
     id, group, spec, frame, lean,
     size: V(spec.size),

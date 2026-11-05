@@ -4,6 +4,7 @@
 //
 // What is drawn here follows the simulation's list of who is bleeding and how much (impact.bleeding in
 // src/sim/impact.js); nothing here decides who was hurt.
+import { markMaterial, asMark } from './marks.js';
 
 const MOST_POOLS = 24;
 const DROPS = 72;
@@ -30,7 +31,8 @@ const hash = (key) => { let h = 7; for (let i = 0; i < key.length; i += 1) h = (
 
 export function createBlood(scene) {
   const pools = new Map();       // key -> { mesh, x, z, h, r, want, gone, opacity }
-  const material = () => new THREE.MeshStandardMaterial({ color: 0x5c0509, roughness: 0.28, metalness: 0.05, transparent: true, opacity: 0.92, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  // (a mark on the ground, marks.js: drawn before whoever stands in it, never over their feet)
+  const material = () => markMaterial(new THREE.MeshStandardMaterial({ color: 0x5c0509, roughness: 0.28, metalness: 0.05, transparent: true, opacity: 0.92, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
   const dropMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.035, 6, 4), new THREE.MeshBasicMaterial({ color: 0x7a0a0e }), DROPS);
   dropMesh.frustumCulled = false; dropMesh.count = 0;
   scene.add(dropMesh);
@@ -48,8 +50,7 @@ export function createBlood(scene) {
       const cx = b.x + Math.sin(b.h) * (b.lying ? 0.55 : 0), cz = b.z + Math.cos(b.h) * (b.lying ? 0.55 : 0);
       if (!p) {
         if (pools.size >= MOST_POOLS) { const oldest = [...pools.entries()].sort((u, v) => u[1].born - v[1].born)[0]; scene.remove(oldest[1].mesh); oldest[1].mesh.geometry.dispose(); oldest[1].mesh.material.dispose(); pools.delete(oldest[0]); }
-        const mesh = new THREE.Mesh(poolGeometry(hash(b.key)), material());
-        mesh.renderOrder = 1;
+        const mesh = asMark(new THREE.Mesh(poolGeometry(hash(b.key)), material()));
         scene.add(mesh);
         p = { mesh, x: cx, z: cz, h: b.h, r: 0.05, want: 0, gone: 0, born: performance.now() };
         pools.set(b.key, p);

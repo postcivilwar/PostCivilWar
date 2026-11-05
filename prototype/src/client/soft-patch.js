@@ -6,6 +6,8 @@
 // (PATCH.withSun) under the sun's own shadow, where it is the darkening close under a vehicle that a shadow map spread
 // over metres does not give (the figures' patch is the same soft picture: `softShadowPicture`).
 
+import { markMaterial, asMark } from './marks.js';
+
 let material = null, geometry = null, picture = null;
 export const PATCH = Object.freeze({ alone: 0.32, withSun: 0.17 });
 // (a figure's own: the soft picture at this, its darkness at the middle; about as dark on the whole as the flat disc of
@@ -29,15 +31,17 @@ function patchPicture() {
 function shared() {
   if (!material) {
     // (black, its darkness the picture's: as dark at its middle as a figure's patch, fading to nothing at its rim)
-    material = new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: PATCH.alone, depthWrite: false });
+    // (a mark on the ground, marks.js: drawn before the vehicle over it, so never over the bottoms of its tyres)
+    material = markMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: PATCH.alone, depthWrite: false }));
     geometry = new THREE.PlaneGeometry(1, 1); geometry.rotateX(-Math.PI / 2);
   }
   return { material, geometry };
 }
 
 // A patch under `group` (a vehicle's own group, so that it goes where the vehicle goes): `length` along its z, `width`
-// along its x, metres; `y` a hair above the ground under it.
-export function softPatch(group, { length, width, y = 0.035 } = {}) {
+// along its x, metres; `y` a hair above the ground under it (3.5 cm until 5 November 2026: drawn after the vehicle then,
+// it lay over its tyres up to there).
+export function softPatch(group, { length, width, y = 0.012 } = {}) {
   if (!group || !(length > 0) || !(width > 0)) return null;
   const s = shared();
   const mesh = new THREE.Mesh(s.geometry, s.material);
@@ -45,7 +49,7 @@ export function softPatch(group, { length, width, y = 0.035 } = {}) {
   mesh.scale.set(width * 1.25, 1, length * 1.15);
   mesh.position.y = y;
   mesh.castShadow = false; mesh.receiveShadow = false;
-  mesh.renderOrder = -1;
+  asMark(mesh);
   group.add(mesh);
   return mesh;
 }

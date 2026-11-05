@@ -17,7 +17,8 @@
 // front of whoever is still looking after LAMP_KNOCK.watched (the town raises it then: lamps.js). Knocked gently, it
 // shakes and its lamp flickers.
 import { STREET_LAMPS, LAMP_KNOCK, lampsDown, lampOnAt, raiseLamp } from '../sim/street-lamps.js';
-import { cityGroundY, zoneGroundY } from '../sim/zone.js';
+import { cityGroundY, zoneGroundY, zoneSurfaceY } from '../sim/zone.js';
+import { markMaterial, asMark } from './marks.js';
 import { Batch, place, linear, surface, buildingKit } from './render-kit.js';
 import { reflects } from './render-finish.js';
 import { STREET_LAMP } from './light.js';
@@ -225,17 +226,20 @@ export function createStreetLamps(scene, { lite = false, now = () => performance
   const heads = lamps.flatMap((L) => L.heads);
 
   // the pools of light under the heads, and the streaks of it on a wet road
-  const poolMaterial = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  // (marks on the ground, marks.js: drawn after the road and before whoever stands in the light, never over their feet
+  // or a car's tyres, as a see-through sheet 7 cm up was until 5 November 2026; laid on the surface under the head,
+  // tilted as it is: `poolLay`)
+  const poolMaterial = markMaterial(new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), { add: true });
   const disc = new THREE.PlaneGeometry(1, 1); disc.rotateX(-Math.PI / 2);
   // (with room for the fixed lights that come later: the lamps under the city's decks)
-  const pools = new THREE.InstancedMesh(disc, poolMaterial, heads.length + FIXED_MOST);
-  pools.frustumCulled = false; pools.renderOrder = 2; pools.visible = false; pools.name = 'lamp-pools';
+  const pools = asMark(new THREE.InstancedMesh(disc, poolMaterial, heads.length + FIXED_MOST));
+  pools.frustumCulled = false; pools.visible = false; pools.name = 'lamp-pools';
   scene.add(pools);
   const STREAKS = lite ? 16 : 40;
-  const streakMaterial = new THREE.MeshBasicMaterial({ map: streakTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: true, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 });
+  const streakMaterial = markMaterial(new THREE.MeshBasicMaterial({ map: streakTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: true, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }), { add: true });
   const strip = new THREE.PlaneGeometry(1, 1); strip.rotateX(-Math.PI / 2); strip.translate(0, 0, 0.5);
-  const streaks = new THREE.InstancedMesh(strip, streakMaterial, STREAKS);
-  streaks.frustumCulled = false; streaks.renderOrder = 3; streaks.visible = false; streaks.count = 0; streaks.name = 'lamp-streaks';
+  const streaks = asMark(new THREE.InstancedMesh(strip, streakMaterial, STREAKS));
+  streaks.frustumCulled = false; streaks.visible = false; streaks.count = 0; streaks.name = 'lamp-streaks';
   scene.add(streaks);
   // (fixed lights that are never knocked down: the lamps under the city's decks, render-oganiru.js)
   const fixed = [];
@@ -326,18 +330,33 @@ export function createStreetLamps(scene, { lite = false, now = () => performance
   }
 
   let lastNight = -1, onTimer = 0, lightTimer = 0, streakTimer = 0, poolsDirty = true;
-  const poolAt = new THREE.Matrix4();
+  const poolAt = new THREE.Matrix4(), poolTilt = new THREE.Quaternion(), poolUp = new THREE.Vector3(), poolSize = new THREE.Vector3(), poolPos = new THREE.Vector3();
+  // Where a pool lies: on the surface under the head (the deck's road for a lamp on a deck, the ground's for one beside
+  // it), tilted with it (a ramp, a slip road, a camber), a hair over it. Worked out once for each head.
+  function poolLay(h) {
+    if (h.lay) return h.lay;
+    const r = Math.max(0.6, (h.size || 6) * 0.3);
+    const at = (x, z) => zoneSurfaceY(x, z, h.ground);
+    const y = at(h.x, h.z);
+    // (a slope from each side's height, only where both sides are on the same surface: not off a deck's edge onto the
+    // ground under it)
+    const slope = (a, b) => { const s = (b - a) / (2 * r); return Math.abs(b - y) < r * 0.2 && Math.abs(a - y) < r * 0.2 && Math.abs(s) < 0.15 ? s : 0; };
+    const sx = slope(at(h.x - r, h.z), at(h.x + r, h.z)), sz = slope(at(h.x, h.z - r), at(h.x, h.z + r));
+    poolUp.set(-sx, 1, -sz).normalize();
+    h.lay = { y: y + 0.015, q: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), poolUp) };
+    return h.lay;
+  }
   function placePools() {
     let n = 0;
     for (const h of heads) {
       const L = h.lamp;
       const lit = L.on > 0.5 && L.shown && regions[regionOf(L.kind)];
-      poolAt.makeScale(lit ? h.size : 0, 1, lit ? h.size : 0);
-      poolAt.setPosition(h.x, h.ground + 0.07, h.z);
+      const lay = poolLay(h);
+      poolAt.compose(poolPos.set(h.x, lay.y, h.z), lay.q, poolSize.set(lit ? h.size : 0, 1, lit ? h.size : 0));
       pools.setMatrixAt(n, poolAt);
       n += 1;
     }
-    for (const f of fixed) { const lit = f.on && regions[f.region || 'city']; poolAt.makeScale(lit ? f.size : 0, 1, lit ? f.size : 0); poolAt.setPosition(f.x, f.ground + 0.07, f.z); if (n < pools.instanceMatrix.count) pools.setMatrixAt(n, poolAt); n += 1; }
+    for (const f of fixed) { const lit = f.on && regions[f.region || 'city']; poolTilt.identity(); poolAt.compose(poolPos.set(f.x, f.ground + 0.015, f.z), poolTilt, poolSize.set(lit ? f.size : 0, 1, lit ? f.size : 0)); if (n < pools.instanceMatrix.count) pools.setMatrixAt(n, poolAt); n += 1; }
     pools.count = Math.min(n, pools.instanceMatrix.count);
     pools.instanceMatrix.needsUpdate = true;
     poolsDirty = false;
@@ -444,7 +463,8 @@ export function createStreetLamps(scene, { lite = false, now = () => performance
         const heading = Math.atan2(ex - h.x, ez - h.z);
         const len = Math.min(d * 0.85, 9 + h.y * 1.6);
         q.setFromAxisAngle(upY, heading);
-        m4.compose(pos.set(h.x, h.ground + 0.075, h.z), q, v3.set(0.9 + h.y * 0.05, 1, len));
+        q.premultiply(poolLay(h).q);
+        m4.compose(pos.set(h.x, poolLay(h).y + 0.005, h.z), q, v3.set(0.9 + h.y * 0.05, 1, len));
         streaks.setMatrixAt(n, m4);
         n += 1;
       }

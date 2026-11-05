@@ -17,6 +17,7 @@
 // level's, and on a phone fewer: a person whose figure is not held is drawn as before, plainly, until it is.
 // THREE is the global from three.min.js.
 import { ANIMATED, holdFigure, letGoFigure, bakeFigureMoves } from './animated.js';
+import { DRAW } from './marks.js';
 
 const FPS = 24;                 // frames a second of a walk or a standing, as written down
 const LINGER = 20;              // seconds a figure nobody near wears is kept before it is let go
@@ -69,6 +70,8 @@ objectTangent = (crowdSkin * vec4(objectTangent, 0.0)).xyz;
     mesh.name = `crowd:${kind.id}`;
     mesh.count = 0; mesh.frustumCulled = false; mesh.castShadow = false; mesh.receiveShadow = false;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    // (drawn after the marks on the ground under them: marks.js)
+    mesh.renderOrder = DRAW.standing;
     scene.add(mesh);
     // (drawn as tall as the figure is meant to be, as a full figure of it is: animated.js, makeAnimatedRig)
     Object.assign(kind, { state: 'ready', mesh, frame, moves, material, geometry, baked, scale: model.height > 0 && ANIMATED[kind.id] ? ANIMATED[kind.id].height / model.height : 1, n: 0 });

@@ -8,6 +8,7 @@
 //   const beams = createTorchBeams(scene, { lite });
 //   beams.update([{ key, from: Vector3, dir: Vector3, ground: y }], night)     each frame: the torches that are on
 //   beams.dispose()
+import { markMaterial, asMark } from './marks.js';
 
 const LENGTH = 11;         // metres: how far the beam is seen to reach
 const SPREAD = 0.42;       // radians: half the cone's width
@@ -62,8 +63,9 @@ export function createTorchBeams(scene, { lite = false } = {}) {
     const material = beamMaterial();
     const beam = new THREE.Mesh(cone, material);
     beam.name = 'torch-beam'; beam.visible = false; beam.renderOrder = 3; beam.frustumCulled = false;
-    const patch = new THREE.Mesh(disc, new THREE.MeshBasicMaterial({ map: poolMap, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xf2f4ff, opacity: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, fog: false, toneMapped: false }));
-    patch.name = 'torch-pool'; patch.visible = false; patch.renderOrder = 2;
+    const patch = asMark(new THREE.Mesh(disc, markMaterial(new THREE.MeshBasicMaterial({ map: poolMap, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xf2f4ff, opacity: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, fog: false, toneMapped: false }), { add: true })));
+    // (the torch's light on the ground, a mark, marks.js: drawn before whoever stands in it, never over their feet)
+    patch.name = 'torch-pool'; patch.visible = false;
     scene.add(beam, patch);
     pool.push({ beam, patch, material });
   }

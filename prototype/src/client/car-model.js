@@ -20,6 +20,7 @@ import { fetchKept, letGoOnceDrawn, decodeAtMost } from './glb.js';
 import { vehicleEnvironment } from './vehicle-models.js';
 import { deviceKind, PICTURES } from './budget.js';
 import { TWO_DOORS, DOOR, DOORS_UP } from '../sim/car-doors.js';
+import { standing } from './marks.js';
 
 const cache = new Map();          // one geometry set and material a car and set of pictures, however many are drawn (most recently used last)
 const users = new Map();          // how many of each are in the scene now
@@ -373,6 +374,9 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
   // the cabin: where the driver sits and the steering wheel is (the model's units, measured from the ground, as the
   // body is drawn: tools/vehicles/driver_seats.py), on the body, so that whoever is in it pitches and rolls with it
   const cabin = new THREE.Group(); cabin.position.set(0, -spec.height * 0.35, 0); springs.add(cabin);
+  // (every part of it drawn after the marks on the ground under it: its own soft patch, a lamp's pool of light, tracks:
+  // marks.js, so that none of them lies over its tyres)
+  standing(group);
   return {
     id, group, scale, spec, frame, toBody, cabin,
     // { hip, wheel, radius, tilt, feet, roof, seen } in the model's units, or null (car-view.js seats the driver by it)
@@ -398,6 +402,14 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
     },
     // head and tail lamps (0..1), the brake lamps and the reversing lamps (on or off)
     lamps(state) { fx.set(state); },
+    // (for the tests: where the bottom of wheel `k`'s tyre is, in the world: its middle, down its radius along the car's
+    // own up, as it is drawn now)
+    tyreBottom(k, out = new THREE.Vector3()) {
+      const w = wheels[k]; if (!w) return null;
+      w.at.getWorldPosition(out);
+      const up = new THREE.Vector3(0, 1, 0).transformDirection(frame.matrixWorld);
+      return out.addScaledVector(up, -w.r);
+    },
     headlampAt: (out = new THREE.Vector3()) => fx.head.getWorldPosition(out),
     // which doors it has, and how far each is open now
     doors: () => (doorSet ? Object.fromEntries([...doorParts].map(([k, part]) => [k, part.angle])) : null),

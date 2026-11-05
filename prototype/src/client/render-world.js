@@ -3,7 +3,7 @@
 // kind of surface, so the whole town costs a few draw calls.
 // THREE is the global from three.min.js.
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, zoneShoreZ, zoneWalkable, oganiruAway, POWERBIKE , HABITATION, RIVER_HEAD, RIVER_FAR, UPRIVER } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, zoneShoreZ, zoneWalkable, oganiruAway, POWERBIKE , HABITATION, RIVER_HEAD, RIVER_FAR, UPRIVER, CITY_AREA } from '../sim/zone.js';
 import { Batch, Chunked, createSight, place, linear, lathe, textTexture, noise, smoothNoise, grainTexture, grassTexture, rippleNormalTexture, shadeOf, addPitchedRoof, addWindow, buildingKit, surface, isLite } from './render-kit.js';
 import { addVehicle } from './render-vehicles.js';
 import { makeVehicleModel } from './vehicle-models.js';
@@ -17,6 +17,21 @@ import { riverShader } from './river-water.js';
 const mixOf = (a, b, k) => new THREE.Color(a).lerp(new THREE.Color(b), k).getHex();
 const onRoad = (x, z, pad = 0) => ZONE_ROADS.some((r) => x > r.x0 - pad && x < r.x1 + pad && z > r.z0 - pad && z < r.z1 + pad);
 const wornAt = (x, z) => { let busiest = 0; for (const [wx, wz, radius] of ZONE_PROPS.worn) busiest = Math.max(busiest, 1 - Math.hypot(x - wx, z - wz) / radius); return busiest; };
+// Soft ground in the town (5 November 2026, the owner: on the riverbank's sand and on bare earth the feet press in and
+// leave their prints, and the tyres their tracks): what the town's own ground is drawn as there, as its colours below
+// have it. 'sand' along the river, 'earth' where the town is worn bare and along the edges of its roads; null on the
+// grass, the roads, the city block's paving, the jetty, in the water and beyond the town (the habitation keeps its own).
+export function softGround(x, z) {
+  const b = ZONE.bounds;
+  if (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) return null;
+  if (onRoad(x, z) || (x > CITY_AREA.x0 && x < CITY_AREA.x1 && z > CITY_AREA.z0 && z < CITY_AREA.z1)) return null;
+  if (x > ZONE_JETTY.x0 - 0.5 && x < ZONE_JETTY.x1 + 0.5 && z > ZONE_JETTY.z0 - 0.5 && z < ZONE_JETTY.z1 + 0.5) return null;
+  const toShore = zoneShoreZ(x) - z;
+  if (toShore < 0.3) return null;
+  if (toShore < 14) return 'sand';
+  if (wornAt(x, z) * 1.7 - 0.2 > 0.55 || onRoad(x, z, 2.2)) return 'earth';
+  return null;
+}
 
 // (beyond the town's north end, from the habitation's edge on, the habitation draws its own ground: render-habitation.js.
 // Since 21 October 2026 it is at the end of the town's road, so the town's ground, river bank and far bank stop there.)

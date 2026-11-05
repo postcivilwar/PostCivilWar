@@ -33,6 +33,14 @@ export async function restoreGeometry() {
   return n;
 }
 export const geometryKeptAside = () => sentAway.size;
+// (for the tests, the surface sweep: an attribute's numbers, whether the page still holds them or they were kept aside
+// once sent; the attribute itself is left as it is)
+export async function numbersOf(attribute) {
+  if (!attribute) return null;
+  if (attribute.array) return attribute.array;
+  const kept = sentAway.get(attribute);
+  return kept ? new kept.type(await kept.blob.arrayBuffer()) : null;
+}
 // Any other geometry whose numbers nothing changes or reads again once it is made (the habitation's models, waters and
 // hills, a square's leaves), let go so too once the graphics card has them, and forgotten with the geometry when it is
 // let go itself (29 October 2026, the owner's brief: the game hung and closed by itself on his phone; at the town's east

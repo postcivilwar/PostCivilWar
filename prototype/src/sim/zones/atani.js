@@ -19,7 +19,7 @@ import { houseDoor, houseBench } from '../layout.js';
 import { kekeLook, busLook, footprintBox } from '../vehicle-looks.js';
 import { BRIDGE, OUTSKIRT_COLLIDERS, OUTSKIRT_BUILDING_COLLIDERS, onOutskirts, outskirtsGroundY } from './atani-outskirts.js';
 import { ZONE_BILLBOARDS } from './atani-billboards.js';
-import { CITY_BUILDINGS, CITY_COLLIDERS, CITY_FURNITURE, PAVEMENTS, BOULEVARD, LAWN, cityGroundY } from './atani-city.js';
+import { CITY_BUILDINGS, CITY_COLLIDERS, CITY_FURNITURE, PAVEMENTS, BOULEVARD, LAWN, CITY_AREA, cityGroundY } from './atani-city.js';
 export * from './atani-city.js';
 import { POWERBIKE, POWERBIKE_COLLIDERS } from './atani-powerbike.js';
 export * from './atani-powerbike.js';
@@ -643,6 +643,9 @@ function buildFixedColliders() {
   const sh = ZONE_PROPS.shelter;
   boxes.push({ x0: sh.x - 6, x1: sh.x + 6, z0: sh.z - 2.5, z1: sh.z + 2.5 });   // motor park shelter posts
   boxes.push({ x0: -64, x1: -50, z0: -196, z1: -176 });                          // cured block stacks
+  // (each land plot's corner posts, half a metre high, in its corners: render-actors.js; walked through until 5 November
+  // 2026, the surface sweep)
+  for (const p of ZONE_PARCELS) for (const [x, z] of [[p.x0 + 0.11, p.z0 + 0.11], [p.x1 - 0.11, p.z0 + 0.11], [p.x0 + 0.11, p.z1 - 0.11], [p.x1 - 0.11, p.z1 - 0.11]]) boxes.push(boxOf(x, z, 0.11, 0.11));
   // (each of the owner's houses where it really stands, not the box round its roof: town-buildings.js `standsAt`)
   for (const h of ZONE_HOUSES) if (!h.tower) { if (h.model) { const b = boxOf(h.x, h.z, h.w / 2, h.d / 2); boxes.push(...standsAt(h.id, b.x0, b.z0, b.x1, b.z1)); } else boxes.push(boxOf(h.x, h.z, h.w / 2, h.d / 2)); }
   boxes.push(...TOWER_COLLIDERS);                                                // the owner's towers (town-buildings.js)
@@ -1027,8 +1030,53 @@ export const ZONE_TREES = Object.freeze(TOWN_TREES.filter((t) => !underBridge(t)
 export * from './atani-outskirts.js';
 // (the bridge and the far bank; and in the city block, the pavements, a kerb above the road)
 const inHabitation = (x, z) => x > HABITATION.bounds.x0 - 6 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1;
+// The town's roads stand up from its land, as they are drawn (render-world.js): a tarred road's top 8 cm up, with a
+// laterite shoulder 1.2 m wide either side of it 4 cm up, and a laterite lane's top 6 cm up. The city block's road and
+// pavements are laid at the town's roads' height (render-city.js): its pavements a kerb above that, and its road crowned
+// 5 cm in its middle between its junctions. (5 November 2026, the owner: "feet are always seen on the surface, never in
+// it ... The same for tyres": until then whoever walked or drove there stood at the land's own height, down in the road,
+// and the marks on the ground under them were laid there too, under it, unseen. test/surface-sweep.mjs.)
+export const ROAD_TOPS = Object.freeze({ asphalt: 0.08, laterite: 0.06, shoulder: 0.04, shoulderWidth: 1.2, city: 0.08, crown: 0.05, crownFrom: -35, crownTo: 108 });
+const DRAWN_ROADS = ZONE_ROADS.filter((r) => r.id !== 'market');
+const ROADS_BOX = (() => { const b = { x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity }; for (const r of DRAWN_ROADS) { b.x0 = Math.min(b.x0, r.x0 - 2); b.z0 = Math.min(b.z0, r.z0 - 2); b.x1 = Math.max(b.x1, r.x1 + 2); b.z1 = Math.max(b.z1, r.z1 + 2); } return Object.freeze(b); })();
+export function townRoadTop(x, z) {
+  if (x < ROADS_BOX.x0 || x > ROADS_BOX.x1 || z < ROADS_BOX.z0 || z > ROADS_BOX.z1) return 0;
+  let top = 0;
+  for (const r of DRAWN_ROADS) {
+    if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) { top = Math.max(top, r.surface === 'asphalt' ? ROAD_TOPS.asphalt : ROAD_TOPS.laterite); continue; }
+    if (r.surface !== 'asphalt' || top >= ROAD_TOPS.shoulder) continue;
+    const along = r.x1 - r.x0 > r.z1 - r.z0, sx = along ? 0 : ROAD_TOPS.shoulderWidth, sz = along ? ROAD_TOPS.shoulderWidth : 0;
+    if (x > r.x0 - sx && x < r.x1 + sx && z > r.z0 - sz && z < r.z1 + sz) top = ROAD_TOPS.shoulder;
+  }
+  return top;
+}
+// The town's own buildings (render-world.js addBuilding): along the front of each a veranda 24 cm up and 2.6 m deep, and a
+// step 12 cm up before it; whoever walks onto them stands on them.
+export const VERANDAS = Object.freeze(ZONE_BUILDINGS.filter((b) => b.kind !== 'showroom' && b.kind !== 'tower').flatMap((b) => {
+  const dir = b.door === 's' ? 1 : -1, front = b.z + (dir * b.d) / 2, depth = 2.6, vw = Math.min(b.w, b.kind === 'home' ? 5 : b.w);
+  const step = front + dir * (depth + 0.22);
+  return [
+    Object.freeze({ x0: b.x - vw / 2, x1: b.x + vw / 2, z0: Math.min(front, front + dir * depth), z1: Math.max(front, front + dir * depth), y: 0.24 }),
+    Object.freeze({ x0: b.x - 0.9, x1: b.x + 0.9, z0: step - 0.225, z1: step + 0.225, y: 0.12 }),
+  ];
+}));
+const VERANDA_INDEX = indexBoxes(VERANDAS);
+function verandaTop(x, z) {
+  const list = VERANDA_INDEX.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL));
+  if (!list) return 0;
+  let top = 0;
+  for (const v of list) if (x > v.x0 && x < v.x1 && z > v.z0 && z < v.z1 && v.y > top) top = v.y;
+  return top;
+}
+// (its edges in it, as atani-city.js `cityGroundY` has them)
+const inCityArea = (x, z) => x >= CITY_AREA.x0 && x <= CITY_AREA.x1 && z >= CITY_AREA.z0 && z <= CITY_AREA.z1;
+function cityTop(x, z) {
+  const c = cityGroundY(x, z);
+  const crowned = c === 0 && z > ROAD_TOPS.crownFrom && z < ROAD_TOPS.crownTo && Math.abs(x) <= BOULEVARD.x1;
+  return ROAD_TOPS.city + c + (crowned ? ROAD_TOPS.crown * Math.max(0, 1 - (x / BOULEVARD.x1) ** 2) : 0);
+}
 // (the road up the river and its car park lie level with the town; the habitation has its own hills, decks and shallows)
-export const zoneGroundY = (x, z) => (inHabitation(x, z) && !(onUpriver(x, z) && !onHabitation(x, z)) ? habitationGroundY(x, z) : cityGroundY(x, z) || outskirtsGroundY(x, z) || oganiruGroundY(x, z));
+export const zoneGroundY = (x, z) => (inHabitation(x, z) && !(onUpriver(x, z) && !onHabitation(x, z)) ? habitationGroundY(x, z) : inCityArea(x, z) ? cityTop(x, z) : townRoadTop(x, z) || verandaTop(x, z) || outskirtsGroundY(x, z) || oganiruGroundY(x, z));
 // Where there is more than one level (Oganiru City's flyovers over its roads, 31 October 2026): the surface something at
 // height `y` stands on at (x, z), the highest no more than a step above it (oganiru.js). With no height, the ground.
 // Returns { y, deck } (deck: the flyover, ramp or raised road it is on, or null on the ground).

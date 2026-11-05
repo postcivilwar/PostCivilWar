@@ -33,6 +33,7 @@ import { addTree } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
 import { pavingTextures, BLOCK } from './render-carshow.js';
 import { ICONS } from './icons.js';
+import { markMaterial, asMark } from './marks.js';
 
 const P = SPORTS_MALL, C = SPORTS_MALL.compound, B = SPORTS_MALL.building, H = SPORTS_MALL.hall, GW = SPORTS_MALL.gateway;
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
@@ -511,8 +512,8 @@ function holderOf(display, standTop, group) {
   group.add(holder);
   const item = SPORTS[display.item];
   void item;
-  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }));
-  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006; shadow.renderOrder = 1;
+  const shadow = asMark(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), markMaterial(new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }))));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006;
   holder.add(shadow);
   return { display, holder, shadow, standTop, model: null, tier: null };
 }

@@ -11,6 +11,7 @@
 
 import { Batch, place, linear, surface } from './render-kit.js';
 import { softShadowPicture, FIGURE_PATCH } from './soft-patch.js';
+import { markMaterial, asMark, standing, DRAW } from './marks.js';
 import { makeCharacter, animateCharacter, seatCharacter, standCharacter, showName, layCharacter, reactionLength } from './render-people.js';
 import { poseFighter } from './combat-view.js';
 import { zoneGroundY, zoneSurfaceY, habitationClimbing } from '../sim/zone.js';
@@ -46,6 +47,8 @@ const BUILD_PAUSE = 0.11;        // seconds between one figure being made and th
 // hung and closed by itself on his iPhone): each one kept holds the model of the figure it was made from, its pictures
 // and its shape, on the graphics card and in the page; thirty-six kept a phone's page holding figures nobody near wore.
 const WARDROBE = deviceKind() === 'lite' ? 8 : 36;
+// (each foot of a figure on the surface under it, within this of the eye: animated.js plantFeet; 5 November 2026)
+const PLANT_NEAR = deviceKind() === 'lite' ? 15 : 30;
 // His townspeople beyond the full figures (30 October 2026, the owner's brief: "the npc are looking so cartoonish. They
 // don't even look exactly like the 3D GLb file I imported"): everyone within `frame.crowd.reach` metres who is standing or
 // walking is drawn from his own figure, many at once (crowd-figures.js); further off, and anyone sitting, lying or riding
@@ -58,7 +61,7 @@ const angleGap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d
 // Each part is its own instanced mesh, with its joint at the origin.
 function figureParts() {
   const lambert = () => new THREE.MeshLambertMaterial();
-  const make = (geometry) => { const mesh = new THREE.InstancedMesh(geometry, lambert(), MAX_FIGURES); mesh.frustumCulled = false; mesh.count = 0; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_FIGURES * 3), 3); mesh.instanceColor.setUsage(THREE.DynamicDrawUsage); return mesh; };
+  const make = (geometry) => { const mesh = new THREE.InstancedMesh(geometry, lambert(), MAX_FIGURES); mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = DRAW.standing; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_FIGURES * 3), 3); mesh.instanceColor.setUsage(THREE.DynamicDrawUsage); return mesh; };
   const down = (top, bottom, length, segments = 6) => { const g = new THREE.CylinderGeometry(top, bottom, length, segments, 1); g.translate(0, -length / 2, 0); return g; };
   const torso = new THREE.CylinderGeometry(0.2, 0.165, 0.56, 8, 1);
   torso.translate(0, 0.28, 0);
@@ -82,10 +85,11 @@ function figureParts() {
     shinL: make(mergeTwo(shin, foot)), shinR: make(mergeTwo(shin, foot)),
   };
   // (soft, darkest under the feet: the contact shadow, at every level; soft-patch.js)
-  const shade = new THREE.InstancedMesh(blob, new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false }), MAX_FIGURES);
+  // (a mark on the ground, marks.js: drawn before the figures, never over their feet, as the see-through patch 6 cm up was
+  // until 5 November 2026)
+  const shade = asMark(new THREE.InstancedMesh(blob, markMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false })), MAX_FIGURES));
   shade.frustumCulled = false;
   shade.count = 0;
-  shade.renderOrder = 1;
   // Further off, a person is three plain shapes: a body, a head and the legs
   // or wrapper. About a ninth of the triangles, and at that size it reads the same.
   const body = new THREE.BoxGeometry(0.38, 0.56, 0.22);
@@ -127,7 +131,10 @@ function bikeMesh(material, variant) {
     B.box(0.3, 0.11, 0.02, place(0, 0.5, -0.97), 0xf3ecdc);                                   // plate
     bikeGeometry.set(variant, B.build(material).geometry);
   }
-  return new THREE.Mesh(bikeGeometry.get(variant), material);
+  const mesh = new THREE.Mesh(bikeGeometry.get(variant), material);
+  // (drawn after the marks on the ground under it: marks.js)
+  mesh.renderOrder = DRAW.standing;
+  return mesh;
 }
 
 // ---------------------------------------------------------------- crowd --
@@ -139,8 +146,8 @@ export function createCrowd(scene) {
   // his townspeople drawn as themselves, many at once, each with the soft patch under the feet that a full figure has
   const crowdFigures = createCrowdFigures(scene, { kinds: 8, each: 24 });
   let crowdMost = null;
-  const crowdShade = new THREE.InstancedMesh(shade.geometry, shade.material, MAX_CROWD);
-  crowdShade.frustumCulled = false; crowdShade.count = 0; crowdShade.renderOrder = 1; crowdShade.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const crowdShade = asMark(new THREE.InstancedMesh(shade.geometry, shade.material, MAX_CROWD));
+  crowdShade.frustumCulled = false; crowdShade.count = 0; crowdShade.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(crowdShade);
   const sight = new THREE.Frustum(), seen3 = new THREE.Matrix4(), ball = new THREE.Sphere(new THREE.Vector3(), 1.3);
   const bikeMaterial = surface({ vertexColors: true, roughness: 0.6, metalness: 0.25 });
@@ -229,7 +236,7 @@ export function createCrowd(scene) {
     put(parts.shinR, joint(K, J, 0, -0.44, 0, kneeR), fig.legs);
     if (fig.skirt) put(parts.skirt, joint(K, M, 0, hip + 0.04, seated ? 0.12 : 0, seated ? -1.2 : 0, 1, seated ? 0.5 : fig.skirt === 1 ? 0.5 : 0.82, 1), fig.bottom);
     else parts.skirt.setMatrixAt(n, HIDE);
-    if (pose === POSE.lie || pose === POSE.ride) shade.setMatrixAt(n, HIDE); else { P.set(x, 0.06 + ground, z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); shade.setMatrixAt(n, L); }
+    if (pose === POSE.lie || pose === POSE.ride) shade.setMatrixAt(n, HIDE); else { P.set(x, 0.012 + ground, z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); shade.setMatrixAt(n, L); }
     n += 1;
   }
 
@@ -349,6 +356,9 @@ export function createCrowd(scene) {
     rig.atX = actor.x; rig.atZ = actor.z;
     // (a figure of his own runs when it is running: from someone, or from gunfire; the plain figures never go faster than a walk)
     rig.pace = (rig.pace === undefined ? 1.35 : rig.pace) + (Math.min(rig.animated ? 6 : 2.4, went / Math.max(dt, 0.001)) - (rig.pace === undefined ? 1.35 : rig.pace)) * Math.min(1, dt * 3);
+    // (each foot on the surface under it, near enough to be seen closely: animated.js plantFeet)
+    rig.level = actor.y;
+    rig.ground = rig.animated && actor.pose !== POSE.sit && actor.d < PLANT_NEAR ? rig.groundAt || (rig.groundAt = (x, z) => groundOf(x, z, rig.level)) : null;
     animateCharacter(rig, dt, moving ? Math.max(0.7, rig.pace) : 0, false);
     if (actor.pose === POSE.sit) { seatCharacter(rig); g.position.y = -0.44 * s; rig.armL.shoulder.rotation.x = -0.35; rig.armR.shoulder.rotation.x = -0.35; rig.armL.elbow.rotation.x = -0.9; rig.armR.elbow.rotation.x = -0.9; } else standCharacter(rig);
     // getting up again after a fall: more slowly than going down
@@ -519,7 +529,7 @@ export function createCrowd(scene) {
           if (cam) { ball.center.set(x, y + 0.9, z); if (!sight.intersectsSphere(ball)) continue; }
           if (actor.seed === undefined) actor.seed = ((actor.i * 0.6180339887) % 1) || 0.5;
           if (crowdFigures.put(id, ANIMATED[id].npc && look.height ? look.height : 1, x, y, z, actor.h, moving ? Math.max(0.7, actor.pace) : 0, actor, dt)) {
-            if (c < MAX_CROWD) { const s = info.fig.scale || 1; P.set(x, 0.06 + y, z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); crowdShade.setMatrixAt(c, L); c += 1; }
+            if (c < MAX_CROWD) { const s = info.fig.scale || 1; P.set(x, 0.012 + y, z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); crowdShade.setMatrixAt(c, L); c += 1; }
             continue;
           }
         }
@@ -671,6 +681,9 @@ export function createCrowd(scene) {
       }
       // badly hurt (their own game says 20 or less): a limp (animated.js)
       other.rig.limp = Number.isFinite(q.health) && q.health <= 20 && !seated && !other.rig.swimming;
+      // (each foot on the surface under it, near enough to be seen closely: animated.js plantFeet)
+      other.rig.peerAt = q;
+      other.rig.ground = other.rig.animated && !seated && !other.rig.swimming && Math.hypot(other.x - frame.eye.x, other.z - frame.eye.z) < PLANT_NEAR ? other.rig.groundAt || (other.rig.groundAt = (x, z) => groundOfPeer(x, z, other.rig.peerAt)) : null;
       animateCharacter(other.rig, dt, seated ? 0 : other.rig.swimming ? Math.min(2, gap * 4) : gap > 0.12 ? Math.min(5.6, gap * 4 + 1.5) : 0, false);
       // another player's name shows only to someone near them
       showName(other.rig, Math.hypot(other.x - frame.eye.x, other.z - frame.eye.z) < 12, dt);

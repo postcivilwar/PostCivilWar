@@ -80,10 +80,12 @@ export function createParcelLayer(scene) {
       const colour = STATUS_COLOUR[key];
       const w = p.x1 - p.x0;
       const d = p.z1 - p.z0;
-      batch.box(w, 0.05, 0.1, place(p.cx, 0.04, p.z0 + 0.05), colour);
-      batch.box(w, 0.05, 0.1, place(p.cx, 0.04, p.z1 - 0.05), colour);
-      batch.box(0.1, 0.05, d, place(p.x0 + 0.05, 0.04, p.cz), colour);
-      batch.box(0.1, 0.05, d, place(p.x1 - 0.05, 0.04, p.cz), colour);
+      // (its edges a line on the ground, a centimetre and a half up: 5 November 2026, the surface sweep: they stood 6.5 cm
+      // up, and whoever stood on one was in it)
+      batch.box(w, 0.012, 0.1, place(p.cx, 0.009, p.z0 + 0.05), colour);
+      batch.box(w, 0.012, 0.1, place(p.cx, 0.009, p.z1 - 0.05), colour);
+      batch.box(0.1, 0.012, d, place(p.x0 + 0.05, 0.009, p.cz), colour);
+      batch.box(0.1, 0.012, d, place(p.x1 - 0.05, 0.009, p.cz), colour);
       for (const [x, z] of [[p.x0, p.z0], [p.x1, p.z0], [p.x0, p.z1], [p.x1, p.z1]]) {
         batch.box(0.22, 0.5, 0.22, place(x + (x === p.x0 ? 0.11 : -0.11), 0.25, z + (z === p.z0 ? 0.11 : -0.11)), colour);
       }

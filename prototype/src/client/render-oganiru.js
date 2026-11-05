@@ -568,15 +568,18 @@ function roundaboutTile(M, rb, lite, shade, foliage) {
 // A run of black-and-white kerb, from (x0, z0) to (x1, z1), its face toward `out` ([x, z]): its top and its face, the
 // blocks (a metre each, black and white, worn) a picture along it, by where they are along the road (so that they run on
 // unbroken from one piece of the city to the next).
-const KERB_TOP = KERB + 0.04;
+// (5 November 2026, the surface sweep: its top a centimetre and a half proud of the walkway, not four, and all of it on the walkway,
+// its face on the walkway's edge: before, half of it stood out over the road, where whoever stood or drove was 19 cm into
+// it, and on the walkway's side 4 cm. Where it is drawn is where the town has its height.)
+const KERB_TOP = KERB + 0.015, KERB_WIDTH = 0.22;
 function kerbRun(M, x0, z0, x1, z1, out) {
   const len = Math.hypot(x1 - x0, z1 - z0);
   if (len < 0.3) return;
-  const ox = out[0] * 0.11, oz = out[1] * 0.11;
+  const ox = out[0] * KERB_WIDTH, oz = out[1] * KERB_WIDTH;
   const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
   const u0 = (alongX ? x0 : z0) / 32, u1 = (alongX ? x1 : z1) / 32;
-  M.kerb.quad([x0 - ox, KERB_TOP, z0 - oz], [x1 - ox, KERB_TOP, z1 - oz], [x1 + ox, KERB_TOP, z1 + oz], [x0 + ox, KERB_TOP, z0 + oz], 0xffffff, [[u0, 0.9], [u1, 0.9], [u1, 1], [u0, 1]], UP);
-  M.kerb.quad([x0 + ox, 0, z0 + oz], [x1 + ox, 0, z1 + oz], [x1 + ox, KERB_TOP, z1 + oz], [x0 + ox, KERB_TOP, z0 + oz], 0xffffff, [[u0, 0], [u1, 0], [u1, 0.85], [u0, 0.85]], [out[0], 0, out[1]]);
+  M.kerb.quad([x0 - ox, KERB_TOP, z0 - oz], [x1 - ox, KERB_TOP, z1 - oz], [x1, KERB_TOP, z1], [x0, KERB_TOP, z0], 0xffffff, [[u0, 0.9], [u1, 0.9], [u1, 1], [u0, 1]], UP);
+  M.kerb.quad([x0, 0, z0], [x1, 0, z1], [x1, KERB_TOP, z1], [x0, KERB_TOP, z0], 0xffffff, [[u0, 0], [u1, 0], [u1, 0.85], [u0, 0.85]], [out[0], 0, out[1]]);
 }
 const ROAD_OF = new Map(OGANIRU_ROADS.map((r) => [r.id, r]));
 function* kerbsTile(M, T) {

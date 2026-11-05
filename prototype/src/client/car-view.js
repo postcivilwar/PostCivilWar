@@ -41,6 +41,47 @@ export const SPRINGS = Object.freeze({ pitch: 0.012, most: 0.05, roll: 0.0045 })
 // `wheelTurn` times the front wheels' angle, no further than `wheelMost` either way (the hands stay on the rim at ten
 // to two as it turns, within the arms' reach)
 export const DRIVE = Object.freeze({ recline: 0.38, mostRecline: 0.62, sink: 0.08, slide: 0.14, headRoom: 0.04, wheelTurn: 1.4, wheelMost: 0.6, look: 0.35 });
+// The ground under each of its four wheels (5 November 2026, the owner: "the bottom of the tyres on the drawn surface,
+// the body on its springs"): the car is set on the plane that lies best through the four (tipped along it and across it,
+// no further than `most`), and each wheel let down or lifted on its spring by what is left over (a kerb under one, a twist
+// in a ramp), so that each tyre's bottom is on the surface where it touches. A wheel whose ground is more than `step`
+// from the car's own (over a deck's edge, in the face of a wall) is taken to be on the plane of the others.
+export const SETTLE = Object.freeze({ most: 0.25, step: 0.5, travel: 0.12 });
+const fit = { g: [], x: [], z: [] };
+function settle(wheels, x, z, h, y, groundY, out) {
+  const s = Math.sin(h), c = Math.cos(h);
+  const g0 = groundY(x, z, y);
+  const n = wheels.length;
+  let mx = 0, mz = 0, mg = 0;
+  for (let k = 0; k < n; k += 1) {
+    const wl = wheels[k];
+    // (the car's own +x is its left, +z ahead: turned by its heading)
+    let g = groundY(x + wl.x * c + wl.z * s, z - wl.x * s + wl.z * c, y);
+    if (!Number.isFinite(g) || Math.abs(g - g0) > SETTLE.step) g = g0;
+    fit.g[k] = g; fit.x[k] = wl.x; fit.z[k] = wl.z;
+    mx += wl.x; mz += wl.z; mg += g;
+  }
+  mx /= n; mz /= n; mg /= n;
+  let sxx = 0, szz = 0, sxz = 0, sxg = 0, szg = 0;
+  for (let k = 0; k < n; k += 1) {
+    const dx = fit.x[k] - mx, dz = fit.z[k] - mz, dg = fit.g[k] - mg;
+    sxx += dx * dx; szz += dz * dz; sxz += dx * dz; sxg += dx * dg; szg += dz * dg;
+  }
+  const det = sxx * szz - sxz * sxz;
+  let across = 0, along = 0;
+  if (Math.abs(det) > 1e-9) { across = (sxg * szz - szg * sxz) / det; along = (szg * sxx - sxg * sxz) / det; }
+  across = Math.max(-SETTLE.most, Math.min(SETTLE.most, across));
+  along = Math.max(-SETTLE.most, Math.min(SETTLE.most, along));
+  out.y = mg - across * mx - along * mz;
+  // (the nose up a slope that rises ahead: a turn about its left by minus the slope's angle; its left side up where the
+  // ground rises to its left: a turn about its length by the angle across)
+  out.pitch = -Math.atan(along);
+  out.roll = Math.atan(across);
+  const lifts = out.lifts || (out.lifts = []);
+  for (let k = 0; k < n; k += 1) lifts[k] = Math.max(-SETTLE.travel, Math.min(SETTLE.travel, fit.g[k] - (out.y + across * fit.x[k] + along * fit.z[k])));
+  lifts.length = n;
+  return out;
+}
 const w = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), hip: new THREE.Vector3(), q: new THREE.Quaternion(), r: new THREE.Quaternion(), axis: new THREE.Vector3(), up: new THREE.Vector3(), x: new THREE.Vector3(), u: new THREE.Vector3(), n: new THREE.Vector3(), centre: new THREE.Vector3(), grip: new THREE.Vector3() };
 
 export function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}, onBump = () => {} } = {}) {
@@ -83,16 +124,20 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
   // what lies on the road near it: the bars of every body within reach of its wheels (wheel-bumps.js)
   const nearBars = [], NONE = [];
   const barsNear = (bodies, x, z, reach) => { nearBars.length = 0; for (const b of bodies) if (Math.abs((b.ax + b.bx) / 2 - x) < reach && Math.abs((b.az + b.bz) / 2 - z) < reach) nearBars.push(b); return nearBars; };
+  // (each car's own: where it sits on the surface, `settle`, and its wheels' lifts on their springs for it and for
+  // whoever lies in the way, added)
+  const sat = (e) => e.sat || (e.sat = { y: 0, pitch: 0, roll: 0, lifts: [], all: [] });
+  const sitOn = (e, d, groundY) => {
+    const g = e.car.group, on = settle(e.car.wheels, d.x, d.z, d.h, d.y, groundY, sat(e));
+    g.position.set(d.x, on.y, d.z);
+    g.rotation.set(on.pitch, d.h, on.roll, 'YXZ');
+    g.visible = true;
+    return on;
+  };
   const place = (e, d, groundY, dt, night, bodies = []) => {
     const fx = springs(e, d, dt);
-    const g = e.car.group;
-    // (on a slope, a ramp up to a flyover among them, tipped with it: the ground at its front wheels and its back)
-    const gy = groundY(d.x, d.z, d.y);
-    g.position.set(d.x, gy, d.z);
-    const half = e.car.size ? e.car.size.length * 0.38 : 1.7;
-    const slope = (groundY(d.x + Math.sin(d.h) * half, d.z + Math.cos(d.h) * half, d.y) - groundY(d.x - Math.sin(d.h) * half, d.z - Math.cos(d.h) * half, d.y)) / (2 * half);
-    g.rotation.set(Math.abs(slope) > 0.002 && Math.abs(slope) < 0.25 ? -Math.atan(slope) : 0, d.h, 0, 'YXZ');
-    g.visible = true;
+    // (on a slope, a ramp up to a flyover among them, a road's camber or a kerb: on its four wheels, `settle`)
+    const on = sitOn(e, d, groundY);
     // the wheels over whoever lies in the way, and the body on its springs over them
     const bars = bodies.length ? barsNear(bodies, d.x, d.z, e.car.size.length / 2 + 2) : NONE;
     const lifts = e.lifts || (e.lifts = []);
@@ -107,8 +152,11 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     const pk = e.peak || (e.peak = { lifts: [], pitchMin: 0, pitchMax: 0, roll: 0 });
     for (let k = 0; k < lifts.length; k += 1) pk.lifts[k] = Math.max(pk.lifts[k] || 0, lifts[k]);
     pk.pitchMin = Math.min(pk.pitchMin, b.pitch); pk.pitchMax = Math.max(pk.pitchMax, b.pitch); pk.roll = Math.max(pk.roll, Math.abs(b.roll));
+    // (each wheel on its spring: over whoever lies in the way, and onto the surface where it touches)
+    for (let k = 0; k < lifts.length; k += 1) on.all[k] = lifts[k] + (on.lifts[k] || 0);
+    on.all.length = lifts.length;
     // (its doors, as far open as each is now: { fl, fr, rl, rr }, main.js: getting in and out, a car taken)
-    e.car.pose({ travelled: e.travelled, steerAngle: -(d.steer || 0), pitch: fx.pitch + b.pitch, roll: fx.roll + b.roll, lifts, rise: b.rise, doors: d.doors || null });
+    e.car.pose({ travelled: e.travelled, steerAngle: -(d.steer || 0), pitch: fx.pitch + b.pitch, roll: fx.roll + b.roll, lifts: on.all, rise: b.rise, doors: d.doors || null });
     // (the brake lamps when braking, and on a car of the town's waiting at a red light, its foot on the brake)
     e.state = { head: night > 0.25 || d.lamps ? 1 : 0, tail: night > 0.25 || d.lamps ? 1 : 0, brake: (d.brake && (d.speed || 0) > 0.2) || d.held ? 1 : 0, reverse: (d.speed || 0) < -0.2 ? 1 : 0 };
     e.car.lamps(e.state);
@@ -154,10 +202,9 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     }
     const near = parked.filter((p) => POWER_CARS[p.car] && dist(p) <= SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, parkedMost);
     const stand = (e, p) => {
-      e.car.group.position.set(p.x, groundY(p.x, p.z, p.y), p.z);
-      e.car.group.rotation.set(0, p.h, 0);
-      e.car.group.visible = true;
-      e.car.pose({ travelled: e.travelled, steerAngle: 0, pitch: 0, roll: 0, doors: p.doors || null });
+      // (left standing on a slope, a ramp or a kerb: on its four wheels too)
+      const on = sitOn(e, p, groundY);
+      e.car.pose({ travelled: e.travelled, steerAngle: 0, pitch: 0, roll: 0, lifts: on.lifts, doors: p.doors || null });
       e.car.lamps({});
     };
     for (const p of near) {

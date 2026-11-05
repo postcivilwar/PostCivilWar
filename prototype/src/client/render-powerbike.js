@@ -34,6 +34,7 @@ import { hallModels, castShadows } from './hall-models.js';
 import { BIKE_IMPOSTOR } from './bike-impostors.js';
 import { COVER } from './brand-data.js';
 import { letPaintedGo } from './painted.js';
+import { markMaterial, asMark } from './marks.js';
 
 const P = POWERBIKE, M = POWERBIKE.model, H = POWERBIKE.hall;
 // a copy of the page opened from the disk has none of the files the website serves beside it (the model, the
@@ -420,8 +421,8 @@ function makeDisplay(display, group, standTop, sheet) {
   const holder = new THREE.Group();          // where the model stands, turned as it is shown
   holder.position.set(display.x, standTop, display.z);
   group.add(holder);
-  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.78, bike.length * 1.05), new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }));
-  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006; shadow.renderOrder = 1;
+  const shadow = asMark(new THREE.Mesh(new THREE.PlaneGeometry(0.78, bike.length * 1.05), markMaterial(new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }))));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006;
   holder.add(shadow);
   return { display, bike, imp, picture, holder, shadow, standTop, sheet, frame: -1, model: null, tier: null, heading: display.h };
 }

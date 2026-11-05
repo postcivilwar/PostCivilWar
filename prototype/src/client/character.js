@@ -19,6 +19,7 @@
 import { REACTIONS, REACTION_FPS } from './reaction-data.js';
 import { linear, nameTexture, surface } from './render-kit.js';
 import { softShadowPicture, FIGURE_PATCH } from './soft-patch.js';
+import { markMaterial, asMark, standing } from './marks.js';
 import { kitPart, kitBones, kitPose, kitIdle, figureMeta, KIT_SHADE_ONE } from './character-kit.js';
 import { characterSpec, configFromLook } from '../sim/characters.js';
 import { printTexture } from './character-looks.js';
@@ -343,10 +344,13 @@ export function makeFigure(spec, labelText, shadow = false) {
     group.add(label);
   }
   // (soft, darkest under the feet: the contact shadow, at every level; soft-patch.js)
-  const blob = new THREE.Mesh(new THREE.CircleGeometry(0.4, 18), new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false }));
+  // (a mark on the ground, marks.js: drawn before the figure, never over its feet, as the see-through patch 9 cm up was
+  // until 5 November 2026)
+  const blob = asMark(new THREE.Mesh(new THREE.CircleGeometry(0.4, 18), markMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false }))));
   blob.rotation.x = -Math.PI / 2;
-  blob.position.y = 0.09;
+  blob.position.y = 0.012;
   group.add(blob);
+  standing(group);
 
   const rig = {
     group, body: holder, mesh, bones, skeleton, template, pose, label, blob, spec, triangles,

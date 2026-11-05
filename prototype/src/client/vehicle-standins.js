@@ -16,6 +16,7 @@
 //   standins.update([{ key, kind: 'bike' | 'car', id, x, y, z, h, lamps }], eye, now, light)      each frame: these, and no others
 import { BIKE_IMPOSTOR } from './bike-impostors.js';
 import { CAR_IMPOSTOR } from './car-impostors.js';
+import { DRAW } from './marks.js';
 
 const KEEP_IDLE = 30;              // seconds a sheet is kept after it was last drawn
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
@@ -105,6 +106,8 @@ export function createStandins(scene, { lite = false } = {}) {
       if (!e) {
         const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size.size, size.size), s.material);
         mesh.name = `standin:${v.kind}:${v.id}`;
+        // (drawn after the marks on the ground under it: marks.js)
+        mesh.renderOrder = DRAW.standing;
         scene.add(mesh);
         e = { mesh, kind: v.kind, id: v.id, frame: -1 };
         shown.set(v.key, e);

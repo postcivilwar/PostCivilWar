@@ -13,6 +13,7 @@ import { SUPPLIED_VEHICLES } from '../sim/zone.js';
 import { loadSuppliedMesh } from './supplied-model.js';
 import { surface } from './render-kit.js';
 import { wantPicture } from './glb.js';
+import { standing } from './marks.js';
 
 // The model turned so that its front is toward +z, its middle over the origin and its wheels on the ground, at the
 // scale that makes it `length` long. Returns the group to place, and its size.
@@ -92,6 +93,8 @@ export function createSupplied(scene, { lite = false, maxTexture = 4096, env = n
     holder.add(standIn);
     // (the soft patch under it, while the sun casts no shadows: soft-patch.js)
     softPatch(holder, { length: v.length, width: v.width });
+    // (drawn after the marks on the ground under it: marks.js)
+    standing(holder);
     scene.add(holder);
     return { id, v, holder, standIn, model: null, loading: null, failed: null, triangles: 0, want: 0 };
   });
@@ -106,7 +109,7 @@ export function createSupplied(scene, { lite = false, maxTexture = 4096, env = n
       .then(({ mesh, triangles }) => {
         const { fit } = fitVehicle(mesh, p.v);
         p.model = fit; p.triangles = triangles;
-        p.holder.add(fit); p.standIn.visible = false;
+        p.holder.add(standing(fit)); p.standIn.visible = false;
       })
       .catch((error) => { p.failed = String(error.message || error); p.failedAt = performance.now(); })
       .finally(() => { p.loading = null; });
@@ -145,7 +148,7 @@ export function createSupplied(scene, { lite = false, maxTexture = 4096, env = n
   // lamps (to be lit by whoever drives it), or null while the model has not come.
   function dressAmbulance(van) {
     if (!ambulance || ambulance.failed || van.dressed) return van.dressed || null;
-    van.group.add(ambulance.fit);
+    van.group.add(standing(ambulance.fit));
     ambulance.van = van;
     for (const child of van.group.children) if (child !== ambulance.fit) child.visible = false;
     const lamps = [];

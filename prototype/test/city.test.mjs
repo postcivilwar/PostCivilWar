@@ -27,12 +27,16 @@ test('the boulevard: four lanes of about three metres between kerbs, Market Road
 });
 
 test('the pavements stand a kerb above the road, and come down to it at every crossing, with no step to trip on', () => {
+  // (people stand on them as they are drawn, 5 November 2026: the block laid at the town's roads' height, 8 cm up, its
+  // road crowned 5 cm in its middle between the junctions)
+  const T = Z.ROAD_TOPS;
   for (const p of C.PAVEMENTS) {
     const x = (p.x0 + p.x1) / 2, z = (p.z0 + p.z1) / 2;
-    if (!C.RAMPS.some((r) => inBox(r, x, z))) assert.equal(Z.zoneGroundY(x, z), C.KERB, `${x}, ${z}`);
+    if (!C.RAMPS.some((r) => inBox(r, x, z))) assert.ok(Math.abs(Z.zoneGroundY(x, z) - (T.city + C.KERB)) < 1e-9, `${x}, ${z}`);
   }
   assert.ok(C.KERB >= 0.12 && C.KERB <= 0.18);
-  assert.equal(Z.zoneGroundY(0, 20), 0, 'the road');
+  assert.ok(Math.abs(Z.zoneGroundY(0, 20) - (T.city + T.crown)) < 1e-9, 'the road, at its crown');
+  assert.ok(Math.abs(Z.zoneGroundY(C.BOULEVARD.x1 - 0.05, 20) - T.city) < 0.001, 'the road, at its kerb');
   // walking the line of every crossing, from pavement to pavement: the ground never jumps
   for (const c of C.CROSSINGS) {
     let last = null;

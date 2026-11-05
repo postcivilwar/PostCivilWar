@@ -35,6 +35,7 @@ import { COVER } from './brand-data.js';
 import { vehicleEnvironment } from './vehicle-models.js';
 import { addTree } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
+import { markMaterial, asMark } from './marks.js';
 
 const P = CARSHOW, C = CARSHOW.compound, G = CARSHOW.gate, H = CARSHOW.hall, S = CARSHOW.showroom;
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
@@ -636,8 +637,8 @@ function makeDisplay(display, group, standTop, sheet) {
   const holder = new THREE.Group();
   holder.position.set(display.x, standTop, display.z);
   group.add(holder);
-  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(car.width * 1.1, car.length * 1.05), new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }));
-  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006; shadow.renderOrder = 1;
+  const shadow = asMark(new THREE.Mesh(new THREE.PlaneGeometry(car.width * 1.1, car.length * 1.05), markMaterial(new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }))));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006;
   holder.add(shadow);
   return { display, car, imp, picture, holder, shadow, standTop, sheet, frame: -1, model: null, tier: null, heading: display.h };
 }

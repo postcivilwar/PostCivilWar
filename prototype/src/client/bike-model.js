@@ -14,6 +14,7 @@ import { BIKE_PARTS } from './bike-parts.js';
 import { surface, isLite } from './render-kit.js';
 import { fetchKept, letGoOnceDrawn, decodeAtMost } from './glb.js';
 import { deviceKind, PICTURES } from './budget.js';
+import { standing } from './marks.js';
 
 const cache = new Map();          // one geometry and material a bike and set of pictures, however many are drawn (most recently used last)
 const users = new Map();          // how many of each are in the scene now
@@ -253,6 +254,8 @@ export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1
   const fx = lampsOf(spec, frame, { group: unrake, at: [fx0, F.y, F.z] });
   const metres = (v) => v * scale;
   const wheelRadius = { front: metres(F.r), rear: metres(R.r) };
+  // (drawn after the marks on the ground under it: marks.js)
+  standing(group);
   return {
     id, group, scale, spec,
     // where a rider's hands, seat and feet go, in the bike's own frame (metres; +x is the bike's left)

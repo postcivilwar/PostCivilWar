@@ -15,6 +15,7 @@ import { splitGLB } from './glb-read.js';
 import { gunzip } from './inflate.js';
 import { nameTexture, surface, isLite } from './render-kit.js';
 import { softShadowPicture, FIGURE_PATCH } from './soft-patch.js';
+import { markMaterial, asMark, standing } from './marks.js';
 import { SEAT_POSE } from './seat-pose.js';
 import { borrowedFor, seatFor, loadMoves } from './figure-moves.js';
 import { pictureSize } from './budget.js';
@@ -158,6 +159,11 @@ export const JUMP = Object.freeze({ from: 0.85, off: 1.36, on: 2.12, to: 3.05, p
 const STAIRS_PACE = 1.4;
 // the bones the lowest of which is where a figure's feet are
 const FEET = ['foot_l', 'foot_r', 'ball_l', 'ball_r'];
+// Each foot on the surface under it (5 November 2026, the owner: "each foot on the surface, the hips lowered, the toes
+// following the slope", for the player and everyone near). Metres for a figure 1.75 m tall: a foot whose ground is more
+// than `step` from the ground the figure stands on (over a drop, against a wall) is left as its clip has it; the hips
+// are let down no more than `most`; a foot lifted `lifted` over where it stands is in the air (not laid on the slope).
+export const PLANT = Object.freeze({ step: 0.35, most: 0.3, lifted: 0.09, ease: 14 });
 
 // How high above its own feet a seated figure's seat is, for a figure of height 1: the same number the town
 // uses to put anyone in a seat, so the supplied figures sit where everyone else does.
@@ -432,9 +438,16 @@ export function makeAnimatedRig(id, labelText, shadow = false, police = null, si
     group.add(label);
   }
   // (soft, darkest under the feet: the contact shadow, at every level; soft-patch.js)
-  const blob = new THREE.Mesh(new THREE.CircleGeometry(0.4, 18), new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false }));
-  blob.rotation.x = -Math.PI / 2; blob.position.y = 0.09; group.add(blob);
+  // (a mark on the ground, marks.js: drawn before the figure, never over its feet, as the see-through patch 9 cm up was
+  // until 5 November 2026)
+  const blob = asMark(new THREE.Mesh(new THREE.CircleGeometry(0.4, 18), markMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false }))));
+  blob.rotation.x = -Math.PI / 2; blob.position.y = 0.012; group.add(blob);
   const tmp = { a: new THREE.Vector3(), b: new THREE.Vector3(), q: new THREE.Quaternion(), w: new THREE.Quaternion(), p: new THREE.Quaternion(), axis: new THREE.Vector3() };
+  // (planting the feet: its height, and its own vectors, so that nothing is made each frame)
+  const tall = (spec.height || 1.75) * (size > 0.5 && size < 1.5 ? size : 1);
+  const V = () => new THREE.Vector3(), Q = () => new THREE.Quaternion();
+  const PL = { g: V(), f: V(), b: V(), l: V(), t: V(), u: V(), v: V(), fwd: V(), up: new THREE.Vector3(0, 1, 0), fq: Q(), sq: Q(), pq: Q(), one: Q(), S: V(), K: V(), F: V(), dir: V(), pole: V(), mid: V(), knee: V(), end: V(), a: V(), c: V(), w: V(), q: Q(), r: Q(), s: Q() };
+  const legs = ['l', 'r'].map((s) => ({ s, on: false, d: 0, w: 0, rest: undefined, n: new THREE.Vector3(0, 1, 0) }));
 
   const rig = {
     animated: id, figure: id, group, body: holder, lift, label, blob, mesh: null, triangles: 0, spec, speed: 0, idleTime: 0, phase: 0, scale: 1, stride: 1,
@@ -630,10 +643,107 @@ export function makeAnimatedRig(id, labelText, shadow = false, police = null, si
       rig.jumpLift = j ? jumped : rig.jumpLift * Math.max(0, 1 - dt * 10);
       if (Math.abs(rig.jumpLift) < 1e-4) rig.jumpLift = 0;
       if (!rig.seated) lift.position.y = rig.drop + rig.jumpLift;
+      plantFeet(dt);
     },
     dispose() { if (rig.mixer) rig.mixer.stopAllAction(); blob.geometry.dispose(); blob.material.dispose(); if (label) { label.material.map.dispose(); label.material.dispose(); } if (!released) { released = true; releaseModel(id); } },
   };
 
+  // Its feet on the surface (PLANT): with `rig.ground(x, z)` set by whoever draws it (the height of the surface it stands
+  // on, under a point; none for a figure too far off to be seen closely), the ground under each foot is found; the hips
+  // are let down by as much as the lower foot needs (eased over a moment); each leg is bent to lift its foot by what is
+  // left over, its knee kept pointing the way it pointed; and a foot on the ground is turned to lie along the slope
+  // under it, from its heel to its toes and across. Not seated, lying, in the air, in the water or on stairs (whose clip
+  // has its own steps).
+  function plantFeet(dt) {
+    const ground = rig.ground;
+    if (typeof ground !== 'function' || !rig.bones || rig.seated || rig.lying || rig.jumping || rig.swimming || rig.climbing || rig.held) { rig.plantDrop = 0; return; }
+    group.updateMatrixWorld(true);
+    group.getWorldPosition(PL.g);
+    const g0 = ground(PL.g.x, PL.g.z);
+    if (!Number.isFinite(g0)) { rig.plantDrop = 0; return; }
+    const k = tall / 1.75;
+    PL.fwd.set(0, 0, 1).transformDirection(holder.matrixWorld);
+    let low = 0, any = false;
+    for (const leg of legs) {
+      leg.on = false;
+      const foot = rig.bones.get(`foot_${leg.s}`);
+      if (!foot) continue;
+      foot.getWorldPosition(PL.f);
+      const gf = ground(PL.f.x, PL.f.z);
+      if (!Number.isFinite(gf) || Math.abs(gf - g0) > PLANT.step * k) continue;
+      // how high the ankle is in the clip, over the ground the figure stands on (the lowest it has been: standing)
+      holder.worldToLocal(PL.l.copy(PL.f));
+      const y = PL.l.y - lift.position.y;
+      leg.rest = leg.rest === undefined ? y : Math.min(leg.rest, y);
+      leg.w = 1 - smooth01((y - leg.rest) / (PLANT.lifted * k));
+      leg.on = true; leg.d = gf - g0; any = true;
+      if (leg.d < low) low = leg.d;
+      // the slope under it: along the foot, from the ankle towards the ball of the foot, and across it
+      const ball = rig.bones.get(`ball_${leg.s}`);
+      if (ball) ball.getWorldPosition(PL.b); else PL.b.copy(PL.f).add(PL.fwd);
+      PL.u.set(PL.b.x - PL.f.x, 0, PL.b.z - PL.f.z);
+      if (PL.u.lengthSq() < 1e-6) PL.u.set(PL.fwd.x, 0, PL.fwd.z);
+      PL.u.normalize().multiplyScalar(0.14 * k);
+      const ga = ground(PL.f.x + PL.u.x, PL.f.z + PL.u.z), gs = ground(PL.f.x + PL.u.z * 0.7, PL.f.z - PL.u.x * 0.7);
+      // (only where both are the same surface: not over a kerb's edge or a step)
+      const da = Number.isFinite(ga) && Math.abs(ga - gf) < 0.06 * k ? ga - gf : 0, ds = Number.isFinite(gs) && Math.abs(gs - gf) < 0.05 * k ? gs - gf : 0;
+      PL.t.set(PL.u.x, da, PL.u.z); PL.v.set(PL.u.z * 0.7, ds, -PL.u.x * 0.7);
+      leg.n.crossVectors(PL.t, PL.v).normalize();
+      if (leg.n.y < 0) leg.n.negate();
+    }
+    // the hips let down for the lower foot
+    const want = any ? Math.max(-PLANT.most * k, low) : 0;
+    rig.plantDrop = (rig.plantDrop || 0) + (want - (rig.plantDrop || 0)) * Math.min(1, dt * PLANT.ease);
+    if (!any) { if (Math.abs(rig.plantDrop) < 1e-4) rig.plantDrop = 0; lift.position.y += rig.plantDrop; return; }
+    lift.position.y += rig.plantDrop;
+    holder.updateMatrixWorld(true);
+    for (const leg of legs) {
+      if (!leg.on) continue;
+      const thigh = rig.bones.get(`thigh_${leg.s}`), calf = rig.bones.get(`calf_${leg.s}`), foot = rig.bones.get(`foot_${leg.s}`);
+      if (!thigh || !calf) continue;
+      const raise = leg.d - rig.plantDrop;
+      const tilted = leg.n.y < 0.9995 && leg.w > 0.01;
+      if (Math.abs(raise) < 0.002 && !tilted) continue;
+      // (the foot's own way kept through the bending of the leg, then laid along the slope while it is on the ground)
+      foot.getWorldQuaternion(PL.fq);
+      if (Math.abs(raise) >= 0.002) { foot.getWorldPosition(PL.t); PL.t.y += raise; legTo(thigh, calf, foot, PL.t); }
+      if (tilted) { PL.sq.setFromUnitVectors(PL.up, leg.n); if (leg.w < 1) PL.sq.slerp(PL.one, 1 - leg.w); PL.fq.premultiply(PL.sq); }
+      foot.parent.getWorldQuaternion(PL.pq);
+      foot.quaternion.copy(PL.pq.invert().multiply(PL.fq));
+      foot.updateMatrixWorld(true);
+    }
+  }
+  // A bone turned so that its child is on the line to `to` (as `aim`, with nothing made each time).
+  function turnTo(bone, child, to) {
+    bone.getWorldPosition(PL.a); child.getWorldPosition(PL.c);
+    PL.c.sub(PL.a); PL.w.copy(to).sub(PL.a);
+    if (PL.c.lengthSq() < 1e-12 || PL.w.lengthSq() < 1e-12) return;
+    PL.q.setFromUnitVectors(PL.c.normalize(), PL.w.normalize());
+    bone.getWorldQuaternion(PL.r); bone.parent.getWorldQuaternion(PL.s);
+    bone.quaternion.copy(PL.s.invert().multiply(PL.q.multiply(PL.r)));
+    bone.updateMatrixWorld(true);
+  }
+  // A leg bent to put its ankle at `target` (as far as it reaches), the knee pointing the way it pointed (ahead, if the
+  // leg was straight).
+  function legTo(thigh, calf, foot, target) {
+    thigh.getWorldPosition(PL.S); calf.getWorldPosition(PL.K); foot.getWorldPosition(PL.F);
+    const l1 = PL.S.distanceTo(PL.K), l2 = PL.K.distanceTo(PL.F);
+    PL.dir.copy(target).sub(PL.S);
+    const d = Math.min(Math.max(PL.dir.length(), Math.abs(l1 - l2) + 1e-3), (l1 + l2) * 0.999);
+    PL.dir.normalize();
+    PL.mid.copy(PL.F).sub(PL.S).normalize();
+    PL.pole.copy(PL.K).sub(PL.S);
+    PL.pole.addScaledVector(PL.mid, -PL.pole.dot(PL.mid));
+    if (PL.pole.lengthSq() < 1e-6) PL.pole.copy(PL.fwd);
+    PL.pole.addScaledVector(PL.dir, -PL.pole.dot(PL.dir));
+    if (PL.pole.lengthSq() < 1e-10) return;
+    PL.pole.normalize();
+    const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
+    PL.knee.copy(PL.S).addScaledVector(PL.dir, a).addScaledVector(PL.pole, h);
+    PL.end.copy(PL.S).addScaledVector(PL.dir, d);
+    turnTo(thigh, calf, PL.knee);
+    turnTo(calf, foot, PL.end);
+  }
   // How high the lowest of its feet is in its own frame, as it is posed now, before it is lifted or let down at all.
   function feetLow() {
     if (!rig.bones) return Infinity;
@@ -698,6 +808,8 @@ export function makeAnimatedRig(id, labelText, shadow = false, police = null, si
     // a Mixamo file's bones answer to the Unreal names the rest of the game reaches for
     if (spec.rig === 'mixamo') for (const [ue, mx] of Object.entries(MIXAMO)) { const b = rig.bones.get(boneName(`mixamorig:${mx}`)); if (b && !rig.bones.has(ue)) rig.bones.set(ue, b); }
     rig.mesh = mesh; rig.triangles = model.triangles; rig.labels = labels;
+    // (drawn after the marks on the ground under it: marks.js)
+    standing(group);
     rig.mixer = new THREE.AnimationMixer(root);
     const hips = spec.rig === 'mixamo' ? boneName('mixamorig:Hips') : 'pelvis';
     const hipBone = rig.bones.get(hips);

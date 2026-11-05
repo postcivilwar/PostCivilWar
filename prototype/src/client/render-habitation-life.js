@@ -24,6 +24,7 @@
 
 import { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_PATHS, HABITATION_SHIFT, habitationWaterAt, habitationLand, habitationGroundAt, habitationFooting } from '../sim/zone.js';
 import { linear } from './render-kit.js';
+import { markMaterial, asMark } from './marks.js';
 
 // a repeatable dice: the same fish and birds in the same places for everyone who comes
 function dice(seed) {
@@ -415,14 +416,15 @@ export function createHabitationLife(scene, { lite = false } = {}) {
   const printGeom = new THREE.PlaneGeometry(0.13, 0.28); printGeom.rotateX(-Math.PI / 2);
   const printFade = new Float32Array(PRINTS);
   printGeom.setAttribute('printFade', new THREE.InstancedBufferAttribute(printFade, 1));
-  const printMat = new THREE.MeshBasicMaterial({ map: printTex, color: linear(0x6e5a3e), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  // (a mark on the ground, marks.js: drawn before whoever walks there, never over their feet)
+  const printMat = markMaterial(new THREE.MeshBasicMaterial({ map: printTex, color: linear(0x6e5a3e), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
   printMat.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float printFade;\nvarying float vPrintFade;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvPrintFade = printFade;');
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vPrintFade;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.a = texture2D(map, vMapUv).r * 0.42 * vPrintFade;');
   };
   printMat.customProgramCacheKey = () => 'pcw-habitation-print';
   const prints = new THREE.InstancedMesh(printGeom, printMat, PRINTS);
-  prints.name = 'footprints'; prints.frustumCulled = false; prints.count = 0; prints.renderOrder = 1;
+  prints.name = 'footprints'; prints.frustumCulled = false; prints.count = 0; asMark(prints);
   group.add(prints);
   const printList = [];            // { x, y, z, h, side, age }
   const walkers = new Map();       // key -> { x, z, gone, side }

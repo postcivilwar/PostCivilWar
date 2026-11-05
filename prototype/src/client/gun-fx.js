@@ -15,6 +15,7 @@
 //   magazine  dropped in a reload: it falls, tumbling, and lies a while
 // Everything is drawn from a few shared things made once (one draw for all the sparks, one for all the cases and so
 // on), each with a fixed most at once: nothing is made or let go as rounds are fired. A phone has fewer of each.
+import { markMaterial, asMark } from './marks.js';
 
 const smooth = (t) => { const u = Math.max(0, Math.min(1, t)); return u * u * (3 - 2 * u); };
 
@@ -138,8 +139,10 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
   // spots of blood dried on the ground, and the marks rounds leave in it: flat discs, each fading
   const disc = new THREE.CircleGeometry(1, 10); disc.rotateX(-Math.PI / 2);
   const spotMaterial = new THREE.MeshBasicMaterial({ color: 0x4a050a, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const spots = bits(most.spots, disc, spotMaterial);
-  const marks = bits(most.marks, disc, new THREE.MeshBasicMaterial({ color: 0x1c1712, transparent: true, opacity: 0.7, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  const spots = bits(most.spots, disc, markMaterial(spotMaterial));
+  const marks = bits(most.marks, disc, markMaterial(new THREE.MeshBasicMaterial({ color: 0x1c1712, transparent: true, opacity: 0.7, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })));
+  // (marks on the ground, marks.js: drawn before whoever stands on them, never over their feet)
+  asMark(spots.mesh); asMark(marks.mesh);
   // spent cases: brass
   const caseGeometry = new THREE.CylinderGeometry(0.0052, 0.0052, 0.045, 6); caseGeometry.rotateZ(Math.PI / 2);
   const cases = bits(most.cases, caseGeometry, new THREE.MeshStandardMaterial({ color: 0xb98a3e, metalness: 0.85, roughness: 0.35 }));

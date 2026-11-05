@@ -10,7 +10,7 @@
 // is a function call. In the networked game it is a message to a zone server.
 
 import { createHost } from '../sim/host.js';
-import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, SPORTS_MALL, inSportsHall, onSportsExit, sportsDisplayNear, sportsBuildingAt, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA, zoneSurfaceY, zoneLevel, zoneDeckOver, oganiruTallAt, oganiruAway, ofOganiru, OGANIRU, OGANIRU_BILLBOARDS, OGANIRU_CUTTING, expresswayY } from '../sim/zone.js';
+import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, SPORTS_MALL, inSportsHall, onSportsExit, sportsDisplayNear, sportsBuildingAt, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA, zoneSurfaceY, zoneLevel, zoneDeckOver, zoneDeckHeights, oganiruTallAt, oganiruAway, ofOganiru, OGANIRU, OGANIRU_BILLBOARDS, OGANIRU_CUTTING, expresswayY } from '../sim/zone.js';
 import { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } from '../sim/sim.js';
 import { FIGURES } from '../sim/figures.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
@@ -18,14 +18,14 @@ import { VEHICLE_KINDS, RUN_RULES, vehicleFits, vehicleSpeedAt, vehicleBox, lowe
 import { createTranslator } from '../sim/culture.js';
 import { createLoopbackHub, createRoomTransport } from '../net/transport.js';
 import { createLink } from '../net/link.js';
-import { buildWorld } from './render-world.js';
+import { buildWorld, softGround } from './render-world.js';
 import { outskirtsSteps } from './render-outskirts.js';
 import { programsReady } from './program-ready.js';
 import { buildBillboards } from './render-billboards.js';
 import { cityAdvertArt } from './render-city-adverts.js';
 import { buildTown } from './render-town.js';
 import { createCrowd } from './render-crowd.js';
-import { linear, setLite, restoreGeometry, settleMesh, restState } from './render-kit.js';
+import { linear, setLite, restoreGeometry, settleMesh, restState, numbersOf } from './render-kit.js';
 import { fetchKept, restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable, setUploader } from './glb.js';
 import { createPictureKeeper } from './picture-keeper.js';
 import { gradeInstalled } from './grade.js';
@@ -36,6 +36,7 @@ import { setRiver, createRiverMirror, riverState } from './river-water.js';
 import { createDust } from './dust.js';
 import { createFireflies } from './fireflies.js';
 import { createWetTracks } from './wet-tracks.js';
+import { createWaterRings } from './water-rings.js';
 import { makeVehicle, makeVan, createParcelLayer, createSiteLayer, createYardStacks } from './render-actors.js';
 import { initVehicles, setVehicleDaylight, vehicleWarmJobs, vehicleEnvironment, renewEnvironment } from './vehicle-models.js';
 import { vehicleMeta } from './vehicle-kit.js';
@@ -453,7 +454,7 @@ function start(carried) {
   let town = null, crowd = null, blood = null, sky = null, parcelLayer = null, siteLayer = null, yardStacks = null;
   // (stage 3's realism, 23 and 24 October 2026: dust on dirt, fireflies in the habitation at night, wet marks after rain,
   // and the glow round what is brightest, with the sun's flare at Ultra)
-  let dust = null, fireflies = null, wetTracks = null, glow = null, occlusion = null, riverMirror = null;
+  let dust = null, fireflies = null, wetTracks = null, waterRings = null, glow = null, occlusion = null, riverMirror = null;
   townSteps.push(['the buildings', () => { town = buildTown(scene, world.glowMaterial); }]);
   townSteps.push(['the people, the sky and the plots', () => {
     crowd = createCrowd(scene);
@@ -462,6 +463,7 @@ function start(carried) {
     dust = createDust(scene, { lite: LITE });
     fireflies = createFireflies(scene, { lite: LITE });
     wetTracks = createWetTracks(scene, { lite: LITE });
+    waterRings = createWaterRings(scene, { lite: LITE });
     parcelLayer = createParcelLayer(scene);
     siteLayer = createSiteLayer(scene);
     yardStacks = createYardStacks(scene);
@@ -773,6 +775,8 @@ function start(carried) {
   let characterTrouble = '';          // why the character kept with the account could not be brought here, if it could not
   let view = null;
   let predicted = { x: ZONE.spawn.x, z: ZONE.spawn.z, heading: 0 };
+  // (the surface the player's figure stands on, under a point: each of its feet put on it, animated.js plantFeet)
+  const myGround = (x, z) => zoneSurfaceY(x, z, levelAt(predicted));
   let me = null;
   const residentActors = new Map();
   const vehicleActors = new Map();
@@ -4574,6 +4578,8 @@ function start(carried) {
       me.climbing = !!me.animated && !driving && !riding && !astride && !incar && speed > 0.3 && habitationClimbing(me.group.position.x, me.group.position.z, predicted.heading);
       // badly hurt (the 20-life rule): a limp, made from the figure's own walk (animated.js)
       me.limp = !!self.critical && !driving && !riding && !astride && !incar && !self.swimming;
+      // (each foot on the surface under it, on foot: animated.js plantFeet)
+      me.ground = me.animated && !driving && !riding && !astride && !incar && !self.swimming ? myGround : null;
       animateCharacter(me, dt, driving || riding || astride || incar ? 0 : speed, holding, led() ? 0 : going.turn);
       driveKitEmote(dt, speed);
       // the ground under the figure: the town's, or the bridge's deck and its approaches (zoneGroundY); or the level it is
@@ -4989,7 +4995,10 @@ blood.update(dt, view.blood || []);
       sunWay.copy(sky.sun.position).sub(sky.sun.target.position).normalize();
       const sunny = skyState.sunUp > 0.02 ? Math.min(1, skyState.sunUp * 4) * (1 - skyState.dull) : 0;
       if (dust) dust.update(dt, { amount: hall ? 0 : airLevel.dust, eye: playing ? predicted : null, camera, height: bufferHeight, sunDir: sunWay, daylight: sunny, wet: groundWet, dirt: dirtAt, ground: zoneGroundY, movers, wind: GROUND_WIND, light: 1 - night * 0.85 });
-      if (wetTracks) wetTracks.update(dt, { amount: hall ? 0 : airLevel.wetTracks, wet: groundWet, raining: skyState.wetness, ground: zoneGroundY, movers, eye: playing ? predicted : null });
+      // (and pressed into the town's sand and bare earth, wet or dry: render-world.js softGround)
+      if (wetTracks) wetTracks.update(dt, { amount: hall ? 0 : airLevel.wetTracks, wet: groundWet, raining: skyState.wetness, ground: zoneGroundY, movers, eye: playing ? predicted : null, soft: softGround });
+      // (rings on the water round whoever wades in the habitation's shallows, and round a car driven through them)
+      if (waterRings) waterRings.update(dt, { amount: hall ? 0 : airLevel.wetTracks, movers, water: habitationWaterAt, eye: playing ? predicted : null });
       if (fireflies) fireflies.update(dt, { amount: playing && !hall && habitationAway(predicted.x, predicted.z) <= 0 ? airLevel.fireflies * Math.max(0, Math.min(1, (night - 0.55) / 0.4)) * (1 - skyState.wetness) : 0, eye: playing ? predicted : null, camera, height: bufferHeight, ground: zoneGroundY });
     }
     world.glowMaterial.emissiveIntensity = night * 1.5;
@@ -5292,7 +5301,7 @@ blood.update(dt, view.blood || []);
     get quality() { return quality.level; }, get qualityDetail() { return quality.detail; }, graphicsBudget: graphicsBudgetMB, memoryLimit,
     // (the graphics level as drawn now: for the tests)
     cloudShadeAt,
-    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), patchOpacity: softPatchOpacity(), skyLight: sky.skyLight, warmth: sky.state().warmth, toneMapping: renderer.toneMapping, air: worldShadingState(), airLevel: { ...airLevel }, glow: glow ? glow.state() : null, dust: dust ? dust.state() : null, fireflies: fireflies ? fireflies.state() : null, wetTracks: wetTracks ? wetTracks.state() : null, occlusion: occlusion ? occlusion.state() : null, river: { ...riverState(), mirror: riverMirror ? riverMirror.state() : null }, finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit, kept: keeper ? keeper.state() : null, resting: restState() }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
+    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), patchOpacity: softPatchOpacity(), skyLight: sky.skyLight, warmth: sky.state().warmth, toneMapping: renderer.toneMapping, air: worldShadingState(), airLevel: { ...airLevel }, glow: glow ? glow.state() : null, dust: dust ? dust.state() : null, fireflies: fireflies ? fireflies.state() : null, wetTracks: wetTracks ? wetTracks.state() : null, waterRings: waterRings ? waterRings.state() : null, occlusion: occlusion ? occlusion.state() : null, river: { ...riverState(), mirror: riverMirror ? riverMirror.state() : null }, finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit, kept: keeper ? keeper.state() : null, resting: restState() }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
     // every keke and coach in the scene: which level of detail it is at and what it costs
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
@@ -5309,7 +5318,13 @@ blood.update(dt, view.blood || []);
     online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, exitGame: () => exitGame(), get exited() { return exited; }, get playing() { return playing; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },
-    walkable: (x, z) => zoneWalkable(x, z, structureBoxes()),
+    // (and, for the surface sweep, at a level `y` with a person's `radius`: the street lamps are in the way only at a level)
+    walkable: (x, z, y, radius) => zoneWalkable(x, z, structureBoxes(), Number.isFinite(radius) ? radius : undefined, y),
+    // (the surface sweep, 5 November 2026: the height a person stands at here, on the level `y` there (a deck's) or on the
+    // ground with none; and the heights of the decks over a point, lowest first)
+    surfaceY: (x, z, y) => (Number.isFinite(y) ? zoneSurfaceY(x, z, y) : zoneGroundY(x, z)),
+    deckHeights: (x, z) => zoneDeckHeights(x, z),
+    numbersOf,
     saveNow() { writeStored(SAVE_KEY, { host: host.save(), playerId }); },
     get lite() { return LITE; }, get going() { return going; }, get me() { return me; },
     // for the browser tests: the power bike's riding controls on screen, with nothing to ride (no bike is in the game yet)

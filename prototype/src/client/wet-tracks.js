@@ -3,12 +3,18 @@
 // and every vehicle the lines of its wheels; each fades as the ground dries and the next rain washes it out. Two sets of
 // marks laid on the ground (two draws), darkening it where they lie, drawn only while there are any, at Medium and up.
 //
+// And on soft ground, wet or dry (5 November 2026, the owner: "on the riverbank's sand and on earth the feet press in and
+// leave prints, the tyres tracks"): the same prints and lines wherever the town's ground is sand or bare earth, pressed
+// into it, lasting longer, and washed out by the rain.
+//
 //   const tracks = createWetTracks(scene, { lite })
-//   tracks.update(dt, { amount, wet, raining, ground(x, z), movers, eye })
+//   tracks.update(dt, { amount, wet, raining, ground(x, z), movers, eye, soft(x, z) })
 //     amount   the level's (0: none)
 //     wet      how wet the ground is (render-finish.js: 1 in the rain, drying slowly after it)
 //     movers   [{ key, x, z, heading, kind: 'foot' | 'car' | 'keke' | 'bike' }]
+//     soft     what the ground is at a point: 'sand', 'earth' or null (render-world.js softGround)
 //   tracks.state()  (the tests)
+import { asMark } from './marks.js';
 
 const VERT = `attribute float aFade; varying vec2 vUv; varying float vFade;
 void main() {
@@ -49,6 +55,9 @@ function tread() {
 }
 
 const LIFE = { foot: 30, wheel: 45 };          // seconds a mark lasts on drying ground (less while it rains)
+// pressed into soft ground: how long a print or a line lasts there, and how dark each is (wet ground's marks darken
+// with how wet it is, below)
+const SOFT = Object.freeze({ life: { foot: 75, wheel: 100 }, sand: 0.3, earth: 0.36 });
 const KINDS = { car: { rear: 1.35, track: 1.55, width: 0.2 }, keke: { rear: 0.9, track: 1.15, width: 0.15 }, bike: { rear: 0.7, track: 0, width: 0.11 } };
 
 export function createWetTracks(scene, { lite = false } = {}) {
@@ -61,7 +70,9 @@ export function createWetTracks(scene, { lite = false } = {}) {
     geometry.setAttribute('aFade', new THREE.InstancedBufferAttribute(fade, 1).setUsage(THREE.DynamicDrawUsage));
     const material = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG, uniforms: { map: { value: map }, strength: { value: 0 } },
-      transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+      // (a mark on the ground, marks.js: drawn with the solid things, after the ground and before whoever walks or drives
+      // over it, never over their feet or tyres)
+      transparent: false, depthWrite: false, fog: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
       // (darkening: what is there times one less the mark's alpha)
       blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.ZeroFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
       blendEquationAlpha: THREE.AddEquation, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
@@ -71,9 +82,9 @@ export function createWetTracks(scene, { lite = false } = {}) {
     mesh.frustumCulled = false;
     mesh.count = 0;
     mesh.visible = false;
-    mesh.renderOrder = 1;
+    asMark(mesh);
     scene.add(mesh);
-    return { mesh, fade, born: new Float32Array(count), life: new Float32Array(count), next: 0, used: 0 };
+    return { mesh, fade, born: new Float32Array(count), life: new Float32Array(count), power: new Float32Array(count), next: 0, used: 0 };
   };
   const feet = make(lite ? 220 : 400, sole(), 0.13, 0.28);
   const wheels = make(lite ? 260 : 480, tread(), 1, 1);
@@ -81,7 +92,8 @@ export function createWetTracks(scene, { lite = false } = {}) {
   const last = new Map();               // a walker's or vehicle's key -> where its last mark was
   let clock = 0, laid = 0;
 
-  function lay(set, x, y, z, heading, width, length, flip, life) {
+  // (`power`: how dark the mark is, or 0 for one in wet ground, as dark as the ground is wet)
+  function lay(set, x, y, z, heading, width, length, flip, life, power = 0) {
     const i = set.next;
     set.next = (set.next + 1) % set.fade.length;
     set.used = Math.min(set.fade.length, set.used + 1);
@@ -89,12 +101,12 @@ export function createWetTracks(scene, { lite = false } = {}) {
     s.set(flip ? -width : width, 1, length);
     m.compose(p.set(x, y + 0.02, z), q, s);
     set.mesh.setMatrixAt(i, m);
-    set.born[i] = clock; set.life[i] = life;
+    set.born[i] = clock; set.life[i] = life; set.power[i] = power;
     set.mesh.instanceMatrix.needsUpdate = true;
     laid += 1;
   }
 
-  function update(dt, { amount = 0, wet = 0, raining = 0, ground = () => 0, movers = [], eye = null } = {}) {
+  function update(dt, { amount = 0, wet = 0, raining = 0, ground = () => 0, movers = [], eye = null, soft = null } = {}) {
     clock += dt;
     // marks are left while the ground is wet: most as it dries after the rain, washed out quickly while it pours
     const leaving = amount > 0 && wet > 0.12;
@@ -105,7 +117,11 @@ export function createWetTracks(scene, { lite = false } = {}) {
       let e = last.get(w.key);
       if (!e) { last.set(w.key, { x: w.x, z: w.z, left: false, l: null, r: null }); continue; }
       const step = Math.hypot(w.x - e.x, w.z - e.z);
-      if (step > 6 || !leaving || (eye && Math.hypot(w.x - eye.x, w.z - eye.z) > 70)) { e.x = w.x; e.z = w.z; e.l = e.r = null; continue; }
+      // (wet ground anywhere, or soft ground where it is: sand or bare earth, its marks lasting longer and pressed in)
+      const kindHere = !leaving && soft && amount > 0 ? soft(w.x, w.z) : null;
+      if (step > 6 || (!leaving && !kindHere) || (eye && Math.hypot(w.x - eye.x, w.z - eye.z) > 70)) { e.x = w.x; e.z = w.z; e.l = e.r = null; continue; }
+      const power = leaving ? 0 : SOFT[kindHere] || SOFT.earth;
+      const lifeFoot = leaving ? LIFE.foot * life : SOFT.life.foot * life, lifeWheel = leaving ? LIFE.wheel * life : SOFT.life.wheel * life;
       const sn = Math.sin(w.heading), cs = Math.cos(w.heading);
       if (w.kind === 'foot') {
         // a print each stride, left and right in turn, a hand's width either side of the way
@@ -113,7 +129,7 @@ export function createWetTracks(scene, { lite = false } = {}) {
         e.x = w.x; e.z = w.z; e.left = !e.left;
         const side = e.left ? 0.1 : -0.1;
         const x = w.x + cs * side, z = w.z - sn * side;
-        lay(feet, x, ground(x, z), z, w.heading, 1, 1, e.left, LIFE.foot * life);
+        lay(feet, x, ground(x, z), z, w.heading, 1, 1, e.left, lifeFoot, power);
         continue;
       }
       const kind = KINDS[w.kind];
@@ -129,7 +145,7 @@ export function createWetTracks(scene, { lite = false } = {}) {
           const dx = at.x - from.x, dz = at.z - from.z, len = Math.hypot(dx, dz);
           if (len > 0.05 && len < 3) {
             const mx = (at.x + from.x) / 2, mz = (at.z + from.z) / 2;
-            lay(wheels, mx, ground(mx, mz), mz, Math.atan2(dx, dz), kind.width, len + 0.04, false, LIFE.wheel * life);
+            lay(wheels, mx, ground(mx, mz), mz, Math.atan2(dx, dz), kind.width, len + 0.04, false, lifeWheel, power);
           }
         }
       });
@@ -137,20 +153,21 @@ export function createWetTracks(scene, { lite = false } = {}) {
       e.x = w.x; e.z = w.z;
     }
     for (const key of last.keys()) if (!seen.has(key)) last.delete(key);
-    // each mark fades as it ages (and all of them as the ground dries)
+    // each mark fades as it ages (and those in wet ground as it dries; those pressed into soft ground keep their own)
     const dryness = Math.max(0, Math.min(1, (wet - 0.05) / 0.35));
+    const wetPower = 0.32 + 0.2 * dryness;
     for (const set of [feet, wheels]) {
       let any = 0;
       for (let i = 0; i < set.used; i += 1) {
         const age = clock - set.born[i], t = set.life[i] > 0 ? age / set.life[i] : 1;
         const f = t >= 1 ? 0 : Math.min(1, age * 4) * (1 - t * t);
-        set.fade[i] = f;
+        set.fade[i] = f * (set.power[i] > 0 ? set.power[i] : wetPower);
         if (f > 0) any += 1;
       }
       set.mesh.count = set.used;
       set.mesh.visible = any > 0 && amount > 0;
       if (set.mesh.visible) set.mesh.geometry.attributes.aFade.needsUpdate = true;
-      set.mesh.material.uniforms.strength.value = amount * (0.32 + 0.2 * dryness) * (set === feet ? 1 : 0.85);
+      set.mesh.material.uniforms.strength.value = amount * (set === feet ? 1 : 0.85);
     }
   }
   return {
