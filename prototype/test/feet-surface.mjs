@@ -93,16 +93,23 @@ check('A: the lamps\' pools and the patch under the figure are marks, drawn with
   && order.figure.length > 0 && order.figure.every((r) => r >= 2), order);
 
 // ---- B: flat ground ----
+// (the figure's standing held at one moment of it from here on, its clip stopped: each foot then has the same pose
+// wherever it stands, and what changes from place to place is only what putting it on the surface does)
 await standAt(-34, 96, undefined, 0, 6000);
+await page.evaluate(() => { window.__nlw.me.mixer.timeScale = 0; });
+await page.waitForTimeout(1500);
 const flat = await feet();
 const rest = flat.l && flat.r ? (flat.l.over + flat.r.over) / 2 : null;
 check('B: on flat ground, both feet at their own height over it (the same, within 2 cm)', rest !== null && Math.abs(flat.l.over - flat.r.over) < 0.02 && rest > 0 && rest < 0.2, flat);
+// how far each foot is from where it is on flat ground, over the surface under it
+const offFrom = (at) => (at.l && at.r && flat.l && flat.r ? Math.max(Math.abs(at.l.over - flat.l.over), Math.abs(at.r.over - flat.r.over)) : null);
 
 // ---- C: across a kerb (Oganiru City, by the Peace flyover's foot: the road to x 736, the walkway beyond) ----
-// facing along the kerb (+z): the figure's left (+x) foot on the walkway, its right in the road
-await standAt(736.07, -700, undefined, 0, 7000);
+// facing along the kerb (+z): the figure's left (+x) foot on the walkway, its right in the road (its feet stand a hand
+// apart, the right a little nearer its middle: the figure 2 cm onto the walkway)
+await standAt(736.02, -700, undefined, 0, 7000);
 const kerb = await feet();
-const offC = kerb.l && kerb.r ? Math.max(Math.abs(kerb.l.over - rest), Math.abs(kerb.r.over - rest)) : null;
+const offC = offFrom(kerb);
 check('C: across a kerb, each foot on its own surface (within 3 cm of its height on flat ground), the hips let down',
   offC !== null && offC < 0.03 && Math.abs(kerb.l.ground - kerb.r.ground) > 0.1 && kerb.root.drop < -0.05, { kerb, rest, off: offC });
 await page.screenshot({ path: `${out}/c-kerb.png` });
@@ -111,12 +118,13 @@ await page.screenshot({ path: `${out}/c-kerb.png` });
 const ramp = { x: 625.0675, z: -1100.1919, y: 4.3722, face: Math.atan2(0.9165, 0.4) };
 await standAt(ramp.x, ramp.z, ramp.y, ramp.face + Math.PI, 7000);
 const up = await feet();
-const offD = up.l && up.r ? Math.max(Math.abs(up.l.over - rest), Math.abs(up.r.over - rest)) : null;
+const offD = offFrom(up);
 // (facing up the slope, the toes are higher than the heels by its angle more than on flat ground)
 const tilt = up.l && up.r && flat.l && flat.r ? ((up.l.pitch - flat.l.pitch) + (up.r.pitch - flat.r.pitch)) / 2 : null;
 check('D: on the ramp, each foot on the ramp under it (within 3 cm), laid along its slope (toes up the slope)',
   offD !== null && offD < 0.03 && tilt !== null && tilt > 0.03 && tilt < 0.1, { up, rest, off: offD, tilt });
 
+await page.evaluate(() => { window.__nlw.me.mixer.timeScale = 1; });
 // ---- E: on a tarred road in the town (Waterside Road) ----
 await standAt(-60, 113, undefined, 0, 5000);
 const road = await feet();
@@ -136,11 +144,13 @@ const buy = await page.evaluate(async (model) => {
   return { ok: answer.ok, code: answer.code };
 }, 'car:yellow-classic-roadster');
 await page.waitForFunction(() => { const s = window.__nlw.view.self; return s.ownCars && s.ownCars.cars.includes('yellow-classic-roadster'); }, null, { timeout: 60000 }).catch(() => {});
-await page.evaluate(() => window.__nlw.place(-12, 96));
-await page.waitForTimeout(800);
+// (on the ramp first, on foot: the car is brought to where its owner gets into it)
+await standAt(ramp.x, ramp.z, ramp.y, ramp.face, 4000);
 await page.evaluate(() => window.__nlw.driveCar('yellow-classic-roadster'));
 await page.waitForFunction(() => window.__nlw.view.self.incar && window.__nlw.carView.ready(), null, { timeout: 300000 }).catch(() => {});
-await standAt(ramp.x, ramp.z, ramp.y, ramp.face, 6000);
+await page.waitForTimeout(6000);
+const where = await page.evaluate((r) => { const n = window.__nlw, c = n.carView.driven('drive'); if (!c) return null; const p = c.group.position; return { x: +p.x.toFixed(2), z: +p.z.toFixed(2), y: +p.y.toFixed(3), level: n.view.self.y, off: +Math.hypot(p.x - r.x, p.z - r.z).toFixed(2) }; }, ramp);
+check('F: the car brought to the player on the ramp, up on it', !!where && where.off < 4 && Math.abs(where.y - ramp.y) < 0.4, where);
 const tyres = (key) => page.evaluate((key) => {
   const n = window.__nlw, c = n.carView.driven(key), lv = n.view.self.incar ? n.view.self.y : n.view.self.ownCars && n.view.self.ownCars.parked.length ? n.view.self.ownCars.parked[0].y : null;
   if (!c) return null;

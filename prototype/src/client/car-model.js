@@ -181,6 +181,34 @@ function trim(keep = KEEP) {
 // (over the page's budget for the graphics card, main.js: every one kept ready but not drawn is let go; gives how many)
 export const trimCars = () => trim(0);
 
+// Each car set down on its own four tyres (5 November 2026, the surface sweep: "the bottom of each wheel on the drawn
+// surface, the body following on its springs"). In the owner's models the bottoms of the tyres are not all on the
+// model's own ground: the Yellow Classic Roadster's are 1.5 cm under it, the Camo Expedition's nearly 2, the Black
+// Square SUV's back ones and the Pearl Convertible's 4 cm over it; drawn standing on the ground, those tyres were sunk
+// into the road or held off it. The whole car (body, wheels, cabin and lamps alike) is lowered or raised and tipped, a
+// fraction of a degree, so that the plane through its tyres' bottoms is its ground; what a twist leaves over, each
+// wheel takes up on its spring. Gives { y, pitch, roll } for its frame (the model's units, radians) and each wheel's
+// own raise, in the model's units.
+const settled = new Map();
+function onTyres(spec) {
+  if (settled.has(spec)) return settled.get(spec);
+  const ws = (spec.wheels || []).map((w) => { const c = w.c || [w.x, w.y, w.z]; return { x: c[0], z: c[2], low: c[1] - w.r }; });
+  let out = { y: 0, pitch: 0, roll: 0, wheels: ws.map(() => 0) };
+  if (ws.length >= 3) {
+    const n = ws.length, mx = ws.reduce((s, w) => s + w.x, 0) / n, mz = ws.reduce((s, w) => s + w.z, 0) / n, ml = ws.reduce((s, w) => s + w.low, 0) / n;
+    let sxx = 0, szz = 0, sxz = 0, sxl = 0, szl = 0;
+    for (const w of ws) { const dx = w.x - mx, dz = w.z - mz, dl = w.low - ml; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; sxl += dx * dl; szl += dz * dl; }
+    const det = sxx * szz - sxz * sxz;
+    const bx = Math.abs(det) > 1e-12 ? (sxl * szz - szl * sxz) / det : 0, bz = Math.abs(det) > 1e-12 ? (szl * sxx - sxl * sxz) / det : 0;
+    const a = ml - bx * mx - bz * mz;
+    // (the tyres' plane at the car's middle lowered to the ground, and turned flat: a turn about its left by its slope
+    // along, about its length by minus its slope across)
+    out = { y: -a, pitch: Math.atan(bz), roll: -Math.atan(bx), wheels: ws.map((w) => -(w.low - (a + bx * w.x + bz * w.z))) };
+  }
+  settled.set(spec, out);
+  return out;
+}
+
 // A picture of the car. The town's renderer is the only one that draws a car from the shared set, so once the
 // graphics card has the picture the page lets its own copy go (glb.js); the market's viewer, a renderer of its own,
 // is given a copy of its own (`own`), which keeps its picture.
@@ -304,6 +332,9 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
   const scale = length / spec.length;
   const group = new THREE.Group(); group.name = `car:${id}`;
   const frame = new THREE.Group(); frame.scale.setScalar(scale); group.add(frame);
+  // (the car set down on its own four tyres: `onTyres`)
+  const rest = onTyres(spec);
+  frame.position.y = rest.y * scale; frame.rotation.set(rest.pitch, 0, rest.roll);
   // (the soft patch under it, while the sun casts no shadows: soft-patch.js; not in a showroom, whose halls have their own)
   if (patch) softPatch(group, { length, width: spec.body * scale });
   const mesh = (g) => { const m = new THREE.Mesh(g, material); m.castShadow = true; m.receiveShadow = false; return m; };
@@ -358,13 +389,13 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
   const X = new THREE.Vector3(1, 0, 0);
   const wheels = spec.wheels.map((w, k) => {
     const c = w.c || [w.x, w.y, w.z];
-    const at = new THREE.Group(); at.position.set(c[0], c[1], c[2]); frame.add(at);
+    const at = new THREE.Group(); at.position.set(c[0], c[1] + rest.wheels[k], c[2]); frame.add(at);
     const steer = new THREE.Group(); at.add(steer);
     const spin = new THREE.Group(); steer.add(spin);
     const straight = new THREE.Group(); spin.add(straight);
     if (w.axle) straight.quaternion.setFromUnitVectors(new THREE.Vector3(w.axle[0], w.axle[1], w.axle[2]).normalize(), X);
     const m = mesh(geometries[k + 1]); m.position.set(-c[0], -c[1], -c[2]); straight.add(m);
-    return { at, steer, spin, r: w.r * scale, front: k < 2, y: c[1], x: c[0] * scale, z: c[2] * scale };
+    return { at, steer, spin, r: w.r * scale, front: k < 2, y: c[1] + rest.wheels[k], x: c[0] * scale, z: c[2] * scale };
   });
   const springsY = spec.height * 0.35;
   // the lamps ride on the body too, at their places on the model (measured from the ground, as the body is drawn)

@@ -86,8 +86,11 @@ export function createParcelLayer(scene) {
       batch.box(w, 0.012, 0.1, place(p.cx, 0.009, p.z1 - 0.05), colour);
       batch.box(0.1, 0.012, d, place(p.x0 + 0.05, 0.009, p.cz), colour);
       batch.box(0.1, 0.012, d, place(p.x1 - 0.05, 0.009, p.cz), colour);
+      // (and its corners a square marker set in the ground, as a surveyor's beacon is: until 5 November 2026 a post half a
+      // metre high, which whoever walked there went through, and which the town's riders along the roads' edges could not
+      // be kept clear of)
       for (const [x, z] of [[p.x0, p.z0], [p.x1, p.z0], [p.x0, p.z1], [p.x1, p.z1]]) {
-        batch.box(0.22, 0.5, 0.22, place(x + (x === p.x0 ? 0.11 : -0.11), 0.25, z + (z === p.z0 ? 0.11 : -0.11)), colour);
+        batch.box(0.26, 0.014, 0.26, place(x + (x === p.x0 ? 0.13 : -0.13), 0.009, z + (z === p.z0 ? 0.13 : -0.13)), colour);
       }
       let board = boards.get(p.id);
       if (!board) { board = boardFor(p); boards.set(p.id, board); }
