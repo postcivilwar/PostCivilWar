@@ -129,7 +129,7 @@ export function bodyOn(st, lifts, wheels, dt) {
   return st;
 }
 // A sudden push to the body: `pitch` radians a second of nose-down swing (positive), `roll` of lean.
-export function kickBody(st, pitch = 0, roll = 0) {
+export function kickBody(st, pitch = 0, roll = 0, rise = 0) {
   if (!st.v) Object.assign(st, { rise: 0, pitch: 0, roll: 0, v: { rise: 0, pitch: 0, roll: 0 } });
-  st.v.pitch += pitch; st.v.roll += roll;
+  st.v.pitch += pitch; st.v.roll += roll; st.v.rise += rise;
 }

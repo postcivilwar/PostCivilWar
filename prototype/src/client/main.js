@@ -812,6 +812,8 @@ function start(carried) {
   // being got into or out of, and of its open door's sweep: `keepOutOfCar`. The car is not made solid to the camera's
   // line from the player: with the player in it, every line would start inside it, and the eye would be drawn in too)
   let cameraCar = null;
+  // (a car being taken: whether its body has been set rocking yet for each moment of it)
+  const takesRocked = new Map();
   function keepOutOfCar(eye) {
     const c = cameraCar;
     if (!c) return;
@@ -4731,6 +4733,28 @@ function start(carried) {
         const yaw = H + (back(0.55) < back(-0.55) ? 0.55 : -0.55);
         cam.yaw += angleGap(yaw, cam.yaw) * Math.min(1, dt * 2.2);
         cam.pitch += (0.34 - cam.pitch) * Math.min(1, dt * 1.6);
+      }
+      // (shut in a car with glass, its doors closed: the town's sounds muffled, clearer with a door open: audio.js)
+      { const shut = !!ownDrive && !!incar && !!CAR_WINDOWS[ownDrive.id] && !(ownDrive.doors && Object.values(ownDrive.doors).some((v) => v > 0.05)) && !(boarding && boarding.kind === 'in'); audio.muffle(shut ? 1 : 0); }
+      // (the car on its springs as someone sits in it or gets up out of it, and as its door is slammed: car-view.js
+      // `rock`, at the moves' own moments; its left side, a driver's, up with a positive roll)
+      if (boarding && boarding.moves) {
+        const t = clock - boarding.start, len = boarding.B.end - 0.1, side = boarding.door === 'fl' || boarding.door === 'rl' ? 1 : -1;
+        const r = boarding.rocked || (boarding.rocked = {});
+        if (boarding.kind === 'in' && !r.sat && t > 0.5 * len) { r.sat = carView.rock('drive', { rise: -0.16, roll: -0.11 * side }); }
+        if (boarding.kind === 'out' && !r.up && t > 0.42 * len) { r.up = carView.rock('drive', { rise: 0.13, roll: 0.09 * side }); }
+        if (!r.slam && t > boarding.B.slam + DOOR.shutting * 0.4) { r.slam = carView.rock('drive', { rise: -0.04, roll: -0.06 * side }); }
+      }
+      if (!taking) takesRocked.clear();
+      if (taking && taking.kind === 'car' && taking.times && CAR_WINDOWS[taking.model]) {
+        const key = carView.driven('drive') ? 'drive' : `traffic:${taking.id}`, side = taking.door === 'fl' ? 1 : -1;
+        // (the town's word of a take is made again each frame: what has been done kept here, by the car taken)
+        const tag = `${taking.id}:${taking.door}`;
+        const r = takesRocked.get(tag) || {};
+        takesRocked.set(tag, r);
+        if (!r.out && taking.step === 'pull' && taking.progress > 0.55) r.out = carView.rock(key, { rise: 0.12, roll: 0.08 * side });
+        if (!r.sat && taking.step === 'enter' && taking.progress > 0.5) r.sat = carView.rock(key, { rise: -0.16, roll: -0.11 * side });
+        if (!r.slam && taking.step === 'shut' && taking.progress > 0.6) r.slam = carView.rock(key, { rise: -0.04, roll: -0.06 * side });
       }
       const carSeated = boardMoved || (!!ownDrive && !!incar && carView.seat(me, ownDrive));
       carsHeard = peerCars.map((q) => ({ key: q.key, car: q.id, x: q.x, z: q.z, rev: q.rev || 0, throttle: q.throttle || 0 }));

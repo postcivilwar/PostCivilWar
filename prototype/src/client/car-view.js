@@ -348,6 +348,16 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     update, seat,
     // the car struck someone with its front (or its back, backing up): the nose dips with the blow, and comes up again
     knock(key = 'drive', amount = 1) { const e = shown.get(key); if (e) kickBody(e.bump || (e.bump = {}), 0.35 * amount); },
+    // (5 November 2026, the owner's brief: "The car sinks a little on its springs as he sits and rocks when the door
+    // slams": the body set moving on its springs, metres a second down or up (`rise`) and radians a second rolled
+    // (`roll`, its left side up), as someone sits or stands or a door is slammed; the car drawn under another name while
+    // it is handed over taken in its place)
+    rock(key = 'drive', { rise = 0, roll = 0, pitch = 0 } = {}) {
+      let e = shown.get(key);
+      if (e && !e.car && e.by) e = shown.get(e.by);
+      if (e) kickBody(e.bump || (e.bump = {}), pitch, roll, rise);
+      return !!e;
+    },
     // how the car being driven sits just now: each wheel's lift and the body's (for the tests)
     bumpOf: (key = 'drive') => { const e = shown.get(key); return e && e.bump && e.bump.v ? { lifts: [...(e.lifts || [])], rise: e.bump.rise, pitch: e.bump.pitch, roll: e.bump.roll } : null; },
     bumpPeak: (key = 'drive') => { const e = shown.get(key); if (!e || !e.peak) return null; const pk = e.peak; e.peak = null; return { lifts: [...pk.lifts], pitchMin: pk.pitchMin, pitchMax: pk.pitchMax, roll: pk.roll }; },

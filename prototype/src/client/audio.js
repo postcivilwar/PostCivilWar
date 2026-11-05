@@ -304,12 +304,28 @@ export function createAudio() {
 
   // One group of the mix: what is played into `input` passes its fixed trim,
   // whatever is ducking it at the moment, and the player's own volume.
+  // (5 November 2026, the owner's brief: "inside a shut car the town's sounds muffled, clearer with a door open": the town
+  // heard through the car's body, its high sounds taken off: `muffle`; the car's own engine a little, the phone and the
+  // music not at all)
+  const MUFFLED = Object.freeze({ ambient: 1, voice: 1, effects: 1, vehicles: 0.5 });
   function group(name, master) {
     const input = ctx.createGain(), duck = ctx.createGain(), user = ctx.createGain(), meter = ctx.createAnalyser();
     input.gain.value = TRIM[name]; duck.gain.value = 1; user.gain.value = volumes[name];
     meter.fftSize = 1024;
-    input.connect(duck); duck.connect(user); user.connect(master); user.connect(meter);
-    return { input, duck, user, meter };
+    let muffle = null;
+    if (MUFFLED[name]) { muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 20000; muffle.Q.value = 0.5; }
+    input.connect(duck);
+    if (muffle) { duck.connect(muffle); muffle.connect(user); } else duck.connect(user);
+    user.connect(master); user.connect(meter);
+    return { input, duck, user, meter, muffle, share: MUFFLED[name] || 0 };
+  }
+  // how far inside a shut car the listener is (0 out, or with a door open; 1 shut in): the sounds of the town muffled so
+  let muffledNow = 0;
+  function muffle(amount = 0) {
+    const a = Math.max(0, Math.min(1, Number(amount) || 0));
+    if (!ctx || !nodes || Math.abs(a - muffledNow) < 0.01) return;
+    muffledNow = a;
+    for (const g of Object.values(nodes.groups)) if (g.muffle) g.muffle.frequency.setTargetAtTime(20000 * Math.pow(650 / 20000, a * g.share), ctx.currentTime, 0.08);
   }
 
   function start() {
@@ -1168,7 +1184,7 @@ export function createAudio() {
   return {
     supported: !!Ctx,
     voiceLine, decode, voiceStats: () => ({ ...voiceStats }), playerVoice, micPipe,
-    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, shipHorn, surfBreak, previewBike, stopPreview, previewing: () => !!preview, blow, streetLamp, carDoor, whistle, shout, door, chime, shutter, choose, focus, level,
+    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, shipHorn, surfBreak, previewBike, stopPreview, previewing: () => !!preview, blow, streetLamp, carDoor, whistle, shout, door, chime, shutter, choose, focus, level, muffle, get muffled() { return muffledNow; },
     player,
     // the guns (gun-audio.js): each does nothing with the sound off or not started
     gunLoad: (gun) => { const v = guns(); return v ? v.load(gun) : Promise.resolve(); },
