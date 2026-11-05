@@ -4976,6 +4976,161 @@ now waits for the getting out, a second and more); the seats 17 of 17. Its first
 the screen for 14 frames as it was got out of again (above). Run after going live, on the same build: the phone's
 memory, the city, vehicle sync and running people over (the build-status doc has how they went).
 
+## Feet and tyres on the surface: the marks on the ground, the town's roads, each foot and each wheel (5 November 2026)
+
+The owner's brief of 5 November 2026 ("CARS: REAL GLASS, REAL CABINS, THE PEOPLE INSIDE SEEN, AND FEET ON THE GROUND"),
+its first part, a bug to be put right and put live first, with a recording of his iPhone at night beside a slip road:
+"my character's shoes and the bottom of his trousers are washed out, as if under a frosted layer (the floor's texture
+shows through his shoes), and the bottom of the coupé's tyres fades into the same surface ... Find that exact spot and
+the real cause ... Fix the cause; don't just lift everybody." Then a sweep of the whole map, the height people and
+vehicles stand at against the surface drawn there and anything drawn over it, every difference over 2 cm listed and
+fixed; each foot on the surface (the hips lowered, the toes following the slope) for the player and everyone near; the
+tyres' bottoms on the surface with the body on its springs; on soft ground the feet and tyres pressing in and leaving
+prints and tracks; in water the legs seen faintly through it, with rings round them. His files are byte for byte; saved
+games load.
+
+**The cause.** Whatever the game paints on the ground was drawn as a see-through sheet a little over it: the pool of
+each street lamp's light at night 7 cm up (laid flat, so higher still over a deck that slopes), the soft dark patch
+under every person 9 cm up (6 cm under the crowd's), under every vehicle 3.5 cm, footprints, tyre tracks, blood, a
+torch's light, the showrooms' floor shadows. See-through things are drawn after everything solid, so each sheet lay over
+whatever stood on it up to its own height: shoes, trouser hems and the bottoms of the tyres, the lamp's pool washing
+them out and the patch darkening them (`feet-before/`: the flyover's deck at night, with and without each). Now each of
+these is a mark (`marks.js`): drawn with the solid things, after the town and the city and before whoever stands on them
+(people and vehicles are drawn after the marks, every part of them), so that a mark is seen on the ground round a foot
+or a tyre and never over it; and laid on the ground 1.2 to 1.5 cm up, a lamp's pool tilted to the surface under it.
+
+**The sweep** (`test/surface-sweep.mjs`, new): over the whole map (the 22 places people are most, finely, and the rest
+in squares: 131 areas, about 125,000 points), on a grid of points where a person can stand, at every level, the height
+the game stands people at against the highest solid surface the page draws there. What it found, and what was done:
+
+- **The town's roads, and the city block on Market Road, were drawn 4 to 13 cm above where people and vehicles stood.**
+  The town's tarred roads are drawn as slabs 8 cm up, a laterite lane 6 cm, the laterite shoulders either side of a
+  tarred road 4 cm; the city block's road and pavements are laid at that height too (the road crowned 5 cm in its
+  middle); but whoever walked or drove there stood at the land's own height, down in the road: their feet 8 cm in the
+  tar, a car's tyres too, and the marks on the ground under them laid under the road, unseen (the lamps' pools, the
+  patch under the feet). Now the town's ground is what is drawn (`atani.js` `ROAD_TOPS`, `townRoadTop`, `cityTop`).
+- **The town's buildings' verandas and their steps** (24 and 12 cm up) were walked on at the ground's height: now they
+  are stood on.
+- **Oganiru City's kerbs** stood 4 cm proud of the walkways, and half of each kerb out over the road, where whoever stood
+  or drove was 19 cm into it: now each is on its walkway, its face on the walkway's edge, 1.5 cm proud.
+- **The land plots' edges** were raised strips 6.5 cm up, which whoever stood on was in: now lines on the ground 1.5 cm
+  up, their corners too.
+- **The compounds** (the hospital, the schools, the churches, the university, the polytechnic, the college): each
+  building's floor is drawn 4 cm up and its veranda 3.5 cm, the car parks, assembly grounds and lawns 3 cm, the pitches
+  2.5 cm, a church's chancel on a dais 10 cm up; all were walked at the land's height. Now stood on (`atani.js`
+  `COMPOUND_SURFACES`); the lines painted on the yards and the pitches now under a centimetre proud.
+- **The verandas' posts**, the town's buildings' and the compounds', were walked through, the feet in their plinths: now
+  solid; the one that stood squarely in front of the halls' and the mosque's doors is no longer there.
+- **The River Niger Bridge**: its roadway's tar was drawn 6 cm over the deck where people and vehicles stood, its footways
+  21 cm. Now the tar is 8 cm thick, level with Waterside Road's, and both are stood on (`atani-outskirts.js`
+  `OUTSKIRT_TOPS`, `bridgeDeckY`).
+- **Beyond the town**: the Kwale road and the airport's roads and car park (tar 8 cm up on laterite 4 cm), its runway,
+  taxiways and apron (9 to 10 cm), its terminal's floor (18 cm) and the pavement under its canopy (20 cm) were all walked
+  and driven at the land's height. Now stood on; their markings a centimetre proud.
+- **The car showroom and the sports mall**: their paving is drawn 3 cm up, the drive and the walk to the doors 3.4 cm,
+  the aprons out to the road 3.2, the kerbs 14 cm, the halls' floors 1.2 cm; the round stands were walked into. Now all
+  are stood on, a stand stepped onto (`carshowGroundY`, `sportsGroundY`); the plates on posts before the stands, walked
+  through, are solid; the lights round the stands' feet and the bays' lines a centimetre proud. **The PowerBike hall**
+  the same, and the forecourt before its porch, 5 cm up (`powerbikeGroundY`).
+- **The road on up the river and the habitation's car park** (tar 8 cm up) were walked and driven 8 cm down in it: now
+  stood on (`habitation.js` `upriverTop`); the town's ground beside it, laid 6 cm under where people stood, now level.
+- **The land west of the town**, drawn with the roads beyond it, rose over the town's own ground for its last 18 m, up to
+  33 cm over where people stood: now it lies under the town's. The town's ground beyond its edges rose from the edge:
+  now flat for 2 m beyond it.
+- **The river bank**: the town's ground is a grid of points 7 m apart, and it began to go down to the water a row of
+  points short of the water's edge, up to 21 cm under where people stood on the bank. Now a row of its points lies on the
+  water's edge itself (`render-world.js`), and the bank is flat to it.
+- **The glass showroom on Market Road** stands on a plinth 50 cm high that reaches 70 cm out round it, with two steps
+  (33 and 16.5 cm) and a paved forecourt (6 cm) before it: all were walked at the land's height, the plinth up to the
+  knees. Now stood on.
+- **Beside the city block's kerb ramps** the paving comes down to the ramp over half a metre, as it is laid; people stood
+  on a step there, up to 11 cm over or under it. Now it comes down with the paving (`atani-city.js` `RAMP_FLARE`).
+- **The jetty's planks** (6.5 cm) are stood on; **the block yard's sand heaps**, walked through up to their tops (1.9 m),
+  are climbed; the blocks stacked on its apron and the low hedges at the ends of the campus lawns are solid.
+- **The bridge's abutment on the far bank** stood 12 cm over the road's end on it: lowered to the deck.
+- **Lines painted on edges**: the end lines of the compounds' car parks and the edge lines of the pitches lay half on
+  the ground beside them: now inside. The chevrons where the slip roads part from the expressway on the ground were laid
+  2.6 cm over it, as if over a deck: now just over its own markings.
+- **The owner's buildings in the town: their low steps, plinths and paths** (under 15 cm, so not in the way: the hotel's
+  steps 14.6 cm, the police offices' 11.4, the copper tower's 8) were walked at the land's height. Now each is stood on
+  as its model has it (`tools/buildings/footprints.mjs` writes their tops, `town-footprints.js` `TOWN_LOW_TOPS`).
+- **The stacked tower beside the car showroom** stands on an 18 cm plinth along its east side, outside the outline it is
+  solid within: now stood on (`carshow-footprints.js`, from its model); the ramp along its north side, 18 cm up at one end
+  and 2 m at the other, was walked into: now solid.
+- **The hero stands' steps** (the PowerBike showroom's and the car showroom's) were stood on to their top's edge and not
+  down their sloped side: now down it.
+- **Oganiru City's ramps and flyovers**: each stretch of a deck's road is drawn as a face from side to side, square to
+  the way it runs at each end, a little over where it lies (1.2 cm at a ramp's foot, 4 mm higher up); people and cars
+  stood on it as along its middle line, up to 6 cm in it or over it on its curves and at its foot (kept on the ground
+  under a ramp's foot until its road was 2 cm up). Now as drawn (`oganiru.js` `drawnDeckY`), from a centimetre up.
+- **Oganiru's towers' steps** up to their doors (three, 15 cm each, out to 2.7 m) were walked at the plaza's height,
+  the feet up to 45 cm in them: now stood on. **The pillars' footings** (40 cm high, 45 cm round the pillar) and **the
+  billboards' steel plates and footings** (a unipole's plate is 2.2 m across) were walked into: now solid.
+- **The roundabouts**: the walkway round each is drawn in 56 pieces, each left out where a road comes in; whoever stood
+  at a mouth's edge stood 15 cm under its paving, and where a road's middle strip runs up to the ring, 15 cm under its
+  grass. Now as drawn. Their kerb stones stood 4 cm proud (1.5 cm, as the city's other kerbs, now); the raised beds and
+  the gate's plinth in their middles were walked into: now solid.
+- **The slim trees down the middle strips** stand on buttress roots spread 1.6 m round their trunks, 10 to 30 cm high
+  most of the way: only the trunk was solid, 30 cm round. Now the trunk and its buttresses where they stand half a metre
+  and more are solid (under 70 cm round), and the lower roots beyond are stood on, as drawn (`tools/city/slim-roots.mjs`
+  writes them from the owner's model, `oganiru-roots.js`).
+- **Oganiru's land beside the habitation**, drawn under the habitation's ground at its points, came up through it in
+  its hollows between them, up to half a metre: now under it all the way.
+- **Left as they are, on purpose**: the benches and pews people sit on, by the houses' doors, in the compounds' rooms and
+  by the river (not solid, so that they can be sat on: someone walking into one walks through it, as before); the plates
+  on posts before the PowerBike showroom's stands (the stands there are so close that the way round them would be shut:
+  in the two showrooms on the Kwale road the plates' posts are solid); the leaves of plants and the shade inside a tree's
+  crown (walked through).
+
+**Not yet: the habitation.** The sweep found there what is of another kind, to be put right next: the big trees'
+roots and buttresses lower than a walker's height (they are solid from 0.9 to 1.8 m up, `habitation-roots.js`; below
+that, up to 80 cm high, they are walked into, about one point in six hundred of the sweep's there); the gazebo's floor
+(the platform the game stands people on is 6 m square, the floor drawn smaller: at its corners people stood in the air,
+up to 57 cm); the pool deck by the garden pool (drawn up to a metre over the ground, walked through under it); and on
+the stairs down the falls each step is a board drawn level where the game walks a slope (up to half a step off, the feet
+not set on the steps there). The deck boards themselves are where they are stood on (the sweep's points that fell in the
+4 cm gaps between boards now look either side).
+
+**The sweep itself**: it waits at each place until the city's pieces round it are built (one still being built was taken
+for a hole in the road under the Independence Flyover), looks either side of a point that falls between two boards of a
+deck, and leaves out leaves, ferns, the shade inside a tree's crown and the habitation's tufts of grass (walked through),
+but not the city's grass (its middle strips and islands, stood on).
+
+**Each foot on the surface** (`animated.js` `plantFeet`): the player, and the townspeople and other players within 15 m
+(a phone) or 30 m (a computer). The ground under each foot is found; the hips are let down by as much as the lower foot
+needs (eased over a moment); each leg is bent to lift its foot by what is left, the knee kept pointing the way it
+pointed; and a foot on the ground is turned to lie along the slope under it, heel to toe and across. A foot over a drop
+or against a wall is left as its clip has it. Not seated, lying, in the air, in the water or on stairs. Each bone bent
+is put back as its clip had it before it is bent again, the next frame (`unbend`): three.js's mixer sets a bone only when
+its clip's value for it has changed, so where a clip holds still each frame's bending went on top of the last's, a leg
+raised a little more every frame (the feet test, its figure held still on purpose, found a foot 1.7 m up on a ramp).
+
+**Each tyre on the surface** (`car-view.js` `settle`): every car the page draws as its model (the one driven, other
+players', the town's, and those left standing, which until now were drawn flat whatever they stood on) is set on the
+plane that lies best through the ground under its four wheels, tipped along it and across it, and each wheel let down or
+lifted on its spring by what is left over (a kerb under one, a ramp's twist), so that each tyre's bottom is on the
+surface where it touches; its springs move as before.
+
+**Soft ground** (`wet-tracks.js`, `render-world.js` `softGround`): along the river's sand and on the town's bare red
+earth, the feet leave prints and the tyres lines, pressed into it, wet or dry, lasting longer than those on wet tar,
+washed out by the rain; the habitation's sand has its own, as before. Medium and up.
+
+**Water** (`water-rings.js`, new): in the habitation's shallows, where the water is never more than half solid and
+the legs are seen in it faintly, rings spread out on the surface round whoever wades, more of them the faster they go,
+and round a car driven through. One draw, only while there are any; Medium and up.
+
+**Tested** on the release build (page `b6e88734ff62c3fc`) and the one before it (`3fc9a79c1fa9295c`, the same but for
+the chevrons' paint and the sweep's own changes): 612 headless tests (new: the slim trees' roots stood on round each
+trunk, a tower's steps, the deck's road as drawn); in a browser, one at a time: the feet (`test/feet-surface.mjs`, new)
+9/9 with a computer's settings and 9/9 with a phone's (its first runs found a leg raised more each frame where a clip
+held still: `unbend`, above); the whole-map sweep (`test/surface-sweep.mjs map`): 124,852 points in 130 areas, 129 more
+than 2 cm off, of which 60 in the habitation (above, next), 16 benches and 3 plates on purpose, 1 the chevrons' paint
+(mended after it), and 49 the sweep's own (a piece of the city not yet built when it was looked at, 29; the PowerBike
+showroom's forecourt looked at from inside its hall, where the building round the hall is not drawn, 16; the jetty's
+mooring posts taken for its boards, 2; a slim tree far off drawn as its picture, without its roots, 1; mended in the
+sweep, or looked at again below); the city (`test/oganiru-city.mjs`) 7 of its checks passed before the batch's two hours
+ran out.
+
 ## Tests
 
 ```
@@ -5009,6 +5164,8 @@ node test/stars.mjs out/                           # the police's stars: none wh
 ../server/with-postgres.sh node test/crowd.mjs out/ [phone]      # his townspeople, ten of each figure: many about by day at the market and the motor park, those near drawn as his own figures many at once (those in the picture), out at one in the morning, the graphics card's memory
 ../server/with-postgres.sh node test/traffic.mjs out/ [phone]    # the town's traffic in the showroom's cars: near the player, the nearest as their models and the rest as their pictures, drawn smoothly; a car taken (the stars), driven, left and taken up again, never the player's, all given back on arrest; lamps at night
 ../server/with-postgres.sh node test/car-taking.mjs out/ [phone]  # taking a car of the town's as the owner's videos show it (4 November 2026): offered from in front of it, round to the driver's door, the door opened, the driver pulled out and down, the riders out of their own doors and away, in, the door slammed; out again by the door, slammed behind; nothing in the console
+../server/with-postgres.sh node test/feet-surface.mjs out/ [phone]   # feet and tyres on the surface (5 November 2026): the marks on the ground drawn before whoever stands on them, each foot on flat ground, across a kerb and on a ramp, on the town's tar, a car's tyres on a ramp driven and left standing; pictures by night
+../server/with-postgres.sh node test/surface-sweep.mjs out/ computer map   # the height people and vehicles stand at against the surface drawn there, on a grid over the whole map (130 areas, about an hour: give it two); an area or areas by name instead of map; SWEEP_PROBE='[[x, z, y, px, pz], ...]' every mesh over a point, the player at (px, pz)
 ../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs
 node test/city.mjs out/                            # the first city block, walked and seen from the road, the junction, above and at night
 ../server/with-postgres.sh node test/oganiru.mjs out/        # Oganiru City (31 October 2026), two players (a computer and a phone): the city drawn, the expressway, the flyover over it and the avenue under it driven, the camera under the decks, the lamps at night, a lamp knocked down seen by the other, the phone's graphics card at the city's places

@@ -29,7 +29,10 @@ const AREAS = [
   { name: 'town-east', x0: 120, z0: -120, x1: 250, z1: 118, step: 4, at: [185, 0] },
   { name: 'bridge', x0: -215, z0: 110, x1: -195, z1: 330, step: 1.5, at: [-205, 200, 7] },
   { name: 'outskirts-road', x0: -420, z0: -60, x1: -260, z1: -20, step: 2, at: [-340, -40] },
-  { name: 'powerbike', halls: true, x0: -82, z0: 18, x1: -42, z1: 58, step: 1, at: [-62, 40] },
+  // (the PowerBike showroom's hall from inside; its forecourt from outside: from inside, the building and its forecourt are
+  // not drawn)
+  { name: 'powerbike', halls: true, only: true, x0: -82, z0: 18, x1: -42, z1: 58, step: 1, at: [-62, 40] },
+  { name: 'powerbike-court', x0: -76, z0: 55, x1: -51, z1: 67, step: 1, at: [-63.6, 64] },
   { name: 'carshow-hall', halls: true, x0: -446, z0: -197, x1: -358, z1: -155, step: 1.5, at: [-400, -176] },
   { name: 'carshow-yard', x0: -560, z0: -212, x1: -275, z1: -70, step: 4, at: [-420, -120] },
   { name: 'sports-mall', halls: true, x0: -702, z0: -182, x1: -588, z1: -72, step: 2, at: [-645, -150] },
@@ -84,7 +87,8 @@ function pointsOf(a) {
     const px = +x.toFixed(4), pz = +z.toFixed(4);
     // (a showroom's hall is drawn as it is from inside only when someone is in it: its points are looked at from inside,
     // in its own area, not from the squares round it)
-    if (!a.halls && (Z.inPowerbikeHall(px, pz) || Z.inCarHall(px, pz) || Z.inSportsHall(px, pz))) continue;
+    const inHall = Z.inPowerbikeHall(px, pz) || Z.inCarHall(px, pz) || Z.inSportsHall(px, pz);
+    if (a.halls ? a.only && !inHall : inHall) continue;
     // (on the ground: where someone coming there on foot stands, as the game has it (zoneSurfaceY); at the foot of a ramp,
     // where its road is less than a step over the ground, that is on the ramp)
     const levels = [];
@@ -332,14 +336,16 @@ for (const a of areas) {
   const res = [];
   for (let i = 0; i < pts.length; i += 2000) res.push(...await page.evaluate((chunk) => window.__sweep.query(chunk), pts.slice(i, i + 2000).map((p) => [p[0], p[1], p[2], p[3]])));
   // (where nothing is drawn at a point, or only lower than the stand, it may be in the gap between two boards of a deck
-  // (4 cm in 24): a foot there is on the boards either side. So there, 5 cm either way along and across: the highest)
+  // (4 cm in 24): a foot there is on the boards either side. So there, 5 cm either way along and across: the nearest the
+  // stand of what is drawn there)
   const low = pts.map((p, i) => i).filter((i) => res[i] !== null && (!res[i].length || res[i][0][0] < pts[i][2] - LIMIT));
   if (low.length) {
     const near = low.flatMap((i) => [[0.05, 0], [-0.05, 0], [0, 0.05], [0, -0.05]].map(([dx, dz]) => [pts[i][0] + dx, pts[i][1] + dz, pts[i][2], pts[i][3]]));
     const got = [];
     for (let i = 0; i < near.length; i += 2000) got.push(...await page.evaluate((chunk) => window.__sweep.query(chunk), near.slice(i, i + 2000)));
     low.forEach((i, k) => {
-      for (const hits of got.slice(k * 4, k * 4 + 4)) if (hits && hits.length && (!res[i].length || hits[0][0] > res[i][0][0])) res[i] = hits;
+      const off = (hits) => (hits && hits.length ? Math.abs(hits[0][0] - pts[i][2]) : Infinity);
+      for (const hits of got.slice(k * 4, k * 4 + 4)) if (off(hits) < off(res[i])) res[i] = hits;
     });
   }
   await page.evaluate(() => { window.__sweep.grid = null; });

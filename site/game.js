@@ -811,7 +811,15 @@ function footprintBox(model, x, z, heading) {
 return { VEHICLE_MODELS, KEKE_TRIMS, KEKE_PAINTS, KEKE_CANOPIES, KEKE_SEATS, KEKE_FLOORS, BUS_LIVERIES, BUS_CABINS, BUS_OPERATORS, BUS_ROUTES, KEKE_SLOGANS, KEKE_EXTRAS, BUS_EXTRAS, kekeLook, busLook, resolveLook, variantSheet, footprintBox };
 })();
 
+__modules["sim/zones/carshow-footprints.js"] = (function () {
+const CARSHOW_LOW_TOPS = Object.freeze({"stacked":[25610,195,5298,26196,195,5200,22681,195,-13745,25610,195,5298,22681,195,-13745,22095,195,-13647,26196,195,5200,26831,195,5103,23315,195,-13843,26196,195,5200,23315,195,-13843,22681,195,-13745,26831,195,5103,27124,195,5054,23608,195,-13940,26831,195,5103,23608,195,-13940,23315,195,-13843,27124,195,5054,27759,195,4907,24243,195,-14038,27124,195,5054,24243,195,-14038,23608,195,-13940,27759,195,4907,28345,98,4810,24829,98,-14136,27759,195,4907,24829,98,-14136,24243,195,-14038]});
+
+return { CARSHOW_LOW_TOPS };
+})();
+
 __modules["sim/zones/asaba-carshow.js"] = (function () {
+
+const { CARSHOW_LOW_TOPS } = __modules["sim/zones/carshow-footprints.js"];
 
 const box = (x0, z0, x1, z1) => Object.freeze({ x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1) });
 const pt = (x, z) => Object.freeze({ x, z });
@@ -829,6 +837,7 @@ const BUILDINGS = Object.freeze([
   Object.freeze({
     id: 'stacked', name: 'Stacked tower', file: 'carshow-stacked.glb', source: 'modern_skyscraper_3d_model_4.glb', scale: 90, x: -510, z: -172, heading: 0,
     outline: [[-0.011, -0.3], [0.1, -0.275], [0.218, -0.255], [0.218, -0.15], [0.111, -0.061], [0.186, 0.207], [0.064, 0.207], [-0.025, 0.232], [-0.249, 0.05], [-0.243, -0.15], [-0.125, -0.246]],
+    more: [[-0.0193, 0.2942, 0.137, 0.3167]],
     brand: [{ at: [0.630, 0.172, 0.715, 0.210], from: [0.630, 0.212] }, { at: [0.414, 0.646, 0.429, 0.687], from: [0.398, 0.646] }],          // another company's name, twice
   }),
   Object.freeze({
@@ -959,14 +968,17 @@ function outlineBoxes(b, cell = 2) {
   const zs = poly.map((p) => p.z), z0 = Math.min(...zs), z1 = Math.max(...zs);
   const out = [];
   for (let z = z0; z < z1; z += cell) {
-    const zc = Math.min(z1, z + cell / 2);
-    const xs = [];
-    for (let i = 0; i < poly.length; i += 1) {
-      const a = poly[i], c = poly[(i + 1) % poly.length];
-      if ((a.z <= zc && c.z > zc) || (c.z <= zc && a.z > zc)) xs.push(a.x + ((zc - a.z) / (c.z - a.z)) * (c.x - a.x));
+    const ze = Math.min(z1, z + cell);
+    for (const k of [0.5, 0.02, 0.26, 0.74, 0.98]) {
+      const zc = z + (ze - z) * k;
+      const xs = [];
+      for (let i = 0; i < poly.length; i += 1) {
+        const a = poly[i], c = poly[(i + 1) % poly.length];
+        if ((a.z <= zc && c.z > zc) || (c.z <= zc && a.z > zc)) xs.push(a.x + ((zc - a.z) / (c.z - a.z)) * (c.x - a.x));
+      }
+      xs.sort((p, q) => p - q);
+      for (let i = 0; i + 1 < xs.length; i += 2) out.push(box(xs[i], z, xs[i + 1], ze));
     }
-    xs.sort((p, q) => p - q);
-    for (let i = 0; i + 1 < xs.length; i += 2) out.push(box(xs[i], z, xs[i + 1], Math.min(z1, z + cell)));
   }
   return out;
 }
@@ -990,11 +1002,15 @@ function colliders() {
   out.push(...minusHall(outlineBoxes(SHOWROOM)));
   out.push(box(HALL.x0, HALL.z1, HALL.x1, FRONT));
   for (const s of [-1, 1]) out.push(box(DOOR_X + s * 3.5 - 0.2, FRONT + 3.0 - 0.2, DOOR_X + s * 3.5 + 0.2, FRONT + 3.0 + 0.2));
-  for (const b of BUILDINGS.slice(1)) out.push(...outlineBoxes(b));
+  for (const b of BUILDINGS.slice(1)) {
+    out.push(...outlineBoxes(b));
+    for (const [u0, v0, u1, v1] of b.more || []) { const p = onBuilding(b, u0, v0), q = onBuilding(b, u1, v1); out.push(box(p.x, p.z, q.x, q.z)); }
+  }
   for (const d of DISPLAYS) { const k = d.r * 0.72; out.push(box(d.x - k, d.z - k, d.x + k, d.z + k)); }
   out.push(...CARSHOW.desks, CARSHOW.lounge.sofa, CARSHOW.lounge.table);
   for (const c of CARSHOW.lounge.chairs) out.push(box(c.x - 0.4, c.z - 0.4, c.x + 0.4, c.z + 0.4));
   for (const p of CARSHOW.plants) out.push(box(p.x - 0.3, p.z - 0.3, p.x + 0.3, p.z + 0.3));
+  for (const d of DISPLAYS) { const px = d.x + Math.sin(d.h) * (d.r + 0.4), pz = d.z + Math.cos(d.h) * (d.r + 0.4); out.push(box(px - 0.06, pz - 0.06, px + 0.06, pz + 0.06)); }
   const F = CARSHOW.forecourt;
   for (const q of F.palms) out.push(box(q.x - q.r * 0.8, q.z - q.r * 0.8, q.x + q.r * 0.8, q.z + q.r * 0.8));
   for (const q of [...F.flags, ...F.lamps]) out.push(box(q.x - 0.12, q.z - 0.12, q.x + 0.12, q.z + 0.12));
@@ -1004,7 +1020,57 @@ const CARSHOW_COLLIDERS = colliders();
 const R = CARSHOW.drive.fromRoad;
 const CARSHOW_AREAS = Object.freeze([C, box(R.x0, C.z1 - 0.5, R.x1, R.z1)]);
 
-return { onBuilding, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, inCarCompound, carshowDisplayNear, carshowSideAt, carshowSideOf, stepCarshowGate, carshowGateBoxes, carshowBuildingAt, CARSHOW_COLLIDERS, CARSHOW_AREAS };
+const CARSHOW_TOPS = Object.freeze({ paving: 0.03, drive: 0.034, apron: 0.032, kerb: 0.14, floor: 0.012 });
+function carshowGroundY(x, z) {
+  if (inCarHall(x, z)) {
+    let top = CARSHOW_TOPS.floor;
+    for (const d of DISPLAYS) {
+      const r = Math.hypot(x - d.x, z - d.z);
+      if (r > d.r + 0.35) continue;
+      if (d.stand === 'hero' && r < d.r + 0.3) top = Math.max(top, Math.min(0.08, (0.08 * (d.r + 0.3 - r)) / 0.05));
+      if (r < d.r) top = Math.max(top, d.stand === 'turntable' ? (r < d.r * 0.74 ? 0.232 : 0.22) : d.stand === 'hero' ? 0.2 : 0.14);
+    }
+    return top;
+  }
+  const dw = CARSHOW.drive.width / 2;
+  if (z > DOORS.z + 2 && z < C.z1 - 1 && Math.abs(Math.abs(x - GATE.x) - (dw + 0.1)) < 0.1) return CARSHOW_TOPS.kerb;
+  if (x > GATE.x - dw && x < GATE.x + dw && z > DOORS.z + 1 && z < C.z1) return CARSHOW_TOPS.drive;
+  if (x > R.x0 && x < R.x1 && z >= C.z1 && z < R.z1) return CARSHOW_TOPS.apron;
+  if (inCarCompound(x, z)) return Math.max(CARSHOW_TOPS.paving, lowTop(x, z));
+  return 0;
+}
+const LOW_CELL = 4;
+const LOW_TOPS = (() => {
+  const cells = new Map();
+  for (const b of BUILDINGS) {
+    const tris = CARSHOW_LOW_TOPS[b.id];
+    if (!tris) continue;
+    for (let i = 0; i < tris.length; i += 9) {
+      const p = [0, 1, 2].map((j) => { const at = onBuilding(b, tris[i + j * 3] / 1e5, tris[i + j * 3 + 2] / 1e5); return [at.x, (tris[i + j * 3 + 1] / 1e5) * b.scale, at.z]; });
+      const rec = Object.freeze(p.flat());
+      const xs = p.map((q) => q[0]), zs = p.map((q) => q[2]);
+      for (let a = Math.floor(Math.min(...xs) / LOW_CELL); a <= Math.floor(Math.max(...xs) / LOW_CELL); a += 1) for (let c = Math.floor(Math.min(...zs) / LOW_CELL); c <= Math.floor(Math.max(...zs) / LOW_CELL); c += 1) {
+        const key = a * 4096 + c; const list = cells.get(key); if (list) list.push(rec); else cells.set(key, [rec]);
+      }
+    }
+  }
+  return cells;
+})();
+function lowTop(x, z) {
+  const list = LOW_TOPS.get(Math.floor(x / LOW_CELL) * 4096 + Math.floor(z / LOW_CELL));
+  if (!list) return 0;
+  let top = 0;
+  for (const [ax, ay, az, bx, by, bz, cx, cy, cz] of list) {
+    const d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+    if (Math.abs(d) < 1e-12) continue;
+    const l1 = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / d, l2 = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / d, l3 = 1 - l1 - l2;
+    if (l1 < -1e-6 || l2 < -1e-6 || l3 < -1e-6) continue;
+    top = Math.max(top, l1 * ay + l2 * by + l3 * cy);
+  }
+  return top;
+}
+
+return { onBuilding, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, inCarCompound, carshowDisplayNear, carshowSideAt, carshowSideOf, stepCarshowGate, carshowGateBoxes, carshowBuildingAt, CARSHOW_COLLIDERS, CARSHOW_AREAS, CARSHOW_TOPS, carshowGroundY };
 })();
 
 __modules["sim/zones/asaba-sports.js"] = (function () {
@@ -1096,6 +1162,7 @@ function colliders() {
   for (const d of DISPLAYS) { const k = d.r * 0.72; out.push(box(d.x - k, d.z - k, d.x + k, d.z + k)); }
   out.push(DESK);
   for (const p of PLANTS) out.push(box(p.x - 0.3, p.z - 0.3, p.x + 0.3, p.z + 0.3));
+  for (const d of DISPLAYS) { const px = d.x + Math.sin(d.h) * (d.r + 0.35), pz = d.z + Math.cos(d.h) * (d.r + 0.35); out.push(box(px - 0.06, pz - 0.06, px + 0.06, pz + 0.06)); }
   const F = SPORTS_MALL.forecourt;
   for (const q of F.palms) out.push(box(q.x - q.r * 0.8, q.z - q.r * 0.8, q.x + q.r * 0.8, q.z + q.r * 0.8));
   for (const q of F.lamps) out.push(box(q.x - 0.12, q.z - 0.12, q.x + 0.12, q.z + 0.12));
@@ -1105,13 +1172,31 @@ const SPORTS_COLLIDERS = colliders();
 const R = SPORTS_MALL.drive.fromRoad;
 const SPORTS_AREAS = Object.freeze([C, box(R.x0, C.z1 - 0.5, R.x1, R.z1)]);
 
-return { SPORTS_MALL, inSportsHall, onSportsExit, sportsAtDoors, inSportsCompound, sportsDisplayNear, sportsBuildingAt, SPORTS_COLLIDERS, SPORTS_AREAS };
+const SPORTS_TOPS = Object.freeze({ paving: 0.03, walk: 0.034, apron: 0.032, kerb: 0.14, floor: 0.012 });
+function sportsGroundY(x, z) {
+  if (x > HALL.x0 && x < HALL.x1 && z > HALL.z0 && z < HALL.z1) {
+    let top = SPORTS_TOPS.floor;
+    for (const d of DISPLAYS) {
+      const r = Math.hypot(x - d.x, z - d.z);
+      if (r < d.r) top = Math.max(top, d.lift + (d.stand === 'platform' && r < d.r * 0.86 ? 0.012 : 0));
+    }
+    return top;
+  }
+  const W = WALK, half = (W.x1 - W.x0) / 2;
+  if (z > W.z0 + 0.5 && z < W.z1 - 0.5 && Math.abs(Math.abs(x - DOOR_X) - (half + 0.1)) < 0.1) return SPORTS_TOPS.kerb;
+  if (x > W.x0 && x < W.x1 && z > W.z0 && z < W.z1) return SPORTS_TOPS.walk;
+  if (x > R.x0 && x < R.x1 && z >= C.z1 && z < R.z1) return SPORTS_TOPS.apron;
+  if (x > C.x0 && x < C.x1 && z > C.z0 && z < C.z1) return SPORTS_TOPS.paving;
+  return 0;
+}
+
+return { SPORTS_MALL, inSportsHall, onSportsExit, sportsAtDoors, inSportsCompound, sportsDisplayNear, sportsBuildingAt, SPORTS_COLLIDERS, SPORTS_AREAS, SPORTS_TOPS, sportsGroundY };
 })();
 
 __modules["sim/zones/atani-outskirts.js"] = (function () {
 
-const { CARSHOW, CARSHOW_AREAS } = __modules["sim/zones/asaba-carshow.js"];
-const { SPORTS_MALL, SPORTS_AREAS } = __modules["sim/zones/asaba-sports.js"];
+const { CARSHOW, CARSHOW_AREAS, carshowGroundY } = __modules["sim/zones/asaba-carshow.js"];
+const { SPORTS_MALL, SPORTS_AREAS, sportsGroundY } = __modules["sim/zones/asaba-sports.js"];
 
 const box = (x0, z0, x1, z1) => Object.freeze({ x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1) });
 const road = (id, name, x0, z0, x1, z1, surface, extra = {}) => Object.freeze({ id, name, x0, z0, x1, z1, surface, ...extra });
@@ -1131,16 +1216,23 @@ const BRIDGE = Object.freeze({
   truss: Object.freeze({ from: 158, to: 292, bay: 9.6, rise: 7.6 }),
 });
 
+const OUTSKIRT_TOPS = Object.freeze({ tar: 0.08, bed: 0.04, bedWidth: 1.3, footway: 0.21, runway: 0.09, taxiway: 0.095, apron: 0.1, hall: 0.18, canopy: 0.2 });
 function outskirtsGroundY(x, z) {
   const b = BRIDGE;
   if (z > b.start && x > b.x0 - 0.01 && x < b.x1 + 0.01 && z < b.end + 6) {
-    if (z <= b.up) return b.height * smoothRamp((z - b.start) / (b.up - b.start));
-    if (z <= b.down) return b.height;
-    if (z <= b.land) return b.farBank + (b.height - b.farBank) * smoothRamp((b.land - z) / (b.land - b.down));
-    return b.farBank;
+    const top = z < b.end ? (x > b.roadway.x0 && x < b.roadway.x1 ? OUTSKIRT_TOPS.tar : OUTSKIRT_TOPS.footway) : 0;
+    return bridgeDeckY(z) + top;
   }
   if (inFarBank(x, z)) return b.farBank;
-  return 0;
+  return outskirtsTop(x, z);
+}
+function bridgeDeckY(z) {
+  const b = BRIDGE;
+  if (z <= b.start) return 0;
+  if (z <= b.up) return b.height * smoothRamp((z - b.start) / (b.up - b.start));
+  if (z <= b.down) return b.height;
+  if (z <= b.land) return b.farBank + (b.height - b.farBank) * smoothRamp((b.land - z) / (b.land - b.down));
+  return b.farBank;
 }
 function smoothRamp(t) { const u = Math.max(0, Math.min(1, t)); return u * u * (3 - 2 * u); }
 const FAR_BANK = box(-236, 312, -174, 392);
@@ -1180,6 +1272,28 @@ const OUTSKIRT_AREAS = Object.freeze([
   ...SPORTS_AREAS,                                                      // the Post Civil War Sports Mall's compound, and its drive from the road
 ]);
 const onOutskirts = (x, z) => OUTSKIRT_AREAS.some((a) => x > a.x0 && x < a.x1 && z > a.z0 && z < a.z1);
+
+const OUTSKIRT_SURFACES = Object.freeze([
+  ...OUTSKIRT_ROADS.filter((r) => !r.deck).flatMap((r) => {
+    const along = r.x1 - r.x0 > r.z1 - r.z0, w = OUTSKIRT_TOPS.bedWidth;
+    return [
+      { x0: r.x0 - (along ? 0 : w), x1: r.x1 + (along ? 0 : w), z0: r.z0 - (along ? w : 0), z1: r.z1 + (along ? w : 0), y: OUTSKIRT_TOPS.bed },
+      { x0: r.x0, x1: r.x1, z0: r.z0, z1: r.z1, y: OUTSKIRT_TOPS.tar },
+    ];
+  }),
+  { ...A.runway, y: OUTSKIRT_TOPS.runway },
+  ...[A.taxiway, ...A.links].map((t) => ({ ...t, y: OUTSKIRT_TOPS.taxiway })),
+  { ...A.apron, y: OUTSKIRT_TOPS.apron },
+  { x0: A.terminal.x0, x1: A.terminal.x1, z0: A.terminal.z0, z1: A.terminal.z1, y: OUTSKIRT_TOPS.hall },
+  { x0: A.terminal.x0 - 3, x1: A.terminal.x1 + 3, z0: A.terminal.z1 - 0.5, z1: A.terminal.z1 + 11.5, y: OUTSKIRT_TOPS.canopy },
+].map((s) => Object.freeze({ x0: s.x0, x1: s.x1, z0: s.z0, z1: s.z1, y: s.y })));
+const SURFACES_BOX = OUTSKIRT_SURFACES.reduce((b, s) => ({ x0: Math.min(b.x0, s.x0), z0: Math.min(b.z0, s.z0), x1: Math.max(b.x1, s.x1), z1: Math.max(b.z1, s.z1) }), { x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity });
+function outskirtsTop(x, z) {
+  if (x < SURFACES_BOX.x0 || x > SURFACES_BOX.x1 || z < SURFACES_BOX.z0 || z > SURFACES_BOX.z1) return 0;
+  let top = Math.max(carshowGroundY(x, z), sportsGroundY(x, z));
+  for (const s of OUTSKIRT_SURFACES) if (s.y > top && x > s.x0 && x < s.x1 && z > s.z0 && z < s.z1) top = s.y;
+  return top;
+}
 
 const wall = (x0, z0, x1, z1) => box(x0, z0, x1, z1);
 function fenceWalls() {
@@ -1256,7 +1370,7 @@ const OUTSKIRT_MAP_LABELS = Object.freeze([
   ['To Kwale and Warri', -1100, -60, 'center'], ['Asaba Airport', -850, -300, 'center'], ['Bridge to Anambra', -205, 230, 'vertical'],
 ]);
 
-return { BRIDGE, outskirtsGroundY, ONITSHA_ROAD, OUTSKIRT_ROADS, AIRPORT, OUTSKIRT_AREAS, onOutskirts, OUTSKIRT_COLLIDERS, OUTSKIRT_LAMPS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, OUTSKIRT_BUILDING_COLLIDERS, OUTSKIRT_MAP_LABELS };
+return { BRIDGE, OUTSKIRT_TOPS, outskirtsGroundY, bridgeDeckY, ONITSHA_ROAD, OUTSKIRT_ROADS, AIRPORT, OUTSKIRT_AREAS, onOutskirts, outskirtsTop, OUTSKIRT_COLLIDERS, OUTSKIRT_LAMPS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, OUTSKIRT_BUILDING_COLLIDERS, OUTSKIRT_MAP_LABELS };
 })();
 
 __modules["sim/zones/atani-billboards.js"] = (function () {
@@ -1314,6 +1428,101 @@ const ZONE_BILLBOARDS = Object.freeze([
 ].map((b) => Object.freeze({ ...b, feet: Object.freeze(b.feet.map(Object.freeze)) })));
 
 return { ZONE_BILLBOARDS };
+})();
+
+__modules["sim/billboards.js"] = (function () {
+
+const AD_CATEGORIES = Object.freeze({
+  small: Object.freeze({ id: 'small', name: 'Small', fee: 66, tax: 4 }),
+  medium: Object.freeze({ id: 'medium', name: 'Medium', fee: 132, tax: 8 }),
+  large: Object.freeze({ id: 'large', name: 'Large', fee: 200, tax: 16 }),
+  xl: Object.freeze({ id: 'xl', name: 'Extra-large', fee: 267, tax: 32 }),
+  tv: Object.freeze({ id: 'tv', name: 'Digital TV billboard', fee: 667, tax: 64 }),
+});
+const dailyCharge = (category) => AD_CATEGORIES[category].fee + AD_CATEGORIES[category].tax;
+
+function categoryOf(width, height, tv = false) {
+  if (tv) return 'tv';
+  const area = width * height;
+  return area < 12 ? 'small' : area < 36 ? 'medium' : area < 80 ? 'large' : 'xl';
+}
+
+const AD_DURATIONS = Object.freeze([
+  Object.freeze({ id: '1w', label: '1 week', days: 7 }),
+  Object.freeze({ id: '2w', label: '2 weeks', days: 14 }),
+  Object.freeze({ id: '1m', label: '1 month (30 days)', days: 30 }),
+  Object.freeze({ id: '2m', label: '2 months (60 days)', days: 60 }),
+  Object.freeze({ id: '3m', label: '3 months (90 days)', days: 90 }),
+  Object.freeze({ id: '6m', label: '6 months (180 days)', days: 180 }),
+]);
+
+const DARK = Object.freeze({ steel: 0x3b3f45, deep: 0x26292e, pole: 0x34383d, rail: 0x50555b, lamp: 0x2a2d31 });
+const GALV = Object.freeze({ steel: 0x9aa0a6, deep: 0x7d838a, pole: 0xa8adb2, rail: 0xb3b8bd, lamp: 0x5d6268 });
+const WHITE = Object.freeze({ steel: 0x9aa0a6, deep: 0x6f757c, pole: 0xd9dcdc, rail: 0xb3b8bd, lamp: 0xd0d3d4 });
+
+const kind = (id, name, ref, spec) => Object.freeze({ id, name, ref, ...spec });
+
+const BILLBOARD_TYPES = Object.freeze({
+  'dark-unipole-truss': kind('dark-unipole-truss', 'Unipole with side truss', 'a02', { width: 12, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'left', deck: 'grating', lamps: 6, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
+  'dark-unipole-catwalk': kind('dark-unipole-catwalk', 'Unipole with catwalk and cage ladder', 'a03', { width: 12, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'right', deck: 'railing', lamps: 6, lampsAt: 'deck', ladder: 'cage', colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
+  'dark-unipole-deep': kind('dark-unipole-deep', 'Unipole with deep platform', 'a04', { width: 12, height: 4.5, bottom: 9, supports: 'pole', poleRadius: 0.6, truss: 'left', deck: 'grating', deepDeck: true, lamps: 5, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.75, 0.6, 0.5] }),
+  'galvanised-four-leg': kind('galvanised-four-leg', 'Four-legged galvanised frame', 'a05', { width: 12, height: 4.5, bottom: 7, supports: 'four', poleRadius: 0.32, truss: 'left', deck: 'grating', lamps: 0, lampsAt: null, ladder: null, colours: GALV, scales: [1, 0.75] }),
+  'galvanised-unipole-railing': kind('galvanised-unipole-railing', 'Galvanised unipole with railed catwalk', 'a06', { width: 12, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'left', deck: 'railing', lamps: 6, lampsAt: 'top', ladder: 'cage', colours: GALV, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
+  'galvanised-unipole-deck-lamps': kind('galvanised-unipole-deck-lamps', 'Galvanised unipole, lamps on the catwalk', 'a07', { width: 12, height: 4.5, bottom: 9, supports: 'pole', poleRadius: 0.6, truss: 'left', deck: 'railing', lamps: 6, lampsAt: 'deck', ladder: 'cage', colours: GALV, scales: [1, 0.75, 0.6, 0.5] }),
+  'yellow-trestle': kind('yellow-trestle', 'Long board on yellow scaffold legs', 'a01', { width: 30, height: 6, bottom: 7, supports: 'trestle', poleRadius: 0.12, truss: 'left', deck: 'grating', lamps: 13, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.8] }),
+  'front-unipole-ladder': kind('front-unipole-ladder', 'Unipole with railed catwalk and ladder', 'b03', { width: 14, height: 5, bottom: 10, supports: 'pole', poleRadius: 0.65, truss: null, deck: 'railing', lamps: 5, lampsAt: 'top', ladder: 'rungs', colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
+  'offset-white-unipole': kind('offset-white-unipole', 'Offset white unipole with double deck', 'b04', { width: 14, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, poleOffset: 0.3, truss: 'right', deck: 'double', lamps: 2, lampsAt: 'deck', lightBar: true, ladder: 'rungs', colours: WHITE, scales: [1, 0.75, 0.6, 0.5] }),
+  'dark-unipole-deck-lamps': kind('dark-unipole-deck-lamps', 'Unipole with lamps along its deck', 'b05', { width: 14, height: 5, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'right', deck: 'grating', lamps: 7, lampsAt: 'deck', ladder: 'rungs', colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
+  'twin-pole-railing': kind('twin-pole-railing', 'Twin-pole board with railed catwalk', 'b07', { width: 16, height: 5.5, bottom: 9, supports: 'twin', poleRadius: 0.55, truss: 'left', deck: 'railing', lamps: 6, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.85] }),
+  'twin-pole-long': kind('twin-pole-long', 'Long twin-pole board', 'b09', { width: 22, height: 5.5, bottom: 9, supports: 'twin', poleRadius: 0.6, truss: 'left', deck: 'grating', underTruss: true, lamps: 9, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.85] }),
+  'tv-unipole': kind('tv-unipole', 'Digital screen on a unipole', 'b01', { width: 8, height: 10, bottom: 10, supports: 'pole', poleRadius: 0.7, truss: 'left', deck: 'railing', lamps: 5, lampsAt: 'top', ladder: null, colours: DARK, tv: true, scales: [1] }),
+  'tv-building': kind('tv-building', 'Building wrapped in digital screens', 'b02', { width: 24, height: 9, bottom: 8, supports: 'building', poleRadius: 0, truss: null, deck: null, lamps: 0, lampsAt: null, ladder: null, colours: DARK, tv: true, footprint: Object.freeze({ w: 34, d: 22 }), scales: [1] }),
+  'tv-tower': kind('tv-tower', 'Four-sided digital screen tower', 'b08', { width: 6, height: 8, bottom: 4.5, supports: 'tower', poleRadius: 0, truss: null, deck: null, lamps: 12, lampsAt: 'top', ladder: null, colours: DARK, tv: true, sides: 4, footprint: Object.freeze({ w: 8, d: 8 }), scales: [1] }),
+  'tv-curved': kind('tv-curved', 'Curved digital screen on a mast', 'b10', { width: 9, height: 10, bottom: 6, supports: 'mast', poleRadius: 0.3, truss: null, deck: 'grating', lamps: 6, lampsAt: 'deck', ladder: null, colours: DARK, tv: true, curve: 0.5, scales: [1] }),
+  'tv-chrome': kind('tv-chrome', 'Chrome-framed digital screen', 'b11', { width: 12, height: 4, bottom: 5, supports: 'plinth', poleRadius: 0, truss: null, deck: null, lamps: 0, lampsAt: null, ladder: null, colours: WHITE, tv: true, footprint: Object.freeze({ w: 11, d: 2.6 }), scales: [1] }),
+});
+
+function feetOf(type, scale = 1) {
+  const t = BILLBOARD_TYPES[type], W = t.width * scale, s = scale, back = -0.9 * s;
+  switch (t.supports) {
+    case 'pole': return [{ x: (t.poleOffset || 0) * W, z: back - 0.3 * s, r: t.poleRadius * s }];
+    case 'twin': return [-0.32, 0.32].map((k) => ({ x: k * W, z: back - 0.3 * s, r: t.poleRadius * s }));
+    case 'four': return [-0.36, -0.12, 0.12, 0.36].map((k, i) => ({ x: k * W, z: back - (i % 2 ? 1.6 : 0.4) * s, r: 0.35 * s }));
+    case 'trestle': { const out = []; for (let x = -W / 2 + 1; x <= W / 2 - 0.9; x += 3 * s) for (const z of [back, back - 1.8 * s]) out.push({ x, z, r: 0.2 * s }); return out; }
+    case 'mast': return [{ x: W / 2 + 0.8 * s, z: back, r: 0.6 * s }];
+    case 'tower': case 'building': case 'plinth': return [{ x: 0, z: -t.footprint.d / 2 + 0.6, w: t.footprint.w, d: t.footprint.d }];
+    default: return [];
+  }
+}
+
+function basesOf(type, scale = 1) {
+  const t = BILLBOARD_TYPES[type], W = t.width * scale, s = scale;
+  switch (t.supports) {
+    case 'pole': case 'twin': return (t.supports === 'twin' ? [-0.32 * W, 0.32 * W] : [(t.poleOffset || 0) * W]).map((x) => ({ x, z: -1.2 * s, half: 1.6 * t.poleRadius * s, top: 0.6 * s }));
+    case 'four': return [-0.36, -0.12, 0.12, 0.36].map((k, i) => ({ x: k * W, z: -(0.9 + (i % 2 ? 1.6 : 0.4)) * s, half: 0.4 * s, top: 0.2 * s }));
+    case 'trestle': { const out = []; for (let x = -W / 2 + 1; x <= W / 2 - 0.9; x += 3 * s) for (const z of [-0.9 * s, -2.7 * s]) out.push({ x, z, half: 0.25 * s, top: 0.18 * s }); return out; }
+    case 'mast': return [{ x: W / 2 + 1.2 * s, z: -1.2 * s, half: 0.8 * s, top: 0.3 * s }];
+    default: return [];
+  }
+}
+
+function faceOf(type, scale = 1) {
+  const t = BILLBOARD_TYPES[type];
+  const r = (v) => Math.round(v * 10) / 10;
+  return { width: r(t.width * scale), height: r(t.height * scale), bottom: r(t.bottom * scale) };
+}
+
+function aspectOf(width, height) {
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  const a = Math.round(width * 10), b = Math.round(height * 10), g = gcd(a, b);
+  const x = a / g, y = b / g;
+  if (x <= 20 && y <= 20) return `${x}:${y}`;
+  return `${(width / height).toFixed(2)}:1`;
+}
+
+const EMPTY_FACE = 'PLACE YOUR ADS';
+
+return { AD_CATEGORIES, dailyCharge, categoryOf, AD_DURATIONS, BILLBOARD_TYPES, feetOf, basesOf, faceOf, aspectOf, EMPTY_FACE };
 })();
 
 __modules["sim/zones/atani-city.js"] = (function () {
@@ -1421,12 +1630,23 @@ function cityGroundY(x, z) {
   let on = false;
   for (const p of PAVEMENTS) if (inBox(p, x, z)) { on = true; break; }
   if (!on) return 0;
+  for (const r of RAMPS) if (inBox(r, x, z)) return rampY(r, x, z);
+  let y = KERB;
   for (const r of RAMPS) {
-    if (!inBox(r, x, z)) continue;
-    const t = r.fall === 'x-' ? (x - r.x0) / (r.x1 - r.x0) : r.fall === 'x+' ? (r.x1 - x) / (r.x1 - r.x0) : r.fall === 'z-' ? (z - r.z0) / (r.z1 - r.z0) : (r.z1 - z) / (r.z1 - r.z0);
-    return KERB * Math.max(0, Math.min(1, t));
+    const alongX = r.fall === 'x+' || r.fall === 'x-';
+    const [a, a0, a1, b, b0, b1] = alongX ? [x, r.x0, r.x1, z, r.z0, r.z1] : [z, r.z0, r.z1, x, r.x0, r.x1];
+    if (a < a0 || a > a1) continue;
+    const d = b > b1 ? b - b1 : b < b0 ? b0 - b : -1;
+    if (d < 0 || d >= RAMP_FLARE) continue;
+    const edge = alongX ? rampY(r, x, Math.max(r.z0, Math.min(r.z1, z))) : rampY(r, Math.max(r.x0, Math.min(r.x1, x)), z);
+    y = Math.min(y, edge + ((KERB - edge) * d) / RAMP_FLARE);
   }
-  return KERB;
+  return y;
+}
+const RAMP_FLARE = 0.5;
+function rampY(r, x, z) {
+  const t = r.fall === 'x-' ? (x - r.x0) / (r.x1 - r.x0) : r.fall === 'x+' ? (r.x1 - x) / (r.x1 - r.x0) : r.fall === 'z-' ? (z - r.z0) / (r.z1 - r.z0) : (r.z1 - z) / (r.z1 - r.z0);
+  return KERB * Math.max(0, Math.min(1, t));
 }
 
 const onBoulevard = (x, z) => x >= BOULEVARD.x0 && x <= BOULEVARD.x1 && z >= BOULEVARD.z0 && z <= BOULEVARD.z1;
@@ -1522,11 +1742,25 @@ function colliders() {
   out.push(POWERBIKE.desk, POWERBIKE.lounge.sofa, POWERBIKE.lounge.table);
   for (const c of POWERBIKE.lounge.chairs) out.push(box(c.x - 0.4, c.z - 0.4, c.x + 0.4, c.z + 0.4));
   for (const p of POWERBIKE.plants) out.push(box(p.x - 0.3, p.z - 0.3, p.x + 0.3, p.z + 0.3));
+  for (const s of [-1, 1]) { const bx = POWERBIKE.doors.x + s * 7.4, bz = POWERBIKE.footprint.z1 + 5.6; out.push(box(bx - 0.13, bz - 0.13, bx + 0.13, bz + 0.13)); }
   return Object.freeze(out);
 }
 const POWERBIKE_COLLIDERS = colliders();
 
-return { POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, POWERBIKE_COLLIDERS };
+function powerbikeGroundY(x, z) {
+  const f = POWERBIKE.footprint, d = POWERBIKE.doors;
+  if (!inPowerbikeHall(x, z)) return x > d.x - 8 && x < d.x + 8 && z > f.z1 && z < f.z1 + 6.4 ? 0.05 : 0;
+  let top = 0.012;
+  for (const d of POWERBIKE.displays) {
+    const r = Math.hypot(x - d.x, z - d.z);
+    if (r > d.r + 0.3) continue;
+    if (d.stand === 'hero' && r < d.r + 0.24) top = Math.max(top, Math.min(0.08, (0.08 * (d.r + 0.24 - r)) / 0.04));
+    if (r < d.r) top = Math.max(top, d.stand === 'turntable' ? (r < d.r * 0.72 ? 0.212 : 0.2) : d.stand === 'hero' ? 0.22 : 0.14);
+  }
+  return top;
+}
+
+return { POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, POWERBIKE_COLLIDERS, powerbikeGroundY };
 })();
 
 __modules["sim/zones/supplied-vehicles.js"] = (function () {
@@ -1820,8 +2054,9 @@ return { TOWN_TREES };
 
 __modules["sim/zones/town-footprints.js"] = (function () {
 const TOWN_FOOTPRINTS = Object.freeze({"umuezei-purple":[[-102.44,70.56,-100.94,71.06],[-102.44,71.06,-100.44,71.56],[-102.94,71.56,-99.94,75.06],[-103.44,75.06,-99.94,75.56],[-103.44,75.56,-99.44,79.56],[-104.94,79.56,-98.44,80.06],[-107.94,80.06,-95.44,80.56],[-108.94,80.56,-93.94,81.06],[-109.44,81.06,-93.44,81.56],[-109.94,81.56,-92.94,82.06],[-110.44,82.06,-92.94,82.56],[-110.44,82.56,-92.44,84.56],[-110.94,84.56,-92.44,86.56],[-110.44,86.56,-92.44,87.56],[-109.94,87.56,-92.94,88.56],[-109.44,88.56,-93.44,89.56],[-109.44,89.56,-93.94,90.06],[-108.94,90.06,-93.94,92.56],[-108.94,92.56,-94.44,93.06],[-108.44,93.06,-94.44,96.06],[-108.44,96.06,-94.94,96.56],[-107.94,96.56,-94.94,98.56],[-107.44,98.56,-95.44,100.06],[-106.94,100.06,-95.94,101.06],[-106.44,101.06,-96.44,101.56],[-105.94,101.56,-96.94,102.06],[-105.44,102.06,-97.44,102.56],[-103.94,102.56,-99.44,103.06]],"umuezei-black":[[-102.47,31.53,-101.97,32.03],[-105.97,32.03,-98.97,32.53],[-106.97,32.53,-97.47,33.03],[-107.97,33.03,-96.47,33.53],[-108.97,33.53,-95.97,34.03],[-109.47,34.03,-94.97,34.53],[-110.47,34.53,-94.47,35.03],[-110.97,35.03,-93.97,35.53],[-111.47,35.53,-93.47,36.03],[-111.97,36.03,-92.97,36.53],[-111.97,36.53,-92.47,37.03],[-112.47,37.03,-91.97,37.53],[-112.97,37.53,-91.97,38.03],[-112.97,38.03,-91.47,38.53],[-113.47,38.53,-90.97,39.03],[-113.97,39.03,-90.97,39.53],[-113.97,39.53,-90.47,40.03],[-114.47,40.03,-90.47,41.03],[-114.47,41.03,-89.97,41.53],[-114.97,41.53,-89.97,42.53],[-114.97,42.53,-89.47,43.53],[-115.47,43.53,-89.47,49.53],[-114.97,49.53,-89.47,50.53],[-114.97,50.53,-89.97,51.53],[-114.47,51.53,-89.97,52.03],[-114.47,52.03,-90.47,52.53],[-113.97,52.53,-90.47,53.53],[-113.97,53.53,-90.97,54.03],[-113.47,54.03,-90.97,54.53],[-112.97,54.53,-91.47,55.03],[-112.97,55.03,-91.97,55.53],[-112.47,55.53,-92.47,56.03],[-111.97,56.03,-92.47,56.53],[-111.97,56.53,-92.97,57.03],[-111.47,57.03,-93.47,57.53],[-110.47,57.53,-93.97,58.03],[-109.97,58.03,-94.47,58.53],[-109.47,58.53,-95.47,59.03],[-108.97,59.03,-95.97,59.53],[-107.97,59.53,-96.97,60.03],[-106.47,60.03,-97.97,60.53],[-104.97,60.53,-99.97,61.03]],"umuezei-stacked":[[-138.87,49.63,-132.37,51.63],[-138.87,51.63,-126.87,62.63],[-138.87,62.63,-132.37,64.13]],"umuezei-pink":[[-138.19,69.81,-133.69,70.31],[-138.19,70.31,-126.69,70.81],[-140.69,70.81,-126.69,71.31],[-140.69,71.31,-126.19,71.81],[-141.19,71.81,-126.19,73.81],[-141.19,73.81,-124.19,74.31],[-141.19,74.31,-123.19,76.81],[-141.19,76.81,-123.69,78.31],[-140.69,78.31,-123.69,79.31],[-140.69,79.31,-124.19,81.31],[-140.69,81.31,-124.69,82.81],[-140.19,82.81,-124.69,83.31],[-139.69,83.31,-125.19,83.81],[-139.69,83.81,-126.69,84.31],[-139.69,84.31,-137.19,84.81],[-127.19,84.31,-126.69,84.81]],"umuonaje-purple":[[98.56,71.06,104.56,71.56],[97.56,71.56,105.56,72.06],[96.56,72.06,106.06,72.56],[96.56,72.56,106.56,73.06],[96.06,73.06,107.06,74.06],[95.56,74.06,107.56,75.06],[95.06,75.06,107.56,75.56],[95.06,75.56,108.06,77.06],[94.56,77.06,108.06,78.06],[94.56,78.06,108.56,81.06],[94.06,81.06,109.06,84.06],[93.56,84.06,109.06,84.56],[93.56,84.56,109.56,85.56],[93.06,85.56,110.06,86.06],[92.56,86.06,110.06,86.56],[92.56,86.56,110.56,87.56],[92.06,87.56,110.56,89.56],[92.56,89.56,110.56,91.56],[93.06,91.56,110.06,92.56],[93.56,92.56,109.56,93.06],[94.56,93.06,108.56,93.56],[96.06,93.56,106.56,94.06],[98.56,94.06,104.56,94.56],[99.56,94.56,103.56,98.56],[99.56,98.56,103.06,99.06],[100.06,99.06,103.06,102.06],[100.06,102.06,102.56,102.56],[100.56,102.56,102.56,103.06],[101.06,103.06,102.06,103.56]],"umuonaje-curved":[[100.18,50.68,106.68,51.18],[99.68,51.18,111.18,51.68],[99.18,51.68,111.18,52.18],[96.68,52.18,111.18,52.68],[92.18,52.68,93.68,53.18],[96.18,52.68,111.18,53.18],[92.18,53.18,111.18,53.68],[92.18,53.68,111.68,55.18],[92.68,55.18,111.68,57.18],[92.68,57.18,112.18,58.68],[93.18,58.68,112.18,59.68],[94.18,59.68,112.18,60.18],[96.18,60.18,112.18,60.68],[98.18,60.68,112.18,61.18],[99.68,61.18,112.18,61.68],[100.18,61.68,108.18,62.18],[100.68,62.18,103.68,62.68]],"umuonaje-office":[[123.41,50.41,138.91,50.91],[123.91,50.91,138.91,53.91],[123.41,53.91,138.91,62.91],[134.91,62.91,137.91,63.91]],"umuonaje-copper":[[123.54,70.04,143.04,70.54],[123.04,70.54,143.54,71.04],[123.04,71.04,144.04,72.04],[122.04,72.04,144.04,72.54],[121.54,72.54,144.04,76.04],[121.04,76.04,144.04,76.54],[120.54,76.54,144.04,83.04],[121.04,83.04,144.04,83.54],[126.54,83.54,144.04,84.04],[127.04,84.04,144.04,84.54],[127.54,84.54,144.04,85.54]],"registry-towers":[[59.27,-135.23,82.27,-134.73],[31.77,-134.73,82.27,-118.23],[31.77,-118.23,82.77,-113.73],[32.27,-113.73,82.77,-97.23],[32.27,-97.23,83.27,-87.23],[49.27,-87.23,61.27,-85.73],[49.27,-85.73,52.77,-85.23],[57.27,-85.73,61.27,-85.23]],"market-hotel":[[-38.1,-134.1,-37.1,-133.6],[-48.1,-133.6,-36.6,-133.1],[-49.1,-133.1,-36.1,-132.6],[-50.1,-132.6,-35.6,-132.1],[-50.6,-132.1,-35.1,-131.6],[-51.6,-131.6,-34.6,-131.1],[-52.6,-131.1,-34.6,-130.6],[-53.6,-130.6,-34.1,-130.1],[-54.6,-130.1,-33.6,-129.6],[-55.6,-129.6,-33.1,-129.1],[-56.6,-129.1,-33.1,-128.6],[-57.6,-128.6,-33.6,-128.1],[-58.6,-128.1,-33.6,-126.1],[-58.6,-126.1,-34.1,-124.6],[-59.1,-124.6,-34.1,-123.1],[-59.1,-123.1,-34.6,-120.1],[-59.1,-120.1,-35.1,-119.1],[-59.1,-119.1,-35.6,-118.6],[-59.1,-118.6,-36.6,-118.1],[-59.1,-118.1,-37.1,-117.6],[-59.1,-117.6,-37.6,-116.1],[-59.6,-116.1,-37.6,-115.6],[-60.1,-115.6,-37.6,-115.1],[-60.6,-115.1,-37.6,-114.1],[-61.1,-114.1,-37.6,-113.6],[-61.6,-113.6,-37.6,-112.1],[-62.1,-112.1,-37.6,-106.1],[-61.6,-106.1,-37.6,-104.6],[-61.1,-104.6,-37.6,-103.6],[-60.6,-103.6,-37.6,-102.6],[-60.1,-102.6,-37.6,-102.1],[-59.1,-102.1,-37.6,-100.1],[-59.1,-100.1,-36.6,-99.1],[-59.1,-99.1,-35.6,-98.6],[-59.1,-98.6,-35.1,-97.6],[-59.1,-97.6,-34.6,-95.1],[-59.1,-95.1,-34.1,-93.1],[-58.6,-93.1,-34.1,-92.1],[-58.6,-92.1,-33.6,-90.1],[-58.1,-90.1,-33.6,-89.6],[-57.1,-89.6,-33.6,-89.1],[-56.1,-89.1,-33.1,-88.6],[-55.1,-88.6,-33.6,-88.1],[-54.6,-88.1,-33.6,-87.6],[-53.6,-87.6,-34.1,-87.1],[-52.6,-87.1,-34.6,-86.6],[-51.6,-86.6,-35.1,-86.1],[-50.6,-86.1,-35.1,-85.6],[-49.6,-85.6,-35.6,-85.1],[-48.6,-85.1,-36.1,-84.6],[-44.6,-84.6,-36.6,-84.1]],"police-offices":[[-71.76,-26.26,-66.76,-25.76],[-71.76,-25.76,-65.76,-25.26],[-71.76,-25.26,-65.26,-24.76],[-72.26,-24.76,-64.76,-24.26],[-72.26,-24.26,-64.26,-23.76],[-72.76,-23.76,-63.76,-23.26],[-73.26,-23.26,-63.26,-22.76],[-73.76,-22.76,-63.26,-22.26],[-74.26,-22.26,-62.76,-21.76],[-74.76,-21.76,-62.76,-21.26],[-75.26,-21.26,-62.76,-20.76],[-75.76,-20.76,-62.76,-20.26],[-76.26,-20.26,-62.76,-19.76],[-77.26,-19.76,-62.76,-19.26],[-78.76,-19.26,-63.26,-18.76],[-79.26,-18.76,-63.26,-17.76],[-79.76,-17.76,-63.76,-17.26],[-80.26,-17.26,-63.76,-16.76],[-80.26,-16.76,-64.26,-15.76],[-79.76,-15.76,-64.76,-15.26],[-79.76,-15.26,-65.26,-14.76],[-79.76,-14.76,-66.26,-13.76],[-79.76,-13.76,-67.26,-13.26],[-79.76,-13.26,-67.76,-12.76],[-79.76,-12.76,-68.26,-12.26],[-79.76,-12.26,-68.76,-11.76],[-79.76,-11.76,-69.26,-11.26],[-79.76,-11.26,-69.76,-10.76],[-80.26,-10.76,-70.26,-10.26],[-80.26,-10.26,-73.26,-9.76],[-80.26,-9.76,-73.76,-9.26],[-80.26,-9.26,-74.26,-8.76],[-79.76,-8.76,-74.76,-8.26],[-77.76,-8.26,-74.76,-7.76]],"house-002":[[-139.22,89.92,-135.72,90.42],[-132.72,89.92,-130.72,90.42],[-139.22,90.42,-130.22,91.92],[-139.22,91.92,-129.22,92.42],[-139.72,92.42,-129.22,94.42],[-140.22,94.42,-129.22,95.92],[-140.72,95.92,-129.22,97.92],[-141.22,97.92,-129.22,98.92],[-140.72,98.92,-129.22,99.42]],"house-003":[[-169.54,88.85,-159.04,90.85],[-171.04,90.85,-159.04,95.85],[-170.54,95.85,-159.04,96.85],[-170.54,96.85,-158.54,98.85],[-170.54,98.85,-159.54,99.35],[-168.54,99.35,-163.54,99.85]],"house-004":[[-200.38,87.53,-195.88,88.03],[-200.88,88.03,-194.88,88.53],[-200.88,88.53,-193.88,89.03],[-201.38,89.03,-192.88,89.53],[-201.38,89.53,-192.38,90.03],[-201.38,90.03,-191.88,90.53],[-201.38,90.53,-191.38,91.03],[-201.38,91.03,-190.88,91.53],[-201.38,91.53,-190.38,92.03],[-201.38,92.03,-189.88,92.53],[-200.88,92.53,-189.88,93.03],[-200.88,93.03,-189.38,93.53],[-200.88,93.53,-188.88,94.03],[-200.38,94.03,-188.88,94.53],[-199.88,94.53,-188.88,95.53],[-199.38,95.53,-188.88,96.03],[-198.88,96.03,-188.88,96.53],[-198.38,96.53,-188.88,97.03],[-197.88,97.03,-189.38,97.53],[-196.88,97.53,-191.88,98.03],[-196.38,98.03,-193.38,98.53],[-195.88,98.53,-193.38,99.03],[-194.88,99.03,-193.38,99.53]],"house-005":[[-228.94,87.62,-225.94,88.62],[-228.94,88.62,-225.44,90.62],[-228.94,90.62,-220.44,91.62],[-229.94,91.62,-220.44,92.12],[-230.44,92.12,-220.44,93.12],[-230.44,93.12,-219.94,95.12],[-231.44,95.12,-219.94,95.62],[-230.44,95.62,-219.94,96.12],[-230.44,96.12,-218.94,97.12],[-230.44,97.12,-219.94,98.12],[-230.44,98.12,-224.44,99.62]],"house-006":[[-235.94,72.25,-235.44,72.75],[-230.94,72.25,-223.94,72.75],[-236.44,72.75,-223.94,81.25],[-234.94,81.25,-223.94,82.75],[-234.44,82.75,-223.94,83.25],[-229.94,83.25,-225.94,84.25]],"house-007":[[-218.61,72.6,-215.61,73.1],[-219.61,73.1,-214.11,73.6],[-220.11,73.6,-213.11,74.1],[-220.61,74.1,-212.11,74.6],[-221.11,74.6,-211.61,75.1],[-221.11,75.1,-211.11,75.6],[-221.11,75.6,-210.61,76.1],[-221.11,76.1,-210.11,76.6],[-221.11,76.6,-209.61,77.6],[-221.11,77.6,-209.11,78.6],[-211.61,78.6,-208.61,79.6],[-211.11,79.6,-208.61,80.1],[-211.11,80.1,-209.11,80.6],[-221.11,78.6,-214.11,81.1],[-211.11,80.6,-209.61,81.1],[-220.61,81.1,-214.11,82.1],[-220.11,82.1,-214.11,82.6],[-219.61,82.6,-214.61,83.1],[-219.11,83.1,-215.11,83.6],[-217.61,83.6,-216.11,84.1]],"house-008":[[-204.66,72.75,-201.66,73.25],[-198.16,72.75,-195.16,73.25],[-205.16,73.25,-194.66,73.75],[-205.16,73.75,-194.16,74.25],[-205.66,74.25,-194.16,74.75],[-205.66,74.75,-193.66,75.75],[-205.66,75.75,-194.16,77.25],[-205.66,77.25,-194.66,77.75],[-205.16,77.75,-194.66,78.25],[-204.66,78.25,-195.16,78.75],[-204.66,78.75,-195.66,79.25],[-204.16,79.25,-196.16,79.75],[-203.66,79.75,-201.66,80.25]],"house-009":[[-189.62,72.13,-179.62,72.63],[-189.62,72.63,-179.12,75.13],[-190.62,75.13,-179.12,82.13],[-181.12,82.13,-179.12,82.63]],"house-010":[[-175.72,72.89,-164.22,73.39],[-175.72,73.39,-163.72,73.89],[-175.72,73.89,-164.22,75.89],[-175.72,75.89,-164.72,77.89],[-175.72,77.89,-165.22,79.89],[-175.72,79.89,-165.72,80.39],[-174.72,80.39,-165.72,81.89],[-173.22,81.89,-172.72,82.39],[-168.72,81.89,-166.22,82.39]],"house-011":[[-156.04,72.31,-152.04,72.81],[-159.54,72.81,-149.04,73.31],[-161.04,73.31,-149.04,81.31],[-161.04,81.31,-150.54,83.31]],"house-016":[[-227.66,53.18,-226.66,53.68],[-233.16,53.68,-231.66,54.18],[-228.66,53.68,-226.16,54.18],[-234.16,54.18,-225.66,54.68],[-234.66,54.68,-225.16,55.18],[-235.16,55.18,-225.16,55.68],[-235.16,55.68,-224.66,56.18],[-235.66,56.18,-224.66,56.68],[-235.66,56.68,-224.16,57.18],[-236.16,57.18,-224.16,59.18],[-236.16,59.18,-224.66,59.68],[-235.66,59.68,-224.66,60.18],[-235.16,60.18,-225.16,60.68],[-234.66,60.68,-232.16,61.18],[-227.66,60.68,-225.66,61.18]],"house-017":[[-220.62,50.88,-219.12,51.38],[-220.62,51.38,-215.12,51.88],[-220.62,51.88,-209.12,58.38],[-220.62,58.38,-210.62,61.38],[-220.12,61.38,-210.62,61.88]],"house-018":[[-204.22,52.17,-200.72,52.67],[-197.72,52.17,-195.72,52.67],[-204.22,52.67,-195.22,54.17],[-204.22,54.17,-194.22,54.67],[-204.72,54.67,-194.22,56.67],[-205.22,56.67,-194.22,58.17],[-205.72,58.17,-194.22,60.17],[-206.22,60.17,-194.22,61.17],[-205.72,61.17,-194.22,61.67]],"house-019":[[-189.54,50.35,-179.04,52.35],[-191.04,52.35,-179.04,57.35],[-190.54,57.35,-179.04,58.35],[-190.54,58.35,-178.54,60.35],[-190.54,60.35,-179.54,60.85],[-188.54,60.85,-183.54,61.35]],"house-020":[[-175.38,49.78,-170.88,50.28],[-175.88,50.28,-169.88,50.78],[-175.88,50.78,-168.88,51.28],[-176.38,51.28,-167.88,51.78],[-176.38,51.78,-167.38,52.28],[-176.38,52.28,-166.88,52.78],[-176.38,52.78,-166.38,53.28],[-176.38,53.28,-165.88,53.78],[-176.38,53.78,-165.38,54.28],[-176.38,54.28,-164.88,54.78],[-175.88,54.78,-164.88,55.28],[-175.88,55.28,-164.38,55.78],[-175.88,55.78,-163.88,56.28],[-175.38,56.28,-163.88,56.78],[-174.88,56.78,-163.88,57.78],[-174.38,57.78,-163.88,58.28],[-173.88,58.28,-163.88,58.78],[-173.38,58.78,-163.88,59.28],[-172.88,59.28,-164.38,59.78],[-171.88,59.78,-166.88,60.28],[-171.38,60.28,-168.38,60.78],[-170.88,60.78,-168.38,61.28],[-169.88,61.28,-168.38,61.78]],"house-021":[[-158.94,49.87,-155.94,50.87],[-158.94,50.87,-155.44,52.87],[-158.94,52.87,-150.44,53.87],[-159.94,53.87,-150.44,54.37],[-160.44,54.37,-150.44,55.37],[-160.44,55.37,-149.94,57.37],[-161.44,57.37,-149.94,57.87],[-160.44,57.87,-149.94,58.37],[-160.44,58.37,-148.94,59.37],[-160.44,59.37,-149.94,60.37],[-160.44,60.37,-154.44,61.87]],"house-027":[[130.46,88.85,140.96,90.85],[128.96,90.85,140.96,95.85],[129.46,95.85,140.96,96.85],[129.46,96.85,141.46,98.85],[129.46,98.85,140.46,99.35],[131.46,99.35,136.46,99.85]],"house-028":[[159.62,87.53,164.12,88.03],[159.12,88.03,165.12,88.53],[159.12,88.53,166.12,89.03],[158.62,89.03,167.12,89.53],[158.62,89.53,167.62,90.03],[158.62,90.03,168.12,90.53],[158.62,90.53,168.62,91.03],[158.62,91.03,169.12,91.53],[158.62,91.53,169.62,92.03],[158.62,92.03,170.12,92.53],[159.12,92.53,170.12,93.03],[159.12,93.03,170.62,93.53],[159.12,93.53,171.12,94.03],[159.62,94.03,171.12,94.53],[160.12,94.53,171.12,95.53],[160.62,95.53,171.12,96.03],[161.12,96.03,171.12,96.53],[161.62,96.53,171.12,97.03],[162.12,97.03,170.62,97.53],[163.12,97.53,168.12,98.03],[163.62,98.03,166.62,98.53],[164.12,98.53,166.62,99.03],[165.12,99.03,166.62,99.53]],"house-029":[[191.06,87.62,194.06,88.62],[191.06,88.62,194.56,90.62],[191.06,90.62,199.56,91.62],[190.06,91.62,199.56,92.12],[189.56,92.12,199.56,93.12],[189.56,93.12,200.06,95.12],[188.56,95.12,200.06,95.62],[189.56,95.62,200.06,96.12],[189.56,96.12,201.06,97.12],[189.56,97.12,200.06,98.12],[189.56,98.12,195.56,99.62]],"house-030":[[221.06,87.87,225.06,88.37],[221.06,88.37,229.06,88.87],[219.06,88.87,229.56,89.87],[219.06,89.87,230.06,90.37],[219.06,90.37,231.06,97.87],[218.56,97.87,231.06,98.87],[219.06,98.87,231.06,99.37],[219.06,99.37,226.06,99.87],[230.06,99.37,231.06,99.87]],"house-035":[[153.96,72.31,157.96,72.81],[150.46,72.81,160.96,73.31],[148.96,73.31,160.96,81.31],[148.96,81.31,159.46,83.31]],"house-036":[[168.12,72.22,170.62,73.22],[167.62,73.22,171.62,73.72],[164.62,73.72,172.12,74.22],[164.12,74.22,173.12,74.72],[164.12,74.72,173.62,75.22],[163.62,75.22,174.12,75.72],[163.62,75.72,174.62,76.22],[163.62,76.22,175.12,77.22],[164.12,77.22,175.62,78.22],[164.62,78.22,176.12,78.72],[165.12,78.72,176.12,79.72],[165.62,79.72,176.12,80.22],[166.12,80.22,176.12,80.72],[166.62,80.72,176.12,81.22],[167.12,81.22,176.12,81.72],[167.62,81.72,176.12,82.22],[168.62,82.22,176.12,82.72],[169.12,82.72,176.12,83.22],[170.12,83.22,175.62,83.72],[171.62,83.72,174.62,84.22]],"house-037":[[184.06,72.75,190.56,74.25],[179.56,74.25,190.56,75.25],[178.56,75.25,190.56,75.75],[179.56,75.75,190.56,76.25],[179.56,76.25,191.06,77.25],[179.56,77.25,190.06,78.75],[180.56,78.75,190.06,80.25],[180.56,80.25,188.56,81.75],[185.56,81.75,188.56,82.75],[185.56,82.75,189.06,83.25],[186.06,83.25,189.06,84.25],[186.06,84.25,188.56,84.75]],"house-038":[[194.06,72.5,194.56,73],[199.06,72.5,206.06,73],[193.56,73,206.06,81.5],[195.06,81.5,206.06,83],[195.56,83,206.06,83.5],[200.06,83.5,204.06,84.5]],"house-039":[[211.39,72.1,214.39,72.6],[210.39,72.6,215.89,73.1],[209.89,73.1,216.89,73.6],[209.39,73.6,217.89,74.1],[208.89,74.1,218.39,74.6],[208.89,74.6,218.89,75.1],[208.89,75.1,219.39,75.6],[208.89,75.6,219.89,76.1],[208.89,76.1,220.39,77.1],[208.89,77.1,220.89,78.1],[218.39,78.1,221.39,79.1],[218.89,79.1,221.39,79.6],[218.89,79.6,220.89,80.1],[208.89,78.1,215.89,80.6],[218.89,80.1,220.39,80.6],[209.39,80.6,215.89,81.6],[209.89,81.6,215.89,82.1],[210.39,82.1,215.39,82.6],[210.89,82.6,214.89,83.1],[212.39,83.1,213.89,83.6]],"house-040":[[225.34,73,228.34,73.5],[231.84,73,234.84,73.5],[224.84,73.5,235.34,74],[224.84,74,235.84,74.5],[224.34,74.5,235.84,75],[224.34,75,236.34,76],[224.34,76,235.84,77.5],[224.34,77.5,235.34,78],[224.84,78,235.34,78.5],[225.34,78.5,234.84,79],[225.34,79,234.34,79.5],[225.84,79.5,233.84,80],[226.34,80,228.34,80.5]],"house-045":[[151.06,49.87,154.06,50.87],[151.06,50.87,154.56,52.87],[151.06,52.87,159.56,53.87],[150.06,53.87,159.56,54.37],[149.56,54.37,159.56,55.37],[149.56,55.37,160.06,57.37],[148.56,57.37,160.06,57.87],[149.56,57.87,160.06,58.37],[149.56,58.37,161.06,59.37],[149.56,59.37,160.06,60.37],[149.56,60.37,155.56,61.87]],"house-046":[[166.06,49.37,170.06,49.87],[166.06,49.87,174.06,50.37],[164.06,50.37,174.56,51.37],[164.06,51.37,175.06,51.87],[164.06,51.87,176.06,59.37],[163.56,59.37,176.06,60.37],[164.06,60.37,176.06,60.87],[164.06,60.87,171.06,61.37],[175.06,60.87,176.06,61.37]],"house-047":[[185.39,50.43,188.39,50.93],[184.89,50.93,189.39,51.43],[184.39,51.43,189.89,51.93],[183.89,51.93,190.39,52.93],[179.89,52.93,181.39,53.43],[179.39,53.43,181.39,53.93],[183.89,52.93,190.89,53.93],[178.89,53.93,181.39,55.43],[183.89,53.93,191.39,55.43],[178.89,55.43,191.39,56.43],[179.39,56.43,191.39,57.43],[179.89,57.43,191.39,57.93],[180.39,57.93,191.39,58.43],[180.89,58.43,191.39,58.93],[181.39,58.93,190.89,59.43],[181.89,59.43,190.89,59.93],[182.39,59.93,190.39,60.43],[183.39,60.43,189.89,60.93],[184.89,60.93,188.89,61.43],[186.39,61.43,187.89,61.93]],"house-048":[[202.34,53.68,203.34,54.18],[196.84,54.18,198.34,54.68],[201.34,54.18,203.84,54.68],[195.84,54.68,204.34,55.18],[195.34,55.18,204.84,55.68],[194.84,55.68,204.84,56.18],[194.84,56.18,205.34,56.68],[194.34,56.68,205.34,57.18],[194.34,57.18,205.84,57.68],[193.84,57.68,205.84,59.68],[193.84,59.68,205.34,60.18],[194.34,60.18,205.34,60.68],[194.84,60.68,204.84,61.18],[195.34,61.18,197.84,61.68],[202.34,61.18,204.34,61.68]],"house-049":[[209.38,50.63,210.88,51.13],[209.38,51.13,214.88,51.63],[209.38,51.63,220.88,58.13],[209.38,58.13,219.38,61.13],[209.88,61.13,219.38,61.63]],"house-050":[[225.78,51.92,229.28,52.42],[232.28,51.92,234.28,52.42],[225.78,52.42,234.78,53.92],[225.78,53.92,235.78,54.42],[225.28,54.42,235.78,56.42],[224.78,56.42,235.78,57.92],[224.28,57.92,235.78,59.92],[223.78,59.92,235.78,60.92],[224.28,60.92,235.78,61.42]],"house-051":[[-141.04,-381.94,-137.04,-381.44],[-144.54,-381.44,-134.04,-380.94],[-146.04,-380.94,-134.04,-372.94],[-146.04,-372.94,-135.54,-370.94]],"house-052":[[-126.88,-381.28,-124.38,-380.28],[-127.38,-380.28,-123.38,-379.78],[-130.38,-379.78,-122.88,-379.28],[-130.88,-379.28,-121.88,-378.78],[-130.88,-378.78,-121.38,-378.28],[-131.38,-378.28,-120.88,-377.78],[-131.38,-377.78,-120.38,-377.28],[-131.38,-377.28,-119.88,-376.28],[-130.88,-376.28,-119.38,-375.28],[-130.38,-375.28,-118.88,-374.78],[-129.88,-374.78,-118.88,-373.78],[-129.38,-373.78,-118.88,-373.28],[-128.88,-373.28,-118.88,-372.78],[-128.38,-372.78,-118.88,-372.28],[-127.88,-372.28,-118.88,-371.78],[-127.38,-371.78,-118.88,-371.28],[-126.38,-371.28,-118.88,-370.78],[-125.88,-370.78,-118.88,-370.28],[-124.88,-370.28,-119.38,-369.78],[-123.38,-369.78,-120.38,-369.28]],"house-053":[[-110.94,-381.5,-104.44,-380],[-115.44,-380,-104.44,-379],[-116.44,-379,-104.44,-378.5],[-115.44,-378.5,-104.44,-378],[-115.44,-378,-103.94,-377],[-115.44,-377,-104.94,-375.5],[-114.44,-375.5,-104.94,-374],[-114.44,-374,-106.44,-372.5],[-109.44,-372.5,-106.44,-371.5],[-109.44,-371.5,-105.94,-371],[-108.94,-371,-105.94,-370],[-108.94,-370,-106.44,-369.5]],"house-054":[[-100.94,-381.75,-100.44,-381.25],[-95.94,-381.75,-88.94,-381.25],[-101.44,-381.25,-88.94,-372.75],[-99.94,-372.75,-88.94,-371.25],[-99.44,-371.25,-88.94,-370.75],[-94.94,-370.75,-90.94,-369.75]],"house-055":[[-83.61,-381.4,-80.61,-380.9],[-84.61,-380.9,-79.11,-380.4],[-85.11,-380.4,-78.11,-379.9],[-85.61,-379.9,-77.11,-379.4],[-86.11,-379.4,-76.61,-378.9],[-86.11,-378.9,-76.11,-378.4],[-86.11,-378.4,-75.61,-377.9],[-86.11,-377.9,-75.11,-377.4],[-86.11,-377.4,-74.61,-376.4],[-86.11,-376.4,-74.11,-375.4],[-76.61,-375.4,-73.61,-374.4],[-76.11,-374.4,-73.61,-373.9],[-76.11,-373.9,-74.11,-373.4],[-86.11,-375.4,-79.11,-372.9],[-76.11,-373.4,-74.61,-372.9],[-85.61,-372.9,-79.11,-371.9],[-85.11,-371.9,-79.11,-371.4],[-84.61,-371.4,-79.61,-370.9],[-84.11,-370.9,-80.11,-370.4],[-82.61,-370.4,-81.11,-369.9]],"house-056":[[-69.66,-381.25,-66.66,-380.75],[-63.16,-381.25,-60.16,-380.75],[-70.16,-380.75,-59.66,-380.25],[-70.16,-380.25,-59.16,-379.75],[-70.66,-379.75,-59.16,-379.25],[-70.66,-379.25,-58.66,-378.25],[-70.66,-378.25,-59.16,-376.75],[-70.66,-376.75,-59.66,-376.25],[-70.16,-376.25,-59.66,-375.75],[-69.66,-375.75,-60.16,-375.25],[-69.66,-375.25,-60.66,-374.75],[-69.16,-374.75,-61.16,-374.25],[-68.66,-374.25,-66.66,-373.75]],"house-057":[[-54.62,-381.87,-44.62,-381.37],[-54.62,-381.37,-44.12,-378.87],[-55.62,-378.87,-44.12,-371.87],[-46.12,-371.87,-44.12,-371.37]],"house-058":[[-40.72,-381.11,-29.22,-380.61],[-40.72,-380.61,-28.72,-380.11],[-40.72,-380.11,-29.22,-378.11],[-40.72,-378.11,-29.72,-376.11],[-40.72,-376.11,-30.22,-374.11],[-40.72,-374.11,-30.72,-373.61],[-39.72,-373.61,-30.72,-372.11],[-38.22,-372.11,-37.72,-371.61],[-33.72,-372.11,-31.22,-371.61]],"house-059":[[-21.04,-381.69,-17.04,-381.19],[-24.54,-381.19,-14.04,-380.69],[-26.04,-380.69,-14.04,-372.69],[-26.04,-372.69,-15.54,-370.69]],"house-060":[[180.12,-381.78,182.62,-380.78],[179.62,-380.78,183.62,-380.28],[176.62,-380.28,184.12,-379.78],[176.12,-379.78,185.12,-379.28],[176.12,-379.28,185.62,-378.78],[175.62,-378.78,186.12,-378.28],[175.62,-378.28,186.62,-377.78],[175.62,-377.78,187.12,-376.78],[176.12,-376.78,187.62,-375.78],[176.62,-375.78,188.12,-375.28],[177.12,-375.28,188.12,-374.28],[177.62,-374.28,188.12,-373.78],[178.12,-373.78,188.12,-373.28],[178.62,-373.28,188.12,-372.78],[179.12,-372.78,188.12,-372.28],[179.62,-372.28,188.12,-371.78],[180.62,-371.78,188.12,-371.28],[181.12,-371.28,188.12,-370.78],[182.12,-370.78,187.62,-370.28],[183.62,-370.28,186.62,-369.78]],"house-061":[[196.06,-381.25,202.56,-379.75],[191.56,-379.75,202.56,-378.75],[190.56,-378.75,202.56,-378.25],[191.56,-378.25,202.56,-377.75],[191.56,-377.75,203.06,-376.75],[191.56,-376.75,202.06,-375.25],[192.56,-375.25,202.06,-373.75],[192.56,-373.75,200.56,-372.25],[197.56,-372.25,200.56,-371.25],[197.56,-371.25,201.06,-370.75],[198.06,-370.75,201.06,-369.75],[198.06,-369.75,200.56,-369.25]],"house-062":[[206.06,-381.5,206.56,-381],[211.06,-381.5,218.06,-381],[205.56,-381,218.06,-372.5],[207.06,-372.5,218.06,-371],[207.56,-371,218.06,-370.5],[212.06,-370.5,216.06,-369.5]],"house-063":[[223.39,-381.9,226.39,-381.4],[222.39,-381.4,227.89,-380.9],[221.89,-380.9,228.89,-380.4],[221.39,-380.4,229.89,-379.9],[220.89,-379.9,230.39,-379.4],[220.89,-379.4,230.89,-378.9],[220.89,-378.9,231.39,-378.4],[220.89,-378.4,231.89,-377.9],[220.89,-377.9,232.39,-376.9],[220.89,-376.9,232.89,-375.9],[230.39,-375.9,233.39,-374.9],[230.89,-374.9,233.39,-374.4],[230.89,-374.4,232.89,-373.9],[220.89,-375.9,227.89,-373.4],[230.89,-373.9,232.39,-373.4],[221.39,-373.4,227.89,-372.4],[221.89,-372.4,227.89,-371.9],[222.39,-371.9,227.39,-371.4],[222.89,-371.4,226.89,-370.9],[224.39,-370.9,225.89,-370.4]],"house-064":[[-137.66,-406.82,-136.66,-406.32],[-143.16,-406.32,-141.66,-405.82],[-138.66,-406.32,-136.16,-405.82],[-144.16,-405.82,-135.66,-405.32],[-144.66,-405.32,-135.16,-404.82],[-145.16,-404.82,-135.16,-404.32],[-145.16,-404.32,-134.66,-403.82],[-145.66,-403.82,-134.66,-403.32],[-145.66,-403.32,-134.16,-402.82],[-146.16,-402.82,-134.16,-400.82],[-146.16,-400.82,-134.66,-400.32],[-145.66,-400.32,-134.66,-399.82],[-145.16,-399.82,-135.16,-399.32],[-144.66,-399.32,-142.16,-398.82],[-137.66,-399.32,-135.66,-398.82]],"house-065":[[-130.62,-409.12,-129.12,-408.62],[-130.62,-408.62,-125.12,-408.12],[-130.62,-408.12,-119.12,-401.62],[-130.62,-401.62,-120.62,-398.62],[-130.12,-398.62,-120.62,-398.12]],"house-066":[[-114.22,-407.83,-110.72,-407.33],[-107.72,-407.83,-105.72,-407.33],[-114.22,-407.33,-105.22,-405.83],[-114.22,-405.83,-104.22,-405.33],[-114.72,-405.33,-104.22,-403.33],[-115.22,-403.33,-104.22,-401.83],[-115.72,-401.83,-104.22,-399.83],[-116.22,-399.83,-104.22,-398.83],[-115.72,-398.83,-104.22,-398.33]],"house-067":[[-99.54,-409.65,-89.04,-407.65],[-101.04,-407.65,-89.04,-402.65],[-100.54,-402.65,-89.04,-401.65],[-100.54,-401.65,-88.54,-399.65],[-100.54,-399.65,-89.54,-399.15],[-98.54,-399.15,-93.54,-398.65]],"house-068":[[-85.38,-410.22,-80.88,-409.72],[-85.88,-409.72,-79.88,-409.22],[-85.88,-409.22,-78.88,-408.72],[-86.38,-408.72,-77.88,-408.22],[-86.38,-408.22,-77.38,-407.72],[-86.38,-407.72,-76.88,-407.22],[-86.38,-407.22,-76.38,-406.72],[-86.38,-406.72,-75.88,-406.22],[-86.38,-406.22,-75.38,-405.72],[-86.38,-405.72,-74.88,-405.22],[-85.88,-405.22,-74.88,-404.72],[-85.88,-404.72,-74.38,-404.22],[-85.88,-404.22,-73.88,-403.72],[-85.38,-403.72,-73.88,-403.22],[-84.88,-403.22,-73.88,-402.22],[-84.38,-402.22,-73.88,-401.72],[-83.88,-401.72,-73.88,-401.22],[-83.38,-401.22,-73.88,-400.72],[-82.88,-400.72,-74.38,-400.22],[-81.88,-400.22,-76.88,-399.72],[-81.38,-399.72,-78.38,-399.22],[-80.88,-399.22,-78.38,-398.72],[-79.88,-398.72,-78.38,-398.22]],"house-069":[[-68.94,-410.13,-65.94,-409.13],[-68.94,-409.13,-65.44,-407.13],[-68.94,-407.13,-60.44,-406.13],[-69.94,-406.13,-60.44,-405.63],[-70.44,-405.63,-60.44,-404.63],[-70.44,-404.63,-59.94,-402.63],[-71.44,-402.63,-59.94,-402.13],[-70.44,-402.13,-59.94,-401.63],[-70.44,-401.63,-58.94,-400.63],[-70.44,-400.63,-59.94,-399.63],[-70.44,-399.63,-64.44,-398.13]],"house-070":[[-53.94,-410.63,-49.94,-410.13],[-53.94,-410.13,-45.94,-409.63],[-55.94,-409.63,-45.44,-408.63],[-55.94,-408.63,-44.94,-408.13],[-55.94,-408.13,-43.94,-400.63],[-56.44,-400.63,-43.94,-399.63],[-55.94,-399.63,-43.94,-399.13],[-55.94,-399.13,-48.94,-398.63],[-44.94,-399.13,-43.94,-398.63]],"house-071":[[-34.61,-409.57,-31.61,-409.07],[-35.11,-409.07,-30.61,-408.57],[-35.61,-408.57,-30.11,-408.07],[-36.11,-408.07,-29.61,-407.07],[-40.11,-407.07,-38.61,-406.57],[-40.61,-406.57,-38.61,-406.07],[-36.11,-407.07,-29.11,-406.07],[-41.11,-406.07,-38.61,-404.57],[-36.11,-406.07,-28.61,-404.57],[-41.11,-404.57,-28.61,-403.57],[-40.61,-403.57,-28.61,-402.57],[-40.11,-402.57,-28.61,-402.07],[-39.61,-402.07,-28.61,-401.57],[-39.11,-401.57,-28.61,-401.07],[-38.61,-401.07,-29.11,-400.57],[-38.11,-400.57,-29.11,-400.07],[-37.61,-400.07,-29.61,-399.57],[-36.61,-399.57,-30.11,-399.07],[-35.11,-399.07,-31.11,-398.57],[-33.61,-398.57,-32.11,-398.07]],"house-072":[[-17.66,-406.32,-16.66,-405.82],[-23.16,-405.82,-21.66,-405.32],[-18.66,-405.82,-16.16,-405.32],[-24.16,-405.32,-15.66,-404.82],[-24.66,-404.82,-15.16,-404.32],[-25.16,-404.32,-15.16,-403.82],[-25.16,-403.82,-14.66,-403.32],[-25.66,-403.32,-14.66,-402.82],[-25.66,-402.82,-14.16,-402.32],[-26.16,-402.32,-14.16,-400.32],[-26.16,-400.32,-14.66,-399.82],[-25.66,-399.82,-14.66,-399.32],[-25.16,-399.32,-15.16,-398.82],[-24.66,-398.82,-22.16,-398.32],[-17.66,-398.82,-15.66,-398.32]],"house-073":[[176.38,-409.37,177.88,-408.87],[176.38,-408.87,181.88,-408.37],[176.38,-408.37,187.88,-401.87],[176.38,-401.87,186.38,-398.87],[176.88,-398.87,186.38,-398.37]],"house-074":[[192.78,-408.08,196.28,-407.58],[199.28,-408.08,201.28,-407.58],[192.78,-407.58,201.78,-406.08],[192.78,-406.08,202.78,-405.58],[192.28,-405.58,202.78,-403.58],[191.78,-403.58,202.78,-402.08],[191.28,-402.08,202.78,-400.08],[190.78,-400.08,202.78,-399.08],[191.28,-399.08,202.78,-398.58]],"house-075":[[207.46,-409.15,217.96,-407.15],[205.96,-407.15,217.96,-402.15],[206.46,-402.15,217.96,-401.15],[206.46,-401.15,218.46,-399.15],[206.46,-399.15,217.46,-398.65],[208.46,-398.65,213.46,-398.15]],"house-076":[[221.62,-410.47,226.12,-409.97],[221.12,-409.97,227.12,-409.47],[221.12,-409.47,228.12,-408.97],[220.62,-408.97,229.12,-408.47],[220.62,-408.47,229.62,-407.97],[220.62,-407.97,230.12,-407.47],[220.62,-407.47,230.62,-406.97],[220.62,-406.97,231.12,-406.47],[220.62,-406.47,231.62,-405.97],[220.62,-405.97,232.12,-405.47],[221.12,-405.47,232.12,-404.97],[221.12,-404.97,232.62,-404.47],[221.12,-404.47,233.12,-403.97],[221.62,-403.97,233.12,-403.47],[222.12,-403.47,233.12,-402.47],[222.62,-402.47,233.12,-401.97],[223.12,-401.97,233.12,-401.47],[223.62,-401.47,233.12,-400.97],[224.12,-400.97,232.62,-400.47],[225.12,-400.47,230.12,-399.97],[225.62,-399.97,228.62,-399.47],[226.12,-399.47,228.62,-398.97],[227.12,-398.97,228.62,-398.47]],"house-077":[[-140.94,-426.5,-134.44,-425],[-145.44,-425,-134.44,-424],[-146.44,-424,-134.44,-423.5],[-145.44,-423.5,-134.44,-423],[-145.44,-423,-133.94,-422],[-145.44,-422,-134.94,-420.5],[-144.44,-420.5,-134.94,-419],[-144.44,-419,-136.44,-417.5],[-139.44,-417.5,-136.44,-416.5],[-139.44,-416.5,-135.94,-416],[-138.94,-416,-135.94,-415],[-138.94,-415,-136.44,-414.5]],"house-078":[[-130.94,-426.75,-130.44,-426.25],[-125.94,-426.75,-118.94,-426.25],[-131.44,-426.25,-118.94,-417.75],[-129.94,-417.75,-118.94,-416.25],[-129.44,-416.25,-118.94,-415.75],[-124.94,-415.75,-120.94,-414.75]],"house-079":[[-113.61,-426.4,-110.61,-425.9],[-114.61,-425.9,-109.11,-425.4],[-115.11,-425.4,-108.11,-424.9],[-115.61,-424.9,-107.11,-424.4],[-116.11,-424.4,-106.61,-423.9],[-116.11,-423.9,-106.11,-423.4],[-116.11,-423.4,-105.61,-422.9],[-116.11,-422.9,-105.11,-422.4],[-116.11,-422.4,-104.61,-421.4],[-116.11,-421.4,-104.11,-420.4],[-106.61,-420.4,-103.61,-419.4],[-106.11,-419.4,-103.61,-418.9],[-106.11,-418.9,-104.11,-418.4],[-116.11,-420.4,-109.11,-417.9],[-106.11,-418.4,-104.61,-417.9],[-115.61,-417.9,-109.11,-416.9],[-115.11,-416.9,-109.11,-416.4],[-114.61,-416.4,-109.61,-415.9],[-114.11,-415.9,-110.11,-415.4],[-112.61,-415.4,-111.11,-414.9]],"house-080":[[-99.66,-426.25,-96.66,-425.75],[-93.16,-426.25,-90.16,-425.75],[-100.16,-425.75,-89.66,-425.25],[-100.16,-425.25,-89.16,-424.75],[-100.66,-424.75,-89.16,-424.25],[-100.66,-424.25,-88.66,-423.25],[-100.66,-423.25,-89.16,-421.75],[-100.66,-421.75,-89.66,-421.25],[-100.16,-421.25,-89.66,-420.75],[-99.66,-420.75,-90.16,-420.25],[-99.66,-420.25,-90.66,-419.75],[-99.16,-419.75,-91.16,-419.25],[-98.66,-419.25,-96.66,-418.75]],"house-081":[[-84.62,-426.87,-74.62,-426.37],[-84.62,-426.37,-74.12,-423.87],[-85.62,-423.87,-74.12,-416.87],[-76.12,-416.87,-74.12,-416.37]],"house-082":[[-70.72,-426.11,-59.22,-425.61],[-70.72,-425.61,-58.72,-425.11],[-70.72,-425.11,-59.22,-423.11],[-70.72,-423.11,-59.72,-421.11],[-70.72,-421.11,-60.22,-419.11],[-70.72,-419.11,-60.72,-418.61],[-69.72,-418.61,-60.72,-417.11],[-68.22,-417.11,-67.72,-416.61],[-63.72,-417.11,-61.22,-416.61]],"house-083":[[-51.04,-426.69,-47.04,-426.19],[-54.54,-426.19,-44.04,-425.69],[-56.04,-425.69,-44.04,-417.69],[-56.04,-417.69,-45.54,-415.69]],"house-084":[[-36.88,-426.78,-34.38,-425.78],[-37.38,-425.78,-33.38,-425.28],[-40.38,-425.28,-32.88,-424.78],[-40.88,-424.78,-31.88,-424.28],[-40.88,-424.28,-31.38,-423.78],[-41.38,-423.78,-30.88,-423.28],[-41.38,-423.28,-30.38,-422.78],[-41.38,-422.78,-29.88,-421.78],[-40.88,-421.78,-29.38,-420.78],[-40.38,-420.78,-28.88,-420.28],[-39.88,-420.28,-28.88,-419.28],[-39.38,-419.28,-28.88,-418.78],[-38.88,-418.78,-28.88,-418.28],[-38.38,-418.28,-28.88,-417.78],[-37.88,-417.78,-28.88,-417.28],[-37.38,-417.28,-28.88,-416.78],[-36.38,-416.78,-28.88,-416.28],[-35.88,-416.28,-28.88,-415.78],[-34.88,-415.78,-29.38,-415.28],[-33.38,-415.28,-30.38,-414.78]],"house-085":[[-20.94,-426.25,-14.44,-424.75],[-25.44,-424.75,-14.44,-423.75],[-26.44,-423.75,-14.44,-423.25],[-25.44,-423.25,-14.44,-422.75],[-25.44,-422.75,-13.94,-421.75],[-25.44,-421.75,-14.94,-420.25],[-24.44,-420.25,-14.94,-418.75],[-24.44,-418.75,-16.44,-417.25],[-19.44,-417.25,-16.44,-416.25],[-19.44,-416.25,-15.94,-415.75],[-18.94,-415.75,-15.94,-414.75],[-18.94,-414.75,-16.44,-414.25]],"house-086":[[176.06,-426.5,176.56,-426],[181.06,-426.5,188.06,-426],[175.56,-426,188.06,-417.5],[177.06,-417.5,188.06,-416],[177.56,-416,188.06,-415.5],[182.06,-415.5,186.06,-414.5]],"house-087":[[193.39,-426.9,196.39,-426.4],[192.39,-426.4,197.89,-425.9],[191.89,-425.9,198.89,-425.4],[191.39,-425.4,199.89,-424.9],[190.89,-424.9,200.39,-424.4],[190.89,-424.4,200.89,-423.9],[190.89,-423.9,201.39,-423.4],[190.89,-423.4,201.89,-422.9],[190.89,-422.9,202.39,-421.9],[190.89,-421.9,202.89,-420.9],[200.39,-420.9,203.39,-419.9],[200.89,-419.9,203.39,-419.4],[200.89,-419.4,202.89,-418.9],[190.89,-420.9,197.89,-418.4],[200.89,-418.9,202.39,-418.4],[191.39,-418.4,197.89,-417.4],[191.89,-417.4,197.89,-416.9],[192.39,-416.9,197.39,-416.4],[192.89,-416.4,196.89,-415.9],[194.39,-415.9,195.89,-415.4]],"house-088":[[207.34,-426,210.34,-425.5],[213.84,-426,216.84,-425.5],[206.84,-425.5,217.34,-425],[206.84,-425,217.84,-424.5],[206.34,-424.5,217.84,-424],[206.34,-424,218.34,-423],[206.34,-423,217.84,-421.5],[206.34,-421.5,217.34,-421],[206.84,-421,217.34,-420.5],[207.34,-420.5,216.84,-420],[207.34,-420,216.34,-419.5],[207.84,-419.5,215.84,-419],[208.34,-419,210.34,-418.5]],"house-089":[[222.38,-426.62,232.38,-426.12],[222.38,-426.12,232.88,-423.62],[221.38,-423.62,232.88,-416.62],[230.88,-416.62,232.88,-416.12]],"house-090":[[-144.22,-453.83,-140.72,-453.33],[-137.72,-453.83,-135.72,-453.33],[-144.22,-453.33,-135.22,-451.83],[-144.22,-451.83,-134.22,-451.33],[-144.72,-451.33,-134.22,-449.33],[-145.22,-449.33,-134.22,-447.83],[-145.72,-447.83,-134.22,-445.83],[-146.22,-445.83,-134.22,-444.83],[-145.72,-444.83,-134.22,-444.33]],"house-091":[[-129.54,-455.65,-119.04,-453.65],[-131.04,-453.65,-119.04,-448.65],[-130.54,-448.65,-119.04,-447.65],[-130.54,-447.65,-118.54,-445.65],[-130.54,-445.65,-119.54,-445.15],[-128.54,-445.15,-123.54,-444.65]],"house-092":[[-115.38,-456.22,-110.88,-455.72],[-115.88,-455.72,-109.88,-455.22],[-115.88,-455.22,-108.88,-454.72],[-116.38,-454.72,-107.88,-454.22],[-116.38,-454.22,-107.38,-453.72],[-116.38,-453.72,-106.88,-453.22],[-116.38,-453.22,-106.38,-452.72],[-116.38,-452.72,-105.88,-452.22],[-116.38,-452.22,-105.38,-451.72],[-116.38,-451.72,-104.88,-451.22],[-115.88,-451.22,-104.88,-450.72],[-115.88,-450.72,-104.38,-450.22],[-115.88,-450.22,-103.88,-449.72],[-115.38,-449.72,-103.88,-449.22],[-114.88,-449.22,-103.88,-448.22],[-114.38,-448.22,-103.88,-447.72],[-113.88,-447.72,-103.88,-447.22],[-113.38,-447.22,-103.88,-446.72],[-112.88,-446.72,-104.38,-446.22],[-111.88,-446.22,-106.88,-445.72],[-111.38,-445.72,-108.38,-445.22],[-110.88,-445.22,-108.38,-444.72],[-109.88,-444.72,-108.38,-444.22]],"house-093":[[-98.94,-456.13,-95.94,-455.13],[-98.94,-455.13,-95.44,-453.13],[-98.94,-453.13,-90.44,-452.13],[-99.94,-452.13,-90.44,-451.63],[-100.44,-451.63,-90.44,-450.63],[-100.44,-450.63,-89.94,-448.63],[-101.44,-448.63,-89.94,-448.13],[-100.44,-448.13,-89.94,-447.63],[-100.44,-447.63,-88.94,-446.63],[-100.44,-446.63,-89.94,-445.63],[-100.44,-445.63,-94.44,-444.13]],"house-094":[[-83.94,-456.63,-79.94,-456.13],[-83.94,-456.13,-75.94,-455.63],[-85.94,-455.63,-75.44,-454.63],[-85.94,-454.63,-74.94,-454.13],[-85.94,-454.13,-73.94,-446.63],[-86.44,-446.63,-73.94,-445.63],[-85.94,-445.63,-73.94,-445.13],[-85.94,-445.13,-78.94,-444.63],[-74.94,-445.13,-73.94,-444.63]],"house-095":[[-64.61,-455.57,-61.61,-455.07],[-65.11,-455.07,-60.61,-454.57],[-65.61,-454.57,-60.11,-454.07],[-66.11,-454.07,-59.61,-453.07],[-70.11,-453.07,-68.61,-452.57],[-70.61,-452.57,-68.61,-452.07],[-66.11,-453.07,-59.11,-452.07],[-71.11,-452.07,-68.61,-450.57],[-66.11,-452.07,-58.61,-450.57],[-71.11,-450.57,-58.61,-449.57],[-70.61,-449.57,-58.61,-448.57],[-70.11,-448.57,-58.61,-448.07],[-69.61,-448.07,-58.61,-447.57],[-69.11,-447.57,-58.61,-447.07],[-68.61,-447.07,-59.11,-446.57],[-68.11,-446.57,-59.11,-446.07],[-67.61,-446.07,-59.61,-445.57],[-66.61,-445.57,-60.11,-445.07],[-65.11,-445.07,-61.11,-444.57],[-63.61,-444.57,-62.11,-444.07]],"house-096":[[-47.66,-452.32,-46.66,-451.82],[-53.16,-451.82,-51.66,-451.32],[-48.66,-451.82,-46.16,-451.32],[-54.16,-451.32,-45.66,-450.82],[-54.66,-450.82,-45.16,-450.32],[-55.16,-450.32,-45.16,-449.82],[-55.16,-449.82,-44.66,-449.32],[-55.66,-449.32,-44.66,-448.82],[-55.66,-448.82,-44.16,-448.32],[-56.16,-448.32,-44.16,-446.32],[-56.16,-446.32,-44.66,-445.82],[-55.66,-445.82,-44.66,-445.32],[-55.16,-445.32,-45.16,-444.82],[-54.66,-444.82,-52.16,-444.32],[-47.66,-444.82,-45.66,-444.32]],"house-097":[[-40.62,-455.37,-39.12,-454.87],[-40.62,-454.87,-35.12,-454.37],[-40.62,-454.37,-29.12,-447.87],[-40.62,-447.87,-30.62,-444.87],[-40.12,-444.87,-30.62,-444.37]],"house-098":[[-24.22,-454.08,-20.72,-453.58],[-17.72,-454.08,-15.72,-453.58],[-24.22,-453.58,-15.22,-452.08],[-24.22,-452.08,-14.22,-451.58],[-24.72,-451.58,-14.22,-449.58],[-25.22,-449.58,-14.22,-448.08],[-25.72,-448.08,-14.22,-446.08],[-26.22,-446.08,-14.22,-445.08],[-25.72,-445.08,-14.22,-444.58]],"house-099":[[177.46,-455.15,187.96,-453.15],[175.96,-453.15,187.96,-448.15],[176.46,-448.15,187.96,-447.15],[176.46,-447.15,188.46,-445.15],[176.46,-445.15,187.46,-444.65],[178.46,-444.65,183.46,-444.15]],"house-100":[[191.62,-456.47,196.12,-455.97],[191.12,-455.97,197.12,-455.47],[191.12,-455.47,198.12,-454.97],[190.62,-454.97,199.12,-454.47],[190.62,-454.47,199.62,-453.97],[190.62,-453.97,200.12,-453.47],[190.62,-453.47,200.62,-452.97],[190.62,-452.97,201.12,-452.47],[190.62,-452.47,201.62,-451.97],[190.62,-451.97,202.12,-451.47],[191.12,-451.47,202.12,-450.97],[191.12,-450.97,202.62,-450.47],[191.12,-450.47,203.12,-449.97],[191.62,-449.97,203.12,-449.47],[192.12,-449.47,203.12,-448.47],[192.62,-448.47,203.12,-447.97],[193.12,-447.97,203.12,-447.47],[193.62,-447.47,203.12,-446.97],[194.12,-446.97,202.62,-446.47],[195.12,-446.47,200.12,-445.97],[195.62,-445.97,198.62,-445.47],[196.12,-445.47,198.62,-444.97],[197.12,-444.97,198.62,-444.47]],"house-101":[[208.06,-456.38,211.06,-455.38],[208.06,-455.38,211.56,-453.38],[208.06,-453.38,216.56,-452.38],[207.06,-452.38,216.56,-451.88],[206.56,-451.88,216.56,-450.88],[206.56,-450.88,217.06,-448.88],[205.56,-448.88,217.06,-448.38],[206.56,-448.38,217.06,-447.88],[206.56,-447.88,218.06,-446.88],[206.56,-446.88,217.06,-445.88],[206.56,-445.88,212.56,-444.38]],"house-102":[[223.06,-456.13,227.06,-455.63],[223.06,-455.63,231.06,-455.13],[221.06,-455.13,231.56,-454.13],[221.06,-454.13,232.06,-453.63],[221.06,-453.63,233.06,-446.13],[220.56,-446.13,233.06,-445.13],[221.06,-445.13,233.06,-444.63],[221.06,-444.63,228.06,-444.13],[232.06,-444.63,233.06,-444.13]]});
+const TOWN_LOW_TOPS = Object.freeze({"stacked-tower":[-56,15,-1760,627,20,-1252,735,20,-1760,627,20,-1252,735,20,-1252,735,20,-1760,1409,29,1057,-56,15,1760,1565,29,1760,1409,29,2,1409,29,1057,1565,29,1760,1409,29,2,1565,29,1760,1565,29,2],"curved-tower":[2050,20,844,2024,20,832,165,5,976,-1209,10,-916,-1226,10,-916,-1226,10,-898,-1226,10,-916,-1209,10,-916,-1206,10,-930,-1226,10,-916,-1239,10,-900,-1239,10,-883,-1226,10,-916,-1239,10,-883,-1226,10,-898,2024,20,832,2050,20,844,1775,20,-1156,2024,20,832,1775,20,-1156,1753,20,-1145],"copper-tower":[-2291,24,2328,-2270,24,3008,-2276,24,2465,-2172,24,2627,-2270,24,3008,-2245,24,3065,-2270,24,3008,-2235,24,2560,-2276,24,2465,-2172,24,2627,-2235,24,2560,-2270,24,3008,-1273,24,3076,-1832,24,2656,-1918,24,3220,521,24,3530,-1273,24,3076,-1918,24,3220,-1273,24,3076,521,24,3530,554,24,3008,2053,24,3278,554,24,3008,521,24,3530,554,24,3008,2053,24,3278,2132,24,3252,554,24,3008,2132,24,3252,2198,24,3204,554,24,3008,2198,24,3204,2249,24,3140,554,24,3008,2249,24,3140,2280,24,3063,2280,24,3063,2286,24,2982,554,24,3008,2286,24,2982,1925,24,1339,1376,24,2067,1925,24,1339,2286,24,2982,2188,24,1337,-2245,24,3065,-2200,24,3099,-2083,24,2667,-2245,24,3065,-2083,24,2667,-2172,24,2627,-2200,24,3099,-2093,24,3146,-1970,24,2675,-2200,24,3099,-1970,24,2675,-2083,24,2667,-2093,24,3146,-1918,24,3220,-1832,24,2656,-2093,24,3146,-1832,24,2656,-1970,24,2675,1376,24,2067,554,24,3008,2286,24,2982],"hotel":[-1321,29,2512,-12,29,1858,-1887,29,1858,-12,29,1858,-1321,29,2512,-12,29,3005,-12,29,1858,-12,29,3005,1296,29,2512,1296,29,2512,1780,29,1858,-12,29,1858],"glass-offices":[3586,54,-242,2703,54,-432,3513,54,413,1292,54,-3704,1438,54,-3748,1560,54,-4099,1438,54,-3748,1707,54,-3743,1560,54,-4099,1980,54,-4436,1560,54,-4099,1707,54,-3743,1980,54,-4436,1819,54,-4495,1560,54,-4099,2654,54,-1248,3679,54,-969,3718,54,-1194,-803,54,4148,-432,54,4407,-227,54,4124,-803,54,4148,-227,54,4124,-579,54,3840,-579,54,3840,-227,54,4124,-17,54,3840,-579,54,3840,-17,54,3840,-349,54,3538,-100,54,3245,-349,54,3538,-17,54,3840,-100,54,3245,-17,54,3840,217,54,3562,-100,54,3245,217,54,3562,500,54,3250,-100,54,3245,500,54,3250,183,54,2932,-3323,54,-325,-2698,54,-422,-2986,54,-667,-2659,54,-1013,-2986,54,-667,-2698,54,-422,-2659,54,-1013,-1970,54,-1082,-2258,54,-1355,-1980,54,-1594,-2258,54,-1355,-1970,54,-1082,-330,54,-3206,-706,54,-2698,-354,54,-2405,-330,54,-3206,-354,54,-2405,56,54,-2927,-354,54,-2405,442,54,-2649,56,54,-2927,-330,54,-3206,56,54,-2927,496,54,-3489,-330,54,-3206,496,54,-3489,71,54,-3762,466,54,2620,183,54,2932,500,54,3250,466,54,2620,500,54,3250,784,54,2942,466,54,2620,784,54,2942,1067,54,2634,466,54,2620,1067,54,2634,759,54,2312,1072,54,2004,759,54,2312,1067,54,2634,1072,54,2004,1067,54,2634,1370,54,2317,1072,54,2004,1370,54,2317,1672,54,2000,56,54,-2927,442,54,-2649,920,54,-3215,56,54,-2927,920,54,-3215,496,54,-3489,442,54,-4319,71,54,-3762,496,54,-3489,442,54,-4319,496,54,-3489,916,54,-3982,496,54,-3489,920,54,-3215,1292,54,-3704,496,54,-3489,1292,54,-3704,916,54,-3982,442,54,-4319,916,54,-3982,1179,54,-4338,442,54,-4319,1179,54,-4338,667,54,-4661,1560,54,-4099,1179,54,-4338,916,54,-3982,1560,54,-4099,916,54,-3982,1292,54,-3704,881,54,-4998,667,54,-4661,1179,54,-4338,881,54,-4998,1179,54,-4338,1438,54,-4700,1179,54,-4338,1560,54,-4099,1819,54,-4495,1179,54,-4338,1819,54,-4495,1438,54,-4700,1707,54,-3743,2024,54,-3699,2195,54,-4363,1707,54,-3743,2195,54,-4363,1980,54,-4436,2024,54,-3699,2332,54,-3650,2478,54,-4280,2024,54,-3699,2478,54,-4280,2195,54,-4363,2761,54,-4197,2478,54,-4280,2332,54,-3650,2761,54,-4197,2332,54,-3650,2634,54,-3586,3621,54,-544,2571,54,-798,2703,54,-432,3621,54,-544,2703,54,-432,3586,54,-242,3645,54,-750,2610,54,-1013,2571,54,-798,3645,54,-750,2571,54,-798,3621,54,-544,3679,54,-969,2654,54,-1248,2610,54,-1013,3679,54,-969,2610,54,-1013,3645,54,-750,2654,54,-1248,3718,54,-1194,3757,54,-1414,2654,54,-1248,3757,54,-1414,2693,54,-1487,3792,54,-1594,2737,54,-1721,2693,54,-1487,3792,54,-1594,2693,54,-1487,3757,54,-1414,3826,54,-1775,2771,54,-1907,2737,54,-1721,3826,54,-1775,2737,54,-1721,3792,54,-1594,3860,54,-1965,3030,54,-2131,2771,54,-1907,3860,54,-1965,2771,54,-1907,3826,54,-1775,3894,54,-2151,3206,54,-2278,3030,54,-2131,3894,54,-2151,3030,54,-2131,3860,54,-1965,3923,54,-2302,3362,54,-2434,3206,54,-2278,3923,54,-2302,3206,54,-2278,3894,54,-2151,3362,54,-2434,3923,54,-2302,3943,54,-2405,3362,54,-2434,3943,54,-2405,3440,54,-2576,3489,54,-2727,3440,54,-2576,3943,54,-2405,3489,54,-2727,3943,54,-2405,3962,54,-2507,2634,54,-3586,2957,54,-3503,3074,54,-4114,2634,54,-3586,3074,54,-4114,2761,54,-4197,2957,54,-3503,3279,54,-3401,3386,54,-4036,2957,54,-3503,3386,54,-4036,3074,54,-4114,3489,54,-2727,3962,54,-2507,4089,54,-3152,3489,54,-2727,4089,54,-3152,3552,54,-3298,3279,54,-3401,3552,54,-3298,3748,54,-3948,3279,54,-3401,3748,54,-3948,3386,54,-4036,4226,54,-3835,3748,54,-3948,3552,54,-3298,4226,54,-3835,3552,54,-3298,4089,54,-3152],"white-block":[4527,49,356,4528,49,-162,4614,49,-2790,4614,49,-2790,4790,68,534,4830,49,533,4614,49,-2790,3625,49,-1726,4790,68,534,4614,49,-2790,4531,49,-689,4528,49,-162,4614,49,-2790,4541,49,-1205,4531,49,-689,4541,49,-1205,4558,49,-1586,4614,49,-2790,4614,49,-2790,4551,49,-1647,4558,49,-1586,4614,49,-2790,4527,49,-1701,4551,49,-1647,4614,49,-2790,4492,49,-1749,4527,49,-1701,4614,49,-2790,4443,49,-1778,4492,49,-1749,4614,49,-2790,4382,49,-1796,4443,49,-1778,4614,49,-2790,4292,49,-1794,4382,49,-1796,4614,49,-2790,3625,49,-1726,4292,49,-1794,4614,49,-2790,4602,44,-2977,3794,49,-3585,3794,49,-3585,3514,34,-1718,4614,49,-2790,3794,49,-3585,3437,34,-1709,3539,34,-1718,4602,44,-2977,4548,44,-3152,3794,49,-3585,3458,34,-1710,3514,34,-1718,3794,49,-3585,4548,44,-3152,4451,44,-3311,3794,49,-3585,4451,44,-3311,4322,44,-3437,3794,49,-3585,4322,44,-3437,4161,44,-3525,3794,49,-3585,4161,44,-3525,3982,44,-3576,3794,49,-3585,3794,49,-3585,3402,34,-1706,3458,34,-1710,3794,49,-3585,3345,34,-1698,3437,34,-1709,3794,49,-3585,3169,39,-1958,3345,34,-1698,3794,49,-3585,3140,39,-2009,3169,39,-1958,3794,49,-3585,3089,44,-2178,3140,39,-2009,3794,49,-3585,3144,44,-2910,3089,44,-2178,3794,49,-3585,3142,44,-3000,3144,44,-2910,3794,49,-3585,3121,44,-3094,3142,44,-3000,3794,49,-3585,3145,34,-3209,3121,44,-3094,3794,49,-3585,3024,34,-3253,3093,34,-3224,3794,49,-3585,2963,34,-3295,3024,34,-3253,3794,49,-3585,2918,34,-3344,2963,34,-3295,3794,49,-3585,2944,34,-3593,2918,34,-3344,-2538,49,-4106,-1340,49,-3403,384,49,-3501,-2538,49,-4106,-1842,49,-3486,-1340,49,-3403,-2538,49,-4106,-2342,49,-3572,-1842,49,-3486,-2538,49,-4106,-2535,44,-3607,-2342,49,-3572,-2535,44,-3607,-2538,49,-4106,-2724,49,-4119,-2535,44,-3607,-2724,49,-4119,-2607,44,-3616,-2906,44,-4086,-2689,39,-3608,-2607,44,-3616,-2906,44,-4086,-2607,44,-3616,-2724,49,-4119,-3070,44,-4010,-2767,39,-3589,-2689,39,-3608,-3070,44,-4010,-2689,39,-3608,-2906,44,-4086,-2845,39,-3550,-2767,39,-3589,-3070,44,-4010,-2845,39,-3550,-3070,44,-4010,-3209,44,-3893],"white-house":[-2161,146,4949,61,132,4910,61,146,4924]});
 
-return { TOWN_FOOTPRINTS };
+return { TOWN_FOOTPRINTS, TOWN_LOW_TOPS };
 })();
 
 __modules["sim/zones/town-buildings.js"] = (function () {
@@ -5325,6 +5560,11 @@ function habitationGroundY(x, z) {
 const R = UPRIVER.road, PARK = UPRIVER.park, V = UPRIVER.verge;
 const onUpriver = (x, z) => (x > R.x0 - 1 && x < R.x1 && z > R.z0 - V && z < R.z1 + V) || (x > PARK.x0 && x < PARK.x1 + 2 && z > PARK.z0 && z < PARK.z1 + V);
 const upriverGroundY = (x, z) => 0;
+function upriverTop(x, z) {
+  if (x > PARK.x0 - 1 && x < PARK.x1 + 1 && z > PARK.z0 - 1 && z < PARK.z1 + 1) return x > PARK.x0 && x < PARK.x1 && z > PARK.z0 && z < PARK.z1 ? 0.08 : 0.04;
+  if (x > 249.9 && x < R.x1 && z > R.z0 - 1.3 && z < R.z1 + 1.3) return z > R.z0 && z < R.z1 ? 0.08 : 0.04;
+  return 0;
+}
 
 const { HABITATION_STANDING, HABITATION_MODELS } = __modules["sim/zones/habitation-scene.js"];
 
@@ -5413,7 +5653,7 @@ const HABITATION_COLLIDERS = Object.freeze([
   ...[...HOT_RIVER_SIGNS, ...HABITATION_SWIM_SIGNS].flatMap((sign) => habitationSignPosts(sign).map(([x, z]) => thin(x, z, 0.08))),
 ]);
 
-return { ...__modules["sim/zones/habitation-scene.js"], WATER, HABITATION_SHIFT, habitationNoise, UPRIVER, RIVER_HEAD, riverShore, RIVER_FAR, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, habitationHome, habitationAway, HABITATION_FALLS, HABITATION_HILLS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_SAND, HABITATION_DECKS, HABITATION_RAILS, habitationLandWarm, habitationLand, habitationShape, HABITATION_GROUND, habitationGroundPoint, habitationGroundGiven, habitationGroundWarm, HABITATION_GROUND_POINTS, habitationGroundAt, habitationWaterAt, hotRiverNear, habitationDeckAt, habitationRailsAt, habitationClimbing, habitationAlongDeck, HABITATION_DECK_POSTS, habitationSteep, habitationFooting, habitationGroundKind, onHabitation, habitationStep, habitationFootOnly, footOnlySaid, habitationGroundY, onUpriver, upriverGroundY, HABITATION_GAZEBO_SOLID, HABITATION_ROOT_SQUARES, HABITATION_ROOTS_MADE, habitationRootAt, HABITATION_GATE_SIGN, HOT_RIVER_SIGNS, HABITATION_SWIM_SIGNS, habitationSignPosts, HABITATION_COLLIDERS };
+return { ...__modules["sim/zones/habitation-scene.js"], WATER, HABITATION_SHIFT, habitationNoise, UPRIVER, RIVER_HEAD, riverShore, RIVER_FAR, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, habitationHome, habitationAway, HABITATION_FALLS, HABITATION_HILLS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_SAND, HABITATION_DECKS, HABITATION_RAILS, habitationLandWarm, habitationLand, habitationShape, HABITATION_GROUND, habitationGroundPoint, habitationGroundGiven, habitationGroundWarm, HABITATION_GROUND_POINTS, habitationGroundAt, habitationWaterAt, hotRiverNear, habitationDeckAt, habitationRailsAt, habitationClimbing, habitationAlongDeck, HABITATION_DECK_POSTS, habitationSteep, habitationFooting, habitationGroundKind, onHabitation, habitationStep, habitationFootOnly, footOnlySaid, habitationGroundY, onUpriver, upriverGroundY, upriverTop, HABITATION_GAZEBO_SOLID, HABITATION_ROOT_SQUARES, HABITATION_ROOTS_MADE, habitationRootAt, HABITATION_GATE_SIGN, HOT_RIVER_SIGNS, HABITATION_SWIM_SIGNS, habitationSignPosts, HABITATION_COLLIDERS };
 })();
 
 __modules["sim/zones/closures.js"] = (function () {
@@ -5513,92 +5753,16 @@ function fenceColliders(runs) {
 return { AREA_STATE, ROAD_CLOSURES, openClosures, CLOSURE_KIT, closureColliders, closureWings, EDGE_LINES, EDGE_FENCE, edgeFences, fenceColliders };
 })();
 
-__modules["sim/billboards.js"] = (function () {
+__modules["sim/zones/oganiru-roots.js"] = (function () {
+const SLIM_ROOTS = Object.freeze({ reach: 0.1213, tris: Object.freeze([8156,195,4983,8449,195,4543,7667,537,4494,8156,195,4983,7667,537,4494,4298,879,3859,8156,195,4983,4298,879,3859,3956,244,3859,7667,537,4494,8449,195,4543,4884,879,3078,4884,879,3078,8449,195,4543,4835,244,2736,7667,537,4494,4884,879,3078,4298,879,3859,3956,244,3859,4298,879,3859,2296,879,3176,2296,879,3176,4298,879,3859,2785,1855,3274,4884,879,3078,4835,244,2736,3810,879,1662,4884,879,3078,3810,879,1662,3908,1855,2151,3908,1855,2151,3810,879,1662,3029,3809,1418,3029,3809,1418,3810,879,1662,3078,1953,1076,4298,879,3859,4884,879,3078,3908,1855,2151,4298,879,3859,3908,1855,2151,2785,1855,3274,2785,1855,3274,3908,1855,2151,3029,3809,1418,2785,1855,3274,3029,3809,1418,2003,3809,2443,2296,879,3176,2785,1855,3274,1710,1953,2492,1710,1953,2492,2785,1855,3274,2003,3809,2443,1759,879,3322,1417,3809,2590,1466,1855,3762,1759,879,3322,1466,1855,3762,1466,391,4836,1466,391,4836,1466,1855,3762,1271,977,5129,1466,391,4836,1271,977,5129,1466,0,8498,1466,0,8498,1271,977,5129,1369,342,7717,3322,3809,686,3078,1953,1076,4640,928,832,3322,3809,686,4640,928,832,4982,1904,490,4982,1904,490,4640,928,832,6691,1025,295,6691,1025,295,4640,928,832,6349,293,490,3517,4004,-144,3322,3809,686,4982,1904,490,3517,4004,-144,4982,1904,490,4982,2148,-340,4982,2148,-340,4982,1904,490,6691,1025,295,4982,2148,-340,6691,1025,295,6886,1172,-340,3517,4004,-144,4982,2148,-340,3322,3809,-974,3322,3809,-974,4982,2148,-340,4835,1904,-1170,6691,1025,295,6349,293,490,7765,537,1516,6691,1025,295,7765,537,1516,8058,928,1223,8058,928,1223,7765,537,1516,9279,488,2053,8058,928,1223,9279,488,2053,9279,830,1711,9279,830,1711,9279,488,2053,10548,488,1760,9279,830,1711,10548,488,1760,10744,488,1320,9279,830,1711,10744,488,1320,9279,488,1320,9279,830,1711,9279,488,1320,8302,537,881,9279,830,1711,8302,537,881,8058,928,1223,7521,1025,149,6691,1025,295,8058,928,1223,6691,1025,295,7521,1025,149,6886,1172,-340,6886,1172,-340,7521,1025,149,9816,732,-584,6886,1172,-340,9816,732,-584,6935,1025,-926,6935,1025,-926,9816,732,-584,9718,781,-974,6886,1172,-340,6935,1025,-926,4835,1904,-1170,6886,1172,-340,4835,1904,-1170,4982,2148,-340,7521,1025,149,8058,928,1223,8302,537,881,7521,1025,149,8302,537,881,7863,439,100,7521,1025,149,7863,439,100,9816,732,-584,9816,732,-584,7863,439,100,9962,146,-486,9816,732,-584,9962,146,-486,10499,0,-1170,9816,732,-584,10499,0,-1170,9718,781,-974,9718,781,-974,10499,0,-1170,6935,1025,-926,6935,1025,-926,10499,0,-1170,6788,146,-1267,6935,1025,-926,6788,146,-1267,4835,1904,-1170,4835,1904,-1170,6788,146,-1267,4396,928,-1414,4835,1904,-1170,4396,928,-1414,3322,3809,-974,3322,3809,-974,4396,928,-1414,3126,1953,-1267,2980,3809,-1609,3126,1953,-1267,4054,1611,-2439,4054,1611,-2439,3126,1953,-1267,3956,586,-1902,4054,1611,-2439,3956,586,-1902,5226,342,-2928,4054,1611,-2439,5226,342,-2928,5372,977,-3172,5372,977,-3172,5226,342,-2928,8204,586,-3953,8204,586,-3953,5226,342,-2928,8839,49,-4148,2980,3809,-1609,4054,1611,-2439,1906,3809,-2635,1906,3809,-2635,4054,1611,-2439,2980,1514,-3611,2980,1514,-3611,4054,1611,-2439,5372,977,-3172,2980,1514,-3611,5372,977,-3172,5128,977,-4002,5128,977,-4002,5372,977,-3172,8204,586,-3953,5128,977,-4002,8204,586,-3953,8107,586,-4295,8204,586,-3953,8839,49,-4148,8742,49,-4539,8204,586,-3953,8742,49,-4539,8107,586,-4295,5128,977,-4002,8107,586,-4295,8742,49,-4539,5128,977,-4002,8742,49,-4539,4835,342,-4099,5128,977,-4002,4835,342,-4099,2492,537,-3465,5128,977,-4002,2492,537,-3465,2980,1514,-3611,2980,1514,-3611,2492,537,-3465,1662,1953,-2683,2980,1514,-3611,1662,1953,-2683,1906,3809,-2635,1466,1855,-4002,-96,1855,-4002,1369,3809,-2830,1369,3809,-2830,-96,1855,-4002,-96,3809,-2830,1369,3809,-2830,1662,1953,-2683,1466,1855,-4002,1466,1855,-4002,1662,1953,-2683,1759,586,-3562,1466,1855,-4002,1759,586,-3562,1320,1416,-4832,1320,1416,-4832,1759,586,-3562,1613,244,-4392,1320,1416,-4832,1613,244,-4392,1124,1416,-6639,1369,49,-7566,1320,781,-6834,1613,244,-4392,1613,244,-4392,1320,781,-6834,1124,1416,-6639,1124,1416,-6639,1320,781,-6834,929,1123,-8494,1124,1416,-6639,929,1123,-8494,929,1465,-7957,929,1465,-7957,929,1123,-8494,343,1123,-8494,929,1465,-7957,343,1123,-8494,343,1465,-7957,929,1465,-7957,343,1465,-7957,1124,1416,-6639,1124,1416,-6639,343,1465,-7957,197,1416,-6639,1124,1416,-6639,197,1416,-6639,1320,1416,-4832,1320,1416,-4832,197,1416,-6639,1,1416,-4832,1320,1416,-4832,1,1416,-4832,1466,1855,-4002,1466,1855,-4002,1,1416,-4832,-96,1855,-4002,197,1416,-6639,343,1465,-7957,343,1123,-8494,197,1416,-6639,343,1123,-8494,1,781,-6834,197,1416,-6639,1,781,-6834,-243,244,-4392,197,1416,-6639,-243,244,-4392,1,1416,-4832,1,1416,-4832,-243,244,-4392,-389,586,-3514,1,1416,-4832,-389,586,-3514,-96,1855,-4002,-96,1855,-4002,-389,586,-3514,-389,1953,-2635,-96,1855,-4002,-389,1953,-2635,-96,3809,-2830,-243,244,-4392,1,781,-6834,1,0,-7566,-1512,1855,-3465,-1024,586,-3367,-2733,1074,-4978,-2733,1074,-4978,-1024,586,-3367,-2391,244,-4930,-2733,1074,-4978,-2391,244,-4930,-4393,781,-7615,-4393,781,-7615,-2391,244,-4930,-4686,98,-8348,-1512,1855,-3465,-2733,1074,-4978,-2684,1855,-2391,-2684,1855,-2391,-2733,1074,-4978,-3417,1074,-4295,-3417,1074,-4295,-2733,1074,-4978,-4393,781,-7615,-3417,1074,-4295,-4393,781,-7615,-4735,781,-7224,-4393,781,-7615,-4686,98,-8348,-5126,98,-7908,-4393,781,-7615,-5126,98,-7908,-4735,781,-7224,-4735,781,-7224,-5126,98,-7908,-3417,244,-3904,-4735,781,-7224,-3417,244,-3904,-3417,1074,-4295,-3417,1074,-4295,-3417,244,-3904,-2635,586,-1853,-3417,1074,-4295,-2635,586,-1853,-2684,1855,-2391,-3661,1855,-877,-3221,586,-1219,-5467,977,-730,-5467,977,-730,-3221,586,-1219,-5077,146,-926,-3758,2100,-47,-3661,1855,-877,-5467,977,-730,-3758,2100,-47,-5467,977,-730,-5663,1123,-47,-6297,830,686,-3661,1855,783,-5663,1123,-47,-6297,830,686,-5663,1123,-47,-6737,830,100,-6737,830,100,-5663,1123,-47,-6346,977,-633,-6346,977,-633,-5663,1123,-47,-5467,977,-730,-6346,977,-633,-5467,977,-730,-6835,1025,-1756,-6835,1025,-1756,-5467,977,-730,-6444,1025,-2098,-6835,1025,-1756,-6444,1025,-2098,-8006,1318,-2586,-8006,1318,-2586,-6444,1025,-2098,-7811,1318,-3025,-8006,1318,-2586,-7811,1318,-3025,-9520,879,-3367,-8006,1318,-2586,-9520,879,-3367,-9520,879,-2976,-9520,879,-2976,-9520,879,-3367,-11180,195,-3221,-9520,879,-2976,-11180,195,-3221,-11424,195,-2683,-47,3809,2590,-1073,3857,2248,-1561,1855,3811,-1561,1855,3811,-1073,3857,2248,-2294,2100,3371,-2294,2100,3371,-1073,3857,2248,-2147,3174,1027,-2294,2100,3371,-2147,3174,1027,-2928,1855,2785,-1561,1855,3811,-2294,2100,3371,-3368,928,4934,-3368,928,4934,-2294,2100,3371,-2928,1855,2785,-1561,1855,3811,-3368,928,4934,-2831,781,5324,-3368,928,4934,-2928,1855,2785,-3807,781,4445,1417,3809,2590,-47,3809,2590,1466,1855,3762,1466,1855,3762,-47,3809,2590,-96,1855,3762,1466,1855,3762,-96,1855,3762,1271,977,5129,1271,977,5129,-96,1855,3762,343,977,5324,-2928,1855,2785,-2147,3174,1027,-1952,1953,1027,-2928,1855,2785,-1952,1953,1027,-2928,879,2248,-2928,1855,2785,-2928,879,2248,-3856,195,4055,-2928,1855,2785,-3856,195,4055,-3807,781,4445,-3221,586,1076,-3661,1855,783,-6297,830,686,-3807,781,4445,-3856,195,4055,-5516,732,4836,-5516,732,4836,-3856,195,4055,-5565,342,4592,-5516,732,4836,-5565,342,4592,-7176,684,5471,-5516,732,4836,-7176,684,5471,-7030,1025,5666,-3368,928,4934,-3807,781,4445,-4149,781,5276,-4149,781,5276,-3807,781,4445,-5516,732,4836,-4149,781,5276,-5516,732,4836,-5370,732,5324,-5370,732,5324,-5516,732,4836,-7030,1025,5666,-5370,732,5324,-7030,1025,5666,-6737,1025,6008,-6737,1025,6008,-7030,1025,5666,-7762,537,7131,-7762,537,7131,-7030,1025,5666,-8104,537,6936,-7762,537,7131,-8104,537,6936,-8690,244,8401,-7762,537,7131,-8690,244,8401,-8299,244,8840,-4393,391,7522,-3368,928,4934,-4149,781,5276,-3368,928,4934,-4393,391,7522,-2831,781,5324,-2831,781,5324,-4393,391,7522,-4588,195,8840,-4588,195,8840,-4393,391,7522,-5126,195,8059,-5126,195,8059,-4393,391,7522,-4344,195,5617,-3221,586,1076,-6297,830,686,-6249,98,1027,-6249,98,1027,-6297,830,686,-8153,49,1027,-8153,49,1027,-6297,830,686,-7909,98,344,-5663,1123,-47,-3661,1855,783,-3758,2100,-47,-7909,98,344,-6297,830,686,-6737,830,100,-7909,98,344,-6737,830,100,-6737,146,-584,-6737,146,-584,-6737,830,100,-6346,977,-633,-6737,146,-584,-6346,977,-633,-7079,342,-1560,-7079,342,-1560,-6346,977,-633,-6835,1025,-1756,-6444,1025,-2098,-5467,977,-730,-5077,146,-926,-6444,1025,-2098,-5077,146,-926,-6249,342,-2293,-7079,342,-1560,-6835,1025,-1756,-8006,1318,-2586,-7079,342,-1560,-8006,1318,-2586,-8104,684,-2342,-8104,684,-2342,-8006,1318,-2586,-9520,879,-2976,-8104,684,-2342,-9520,879,-2976,-9520,293,-2732,-9520,293,-2732,-9520,879,-2976,-11424,195,-2683,-6444,1025,-2098,-6249,342,-2293,-7811,1318,-3025,-7811,1318,-3025,-6249,342,-2293,-7713,684,-3269,-7811,1318,-3025,-7713,684,-3269,-9520,293,-3611,-7811,1318,-3025,-9520,293,-3611,-9520,879,-3367,-9520,879,-3367,-9520,293,-3611,-11180,195,-3221,-2831,781,5324,-4588,195,8840,-2440,195,5373,-2831,781,5324,-2440,195,5373,-1073,879,3664,-2831,781,5324,-1073,879,3664,-1561,1855,3811,-1561,1855,3811,-1073,879,3664,-47,3809,2590,-4393,391,7522,-4149,781,5276,-4344,195,5617,-96,1855,3762,-340,879,3322,343,977,5324,343,977,5324,-340,879,3322,99,342,5129,343,977,5324,99,342,5129,929,0,8498,-4344,195,5617,-4149,781,5276,-5370,732,5324,-4344,195,5617,-5370,732,5324,-5321,342,5568,-5321,342,5568,-5370,732,5324,-6590,684,6203,-6590,684,6203,-5370,732,5324,-6737,1025,6008,-6590,684,6203,-6737,1025,6008,-7762,537,7131,-6590,684,6203,-7762,537,7131,-7567,244,7229,343,977,5324,929,0,8498,929,342,7717,929,342,7717,929,0,8498,1466,0,8498,929,342,7717,1466,0,8498,1369,342,7717,1271,977,5129,343,977,5324,1369,342,7717,1369,342,7717,343,977,5324,929,342,7717,-7567,244,7229,-7762,537,7131,-8299,244,8840,-7030,1025,5666,-7176,684,5471,-8104,537,6936,-8104,537,6936,-7176,684,5471,-8299,244,6838,-8104,537,6936,-8299,244,6838,-8690,244,8401]) });
 
-const AD_CATEGORIES = Object.freeze({
-  small: Object.freeze({ id: 'small', name: 'Small', fee: 66, tax: 4 }),
-  medium: Object.freeze({ id: 'medium', name: 'Medium', fee: 132, tax: 8 }),
-  large: Object.freeze({ id: 'large', name: 'Large', fee: 200, tax: 16 }),
-  xl: Object.freeze({ id: 'xl', name: 'Extra-large', fee: 267, tax: 32 }),
-  tv: Object.freeze({ id: 'tv', name: 'Digital TV billboard', fee: 667, tax: 64 }),
-});
-const dailyCharge = (category) => AD_CATEGORIES[category].fee + AD_CATEGORIES[category].tax;
-
-function categoryOf(width, height, tv = false) {
-  if (tv) return 'tv';
-  const area = width * height;
-  return area < 12 ? 'small' : area < 36 ? 'medium' : area < 80 ? 'large' : 'xl';
-}
-
-const AD_DURATIONS = Object.freeze([
-  Object.freeze({ id: '1w', label: '1 week', days: 7 }),
-  Object.freeze({ id: '2w', label: '2 weeks', days: 14 }),
-  Object.freeze({ id: '1m', label: '1 month (30 days)', days: 30 }),
-  Object.freeze({ id: '2m', label: '2 months (60 days)', days: 60 }),
-  Object.freeze({ id: '3m', label: '3 months (90 days)', days: 90 }),
-  Object.freeze({ id: '6m', label: '6 months (180 days)', days: 180 }),
-]);
-
-const DARK = Object.freeze({ steel: 0x3b3f45, deep: 0x26292e, pole: 0x34383d, rail: 0x50555b, lamp: 0x2a2d31 });
-const GALV = Object.freeze({ steel: 0x9aa0a6, deep: 0x7d838a, pole: 0xa8adb2, rail: 0xb3b8bd, lamp: 0x5d6268 });
-const WHITE = Object.freeze({ steel: 0x9aa0a6, deep: 0x6f757c, pole: 0xd9dcdc, rail: 0xb3b8bd, lamp: 0xd0d3d4 });
-
-const kind = (id, name, ref, spec) => Object.freeze({ id, name, ref, ...spec });
-
-const BILLBOARD_TYPES = Object.freeze({
-  'dark-unipole-truss': kind('dark-unipole-truss', 'Unipole with side truss', 'a02', { width: 12, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'left', deck: 'grating', lamps: 6, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
-  'dark-unipole-catwalk': kind('dark-unipole-catwalk', 'Unipole with catwalk and cage ladder', 'a03', { width: 12, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'right', deck: 'railing', lamps: 6, lampsAt: 'deck', ladder: 'cage', colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
-  'dark-unipole-deep': kind('dark-unipole-deep', 'Unipole with deep platform', 'a04', { width: 12, height: 4.5, bottom: 9, supports: 'pole', poleRadius: 0.6, truss: 'left', deck: 'grating', deepDeck: true, lamps: 5, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.75, 0.6, 0.5] }),
-  'galvanised-four-leg': kind('galvanised-four-leg', 'Four-legged galvanised frame', 'a05', { width: 12, height: 4.5, bottom: 7, supports: 'four', poleRadius: 0.32, truss: 'left', deck: 'grating', lamps: 0, lampsAt: null, ladder: null, colours: GALV, scales: [1, 0.75] }),
-  'galvanised-unipole-railing': kind('galvanised-unipole-railing', 'Galvanised unipole with railed catwalk', 'a06', { width: 12, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'left', deck: 'railing', lamps: 6, lampsAt: 'top', ladder: 'cage', colours: GALV, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
-  'galvanised-unipole-deck-lamps': kind('galvanised-unipole-deck-lamps', 'Galvanised unipole, lamps on the catwalk', 'a07', { width: 12, height: 4.5, bottom: 9, supports: 'pole', poleRadius: 0.6, truss: 'left', deck: 'railing', lamps: 6, lampsAt: 'deck', ladder: 'cage', colours: GALV, scales: [1, 0.75, 0.6, 0.5] }),
-  'yellow-trestle': kind('yellow-trestle', 'Long board on yellow scaffold legs', 'a01', { width: 30, height: 6, bottom: 7, supports: 'trestle', poleRadius: 0.12, truss: 'left', deck: 'grating', lamps: 13, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.8] }),
-  'front-unipole-ladder': kind('front-unipole-ladder', 'Unipole with railed catwalk and ladder', 'b03', { width: 14, height: 5, bottom: 10, supports: 'pole', poleRadius: 0.65, truss: null, deck: 'railing', lamps: 5, lampsAt: 'top', ladder: 'rungs', colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
-  'offset-white-unipole': kind('offset-white-unipole', 'Offset white unipole with double deck', 'b04', { width: 14, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, poleOffset: 0.3, truss: 'right', deck: 'double', lamps: 2, lampsAt: 'deck', lightBar: true, ladder: 'rungs', colours: WHITE, scales: [1, 0.75, 0.6, 0.5] }),
-  'dark-unipole-deck-lamps': kind('dark-unipole-deck-lamps', 'Unipole with lamps along its deck', 'b05', { width: 14, height: 5, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'right', deck: 'grating', lamps: 7, lampsAt: 'deck', ladder: 'rungs', colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
-  'twin-pole-railing': kind('twin-pole-railing', 'Twin-pole board with railed catwalk', 'b07', { width: 16, height: 5.5, bottom: 9, supports: 'twin', poleRadius: 0.55, truss: 'left', deck: 'railing', lamps: 6, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.85] }),
-  'twin-pole-long': kind('twin-pole-long', 'Long twin-pole board', 'b09', { width: 22, height: 5.5, bottom: 9, supports: 'twin', poleRadius: 0.6, truss: 'left', deck: 'grating', underTruss: true, lamps: 9, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.85] }),
-  'tv-unipole': kind('tv-unipole', 'Digital screen on a unipole', 'b01', { width: 8, height: 10, bottom: 10, supports: 'pole', poleRadius: 0.7, truss: 'left', deck: 'railing', lamps: 5, lampsAt: 'top', ladder: null, colours: DARK, tv: true, scales: [1] }),
-  'tv-building': kind('tv-building', 'Building wrapped in digital screens', 'b02', { width: 24, height: 9, bottom: 8, supports: 'building', poleRadius: 0, truss: null, deck: null, lamps: 0, lampsAt: null, ladder: null, colours: DARK, tv: true, footprint: Object.freeze({ w: 34, d: 22 }), scales: [1] }),
-  'tv-tower': kind('tv-tower', 'Four-sided digital screen tower', 'b08', { width: 6, height: 8, bottom: 4.5, supports: 'tower', poleRadius: 0, truss: null, deck: null, lamps: 12, lampsAt: 'top', ladder: null, colours: DARK, tv: true, sides: 4, footprint: Object.freeze({ w: 8, d: 8 }), scales: [1] }),
-  'tv-curved': kind('tv-curved', 'Curved digital screen on a mast', 'b10', { width: 9, height: 10, bottom: 6, supports: 'mast', poleRadius: 0.3, truss: null, deck: 'grating', lamps: 6, lampsAt: 'deck', ladder: null, colours: DARK, tv: true, curve: 0.5, scales: [1] }),
-  'tv-chrome': kind('tv-chrome', 'Chrome-framed digital screen', 'b11', { width: 12, height: 4, bottom: 5, supports: 'plinth', poleRadius: 0, truss: null, deck: null, lamps: 0, lampsAt: null, ladder: null, colours: WHITE, tv: true, footprint: Object.freeze({ w: 11, d: 2.6 }), scales: [1] }),
-});
-
-function feetOf(type, scale = 1) {
-  const t = BILLBOARD_TYPES[type], W = t.width * scale, s = scale, back = -0.9 * s;
-  switch (t.supports) {
-    case 'pole': return [{ x: (t.poleOffset || 0) * W, z: back - 0.3 * s, r: t.poleRadius * s }];
-    case 'twin': return [-0.32, 0.32].map((k) => ({ x: k * W, z: back - 0.3 * s, r: t.poleRadius * s }));
-    case 'four': return [-0.36, -0.12, 0.12, 0.36].map((k, i) => ({ x: k * W, z: back - (i % 2 ? 1.6 : 0.4) * s, r: 0.35 * s }));
-    case 'trestle': { const out = []; for (let x = -W / 2 + 1; x <= W / 2 - 0.9; x += 3 * s) for (const z of [back, back - 1.8 * s]) out.push({ x, z, r: 0.2 * s }); return out; }
-    case 'mast': return [{ x: W / 2 + 0.8 * s, z: back, r: 0.6 * s }];
-    case 'tower': case 'building': case 'plinth': return [{ x: 0, z: -t.footprint.d / 2 + 0.6, w: t.footprint.w, d: t.footprint.d }];
-    default: return [];
-  }
-}
-
-function faceOf(type, scale = 1) {
-  const t = BILLBOARD_TYPES[type];
-  const r = (v) => Math.round(v * 10) / 10;
-  return { width: r(t.width * scale), height: r(t.height * scale), bottom: r(t.bottom * scale) };
-}
-
-function aspectOf(width, height) {
-  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
-  const a = Math.round(width * 10), b = Math.round(height * 10), g = gcd(a, b);
-  const x = a / g, y = b / g;
-  if (x <= 20 && y <= 20) return `${x}:${y}`;
-  return `${(width / height).toFixed(2)}:1`;
-}
-
-const EMPTY_FACE = 'PLACE YOUR ADS';
-
-return { AD_CATEGORIES, dailyCharge, categoryOf, AD_DURATIONS, BILLBOARD_TYPES, feetOf, faceOf, aspectOf, EMPTY_FACE };
+return { SLIM_ROOTS };
 })();
 
 __modules["sim/zones/oganiru.js"] = (function () {
-const { faceOf, feetOf, categoryOf } = __modules["sim/billboards.js"];
+const { faceOf, feetOf, basesOf, categoryOf } = __modules["sim/billboards.js"];
+const { SLIM_ROOTS } = __modules["sim/zones/oganiru-roots.js"];
+const { HABITATION_MODELS } = __modules["sim/zones/habitation-scene.js"];
 
 const KERB = 0.15;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -5694,7 +5858,13 @@ const OGANIRU_ROUNDABOUTS = Object.freeze([
 ]);
 const GATE = OGANIRU_ROUNDABOUTS[0];
 const legVector = (dir) => (dir === 'n' ? [1, 0] : dir === 's' ? [-1, 0] : dir === 'e' ? [0, 1] : [0, -1]);
-const inMouth = (r, x, z) => r.legs.some((l) => { const [ux, uz] = legVector(l.dir); const along = (x - r.x) * ux + (z - r.z) * uz, across = Math.abs(-(x - r.x) * uz + (z - r.z) * ux); return along > 0 && across < l.half + 0.5; });
+const RING_PIECES = 56;
+const inMouth = (r, x, z) => {
+  const a = (Math.atan2(x - r.x, z - r.z) + Math.PI * 2) % (Math.PI * 2);
+  const m = (Math.floor(a / ((Math.PI * 2) / RING_PIECES)) + 0.5) * ((Math.PI * 2) / RING_PIECES);
+  const px = Math.sin(m) * (r.outer + 2), pz = Math.cos(m) * (r.outer + 2);
+  return r.legs.some((l) => { const [ux, uz] = legVector(l.dir); return px * ux + pz * uz > 0 && Math.abs(-px * uz + pz * ux) < l.half + 0.5; });
+};
 
 const L1 = OGANIRU.deck.level, L2 = OGANIRU.deck.upper;
 const CUT = OGANIRU.cutting;
@@ -5981,11 +6151,24 @@ function oganiruDecksAt(x, z) {
     const d2 = -left;
     const was = best.get(d);
     if (was && was.off <= along) continue;
-    const y = a.y + (b.y - a.y) * t + (a.bank + (b.bank - a.bank) * t) * d2;
+    const y = drawnDeckY(d, a, b, x, z) ?? a.y + (b.y - a.y) * t + (a.bank + (b.bank - a.bank) * t) * d2 + deckOver(d, a);
     best.set(d, { deck: d, s, d: d2, off: along, y });
   }
   for (const h of best.values()) hitsOut.push(h);
   return hitsOut;
+}
+const deckOver = (d, p) => (p.y < 0.35 && d.kind !== 'bridge' ? 0.012 : 0.004);
+function drawnDeckY(d, a, b, x, z) {
+  const c = (p, off) => [p.x + p.uz * off, p.y + p.bank * off + deckOver(d, p), p.z - p.ux * off];
+  const A0 = c(a, -d.half), B0 = c(b, -d.half), B1 = c(b, d.half), A1 = c(a, d.half);
+  return inFace(A0, B0, B1, x, z) ?? inFace(A0, B1, A1, x, z);
+}
+function inFace(p, q, r, x, z) {
+  const det = (q[2] - r[2]) * (p[0] - r[0]) + (r[0] - q[0]) * (p[2] - r[2]);
+  if (Math.abs(det) < 1e-12) return null;
+  const l1 = ((q[2] - r[2]) * (x - r[0]) + (r[0] - q[0]) * (z - r[2])) / det, l2 = ((r[2] - p[2]) * (x - r[0]) + (p[0] - r[0]) * (z - r[2])) / det, l3 = 1 - l1 - l2;
+  if (l1 < -1e-9 || l2 < -1e-9 || l3 < -1e-9) return null;
+  return l1 * p[1] + l2 * q[1] + l3 * r[1];
 }
 
 const OGANIRU_MEDIAN_GAPS = (() => {
@@ -6130,6 +6313,22 @@ for (const t of OGANIRU_TOWERS) {
 }
 const towerFront = (t, out = 0) => { const [fx, fz] = t.face; return { x: t.x + fx * (t.dx / 2 + out), z: t.z + fz * (t.dz / 2 + out), along: [Math.abs(fz), Math.abs(fx)], half: fx ? t.dz / 2 : t.dx / 2, heading: Math.atan2(fx, fz) }; };
 
+const TOWER_STEPS = OGANIRU_TOWERS.flatMap((t) => {
+  const [fx, fz] = t.face;
+  const fx0 = t.x + fx * (t.dx / 2), fz0 = t.z + fz * (t.dz / 2);
+  return [[2.7, 0.15], [1.8, 0.3], [0.9, 0.45]].map(([out, rise]) => {
+    const ax = fx0 - fx * 1.2, az = fz0 - fz * 1.2, bx = fx0 + fx * out, bz = fz0 + fz * out, wx = Math.abs(fz) * 4, wz = Math.abs(fx) * 4;
+    return Object.freeze({ x0: Math.min(ax, bx) - wx, x1: Math.max(ax, bx) + wx, z0: Math.min(az, bz) - wz, z1: Math.max(az, bz) + wz, top: KERB + rise });
+  });
+});
+const STEP_CELLS = new Map();
+for (const b of TOWER_STEPS) {
+  for (let i = Math.floor(b.x0 / CELL); i <= Math.floor(b.x1 / CELL); i += 1) for (let j = Math.floor(b.z0 / CELL); j <= Math.floor(b.z1 / CELL); j += 1) {
+    const key = i * 4096 + j;
+    if (!STEP_CELLS.has(key)) STEP_CELLS.set(key, []);
+    STEP_CELLS.get(key).push(b);
+  }
+}
 const KERB_CELLS = new Map();
 for (const b of KERBED) {
   for (let i = Math.floor(b.x0 / CELL); i <= Math.floor(b.x1 / CELL); i += 1) for (let j = Math.floor(b.z0 / CELL); j <= Math.floor(b.z1 / CELL); j += 1) {
@@ -6146,12 +6345,55 @@ function oganiruGroundY(x, z) {
     if (dg >= r.outer + r.walk + 0.5) continue;
     if (dg <= r.island) return KERB;
     if (dg <= r.outer) return 0;
-    return inMouth(r, x, z) ? 0 : KERB;
+    if (dg > r.outer + r.walk) break;
+    if (!inMouth(r, x, z)) return KERB;
+    break;
   }
-  const list = KERB_CELLS.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL));
-  if (list) for (const b of list) if (x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1) return KERB;
-  return 0;
+  const key = Math.floor(x / CELL) * 4096 + Math.floor(z / CELL);
+  let top = 0;
+  const steps = STEP_CELLS.get(key);
+  if (steps) for (const b of steps) if (x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1) top = Math.max(top, b.top);
+  if (!top) {
+    const list = KERB_CELLS.get(key);
+    if (list) for (const b of list) if (x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1) { top = KERB; break; }
+  }
+  const trees = SLIM_CELLS.get(key);
+  if (trees) for (const t of trees) top = Math.max(top, slimRootY(t, x, z));
+  return top;
 }
+const SLIM_TREE_HEIGHT = 13.4;
+const SLIM_CORE = 0.045;
+const SLIM_UNIT = HABITATION_MODELS.slimtree ? HABITATION_MODELS.slimtree.unit : 1;
+const slimTreeScale = (t) => (SLIM_TREE_HEIGHT * t.size) / SLIM_UNIT;
+const ROOT_G = 0.02, ROOT_O = 0.14, ROOT_N = 14;
+const ROOT_FACES = (() => {
+  const cells = Array.from({ length: ROOT_N * ROOT_N }, () => []);
+  const T = SLIM_ROOTS.tris;
+  for (let i = 0; i < T.length; i += 9) {
+    const f = Object.freeze(Array.from({ length: 9 }, (_, k) => T[i + k] / 1e5));
+    const cell = (v) => Math.floor((v + ROOT_O) / ROOT_G);
+    for (let a = Math.max(0, cell(Math.min(f[0], f[3], f[6]))); a <= Math.min(ROOT_N - 1, cell(Math.max(f[0], f[3], f[6]))); a += 1) {
+      for (let b = Math.max(0, cell(Math.min(f[2], f[5], f[8]))); b <= Math.min(ROOT_N - 1, cell(Math.max(f[2], f[5], f[8]))); b += 1) cells[b * ROOT_N + a].push(f);
+    }
+  }
+  return cells;
+})();
+function slimRootY(t, x, z) {
+  const s = slimTreeScale(t), dx = (x - t.x) / s, dz = (z - t.z) / s, c = Math.cos(t.turn), sn = Math.sin(t.turn);
+  const px = dx * c - dz * sn, pz = dx * sn + dz * c;
+  const a = Math.floor((px + ROOT_O) / ROOT_G), b = Math.floor((pz + ROOT_O) / ROOT_G);
+  if (a < 0 || b < 0 || a >= ROOT_N || b >= ROOT_N) return -Infinity;
+  let top = -Infinity;
+  for (const f of ROOT_FACES[b * ROOT_N + a]) {
+    const det = (f[5] - f[8]) * (f[0] - f[6]) + (f[6] - f[3]) * (f[2] - f[8]);
+    if (Math.abs(det) < 1e-14) continue;
+    const l1 = ((f[5] - f[8]) * (px - f[6]) + (f[6] - f[3]) * (pz - f[8])) / det, l2 = ((f[8] - f[2]) * (px - f[6]) + (f[0] - f[6]) * (pz - f[8])) / det, l3 = 1 - l1 - l2;
+    if (l1 < -1e-9 || l2 < -1e-9 || l3 < -1e-9) continue;
+    top = Math.max(top, l1 * f[1] + l2 * f[4] + l3 * f[7]);
+  }
+  return top === -Infinity ? top : t.y - 0.05 + s * top;
+}
+const SLIM_CELLS = new Map();
 
 const OGANIRU_AREAS = Object.freeze([
   box(-1420, -1660, 950, -509),                  // the city, west of the airport, the strip by the showroom and the town
@@ -6406,11 +6648,23 @@ const OGANIRU_BILLBOARDS = Object.freeze([
   const feet = feetOf(type, 1).map((f) => { const fx = x + Math.cos(heading) * f.x + Math.sin(heading) * f.z, fz = z - Math.sin(heading) * f.x + Math.cos(heading) * f.z, r = f.r || 0.5; return [fx - r, fz - r, fx + r, fz + r].map((v) => Math.round(v * 10) / 10); });
   return Object.freeze({ id: `OC-${String(n + 1).padStart(2, '0')}`, type, scale: 1, category: categoryOf(face.width, face.height, false), tv: false, width: face.width, height: face.height, bottom: face.bottom, x, z, heading, region: 'city', place: `Oganiru Expressway, ${side > 0 ? 'east' : 'west'} bank`, feet, advert });
 }));
+for (const t of OGANIRU_TREES) {
+  if (t.kind !== 'slim') continue;
+  const R = SLIM_ROOTS.reach * slimTreeScale(t) + 0.01;
+  for (let i = Math.floor((t.x - R) / CELL); i <= Math.floor((t.x + R) / CELL); i += 1) for (let j = Math.floor((t.z - R) / CELL); j <= Math.floor((t.z + R) / CELL); j += 1) {
+    const key = i * 4096 + j;
+    if (!SLIM_CELLS.has(key)) SLIM_CELLS.set(key, []);
+    SLIM_CELLS.get(key).push(t);
+  }
+}
 const OGANIRU_SOLIDS = Object.freeze([
-  ...OGANIRU_TREES.map((t) => circle(t.x, t.z, t.kind === 'slim' ? 0.3 : t.kind === 'palm' ? 0.28 : 0.42, 12, { tree: true })),
+  ...OGANIRU_TREES.map((t) => circle(t.x, t.z, t.kind === 'slim' ? SLIM_CORE * slimTreeScale(t) : t.kind === 'palm' ? 0.28 : 0.42, 12, { tree: true })),
   ...OGANIRU_BILLBOARDS.flatMap((b) => b.feet.map(([x0, z0, x1, z1]) => circle((x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2 + 0.05, b.bottom + b.height + 1, { billboard: b.id }))),
+  ...OGANIRU_BILLBOARDS.flatMap((b) => basesOf(b.type, b.scale).map((q) => circle(b.x + Math.cos(b.heading) * q.x + Math.sin(b.heading) * q.z, b.z - Math.sin(b.heading) * q.x + Math.cos(b.heading) * q.z, q.half * Math.SQRT2, q.top, { billboard: b.id }))),
   ...OGANIRU_SIGNALS.map((s) => circle(s.x, s.z, 0.13, 5)),
   ...OGANIRU_PILLARS.map((p) => circle(p.x, p.z, p.r, p.top, { pillar: true })),
+  ...OGANIRU_ROUNDABOUTS.map((r) => (r.id === 'gate' ? circle(r.x, r.z, 3.5 * Math.SQRT2, KERB + 11.2) : circle(r.x, r.z, 4.4, KERB + 0.55))),
+  ...OGANIRU_PILLARS.map((p) => circle(p.x, p.z, p.r + 0.45, 0.4, { pillar: true, footing: true })),
 ]);
 const SOLID_CELLS = new Map();
 for (const c of OGANIRU_SOLIDS) {
@@ -6465,7 +6719,7 @@ function oganiruSurface(x, z, y, ground = 0) {
   let best = { y: ground, deck: null, hit: null };
   if (!Number.isFinite(y)) return best;
   for (const h of oganiruDecksAt(x, z)) {
-    if (h.y <= y + OGANIRU.step && h.y > best.y + 0.02) best = { y: h.y, deck: h.deck, hit: { ...h } };
+    if (h.y <= y + OGANIRU.step && h.y > best.y + 0.01) best = { y: h.y, deck: h.deck, hit: { ...h } };
   }
   return best;
 }
@@ -6660,7 +6914,7 @@ const OGANIRU_TRAFFIC = (() => {
   return Object.freeze(roads.map((r) => Object.freeze(r)));
 })();
 
-return { OGANIRU, EXPRESSWAY_Z, OGANIRU_PLACES, OGANIRU_ROUNDABOUTS, expresswayY, OGANIRU_CUTTING, OGANIRU_ROADS, roadWidthAt, OGANIRU_JUNCTIONS, PEACE_RAMP_Z, OGANIRU_DECKS, oganiruDecksAt, OGANIRU_MEDIAN_GAPS, OGANIRU_KERBED, OGANIRU_TOWERS, towerFront, oganiruGroundY, OGANIRU_AREAS, onOganiru, oganiruAway, nearOganiru, OGANIRU_EDGE_LINES, OGANIRU_CLOSURES, ofOganiru, OGANIRU_TREES, OGANIRU_LAMPS, OGANIRU_SIGNALS, STOP_LINE_OUT, OGANIRU_STOP_LINES, OGANIRU_PILLARS, OGANIRU_BILLBOARDS, OGANIRU_SOLIDS, OGANIRU_WALLS, oganiruBlocked, oganiruSurface, oganiruOnDeck, oganiruTar, oganiruStructureAt, oganiruTallAt, oganiruHold, OGANIRU_SIGNS, OGANIRU_MAP_LABELS, OGANIRU_TRAFFIC };
+return { OGANIRU, EXPRESSWAY_Z, OGANIRU_PLACES, OGANIRU_ROUNDABOUTS, inMouth, expresswayY, OGANIRU_CUTTING, OGANIRU_ROADS, roadWidthAt, OGANIRU_JUNCTIONS, PEACE_RAMP_Z, OGANIRU_DECKS, oganiruDecksAt, OGANIRU_MEDIAN_GAPS, OGANIRU_KERBED, OGANIRU_TOWERS, towerFront, oganiruGroundY, SLIM_TREE_HEIGHT, SLIM_CORE, slimTreeScale, OGANIRU_AREAS, onOganiru, oganiruAway, nearOganiru, OGANIRU_EDGE_LINES, OGANIRU_CLOSURES, ofOganiru, OGANIRU_TREES, OGANIRU_LAMPS, OGANIRU_SIGNALS, STOP_LINE_OUT, OGANIRU_STOP_LINES, OGANIRU_PILLARS, OGANIRU_BILLBOARDS, OGANIRU_SOLIDS, OGANIRU_WALLS, oganiruBlocked, oganiruSurface, oganiruOnDeck, oganiruTar, oganiruStructureAt, oganiruTallAt, oganiruHold, OGANIRU_SIGNS, OGANIRU_MAP_LABELS, OGANIRU_TRAFFIC };
 })();
 
 __modules["sim/zones/atani-town.js"] = (function () {
@@ -7091,9 +7345,10 @@ const { houseDoor, houseBench } = __modules["sim/layout.js"];
 const { kekeLook, busLook, footprintBox } = __modules["sim/vehicle-looks.js"];
 const { BRIDGE, OUTSKIRT_COLLIDERS, OUTSKIRT_BUILDING_COLLIDERS, onOutskirts, outskirtsGroundY } = __modules["sim/zones/atani-outskirts.js"];
 const { ZONE_BILLBOARDS } = __modules["sim/zones/atani-billboards.js"];
-const { CITY_BUILDINGS, CITY_COLLIDERS, CITY_FURNITURE, PAVEMENTS, BOULEVARD, LAWN, cityGroundY } = __modules["sim/zones/atani-city.js"];
+const { basesOf } = __modules["sim/billboards.js"];
+const { CITY_BUILDINGS, CITY_COLLIDERS, CITY_FURNITURE, PAVEMENTS, LANDINGS, BOULEVARD, LAWN, CITY_AREA, cityGroundY } = __modules["sim/zones/atani-city.js"];
 
-const { POWERBIKE, POWERBIKE_COLLIDERS } = __modules["sim/zones/atani-powerbike.js"];
+const { POWERBIKE, POWERBIKE_COLLIDERS, powerbikeGroundY } = __modules["sim/zones/atani-powerbike.js"];
 
 const { CARSHOW_COLLIDERS } = __modules["sim/zones/asaba-carshow.js"];
 
@@ -7102,11 +7357,12 @@ const { SPORTS_COLLIDERS } = __modules["sim/zones/asaba-sports.js"];
 const { SUPPLIED_VEHICLE_COLLIDERS } = __modules["sim/zones/supplied-vehicles.js"];
 
 const { TOWN_TREES } = __modules["sim/zones/atani-trees.js"];
-const { TOWER_COLLIDERS, TOWER_BOXES, standsAt } = __modules["sim/zones/town-buildings.js"];
+const { TOWER_COLLIDERS, TOWER_BOXES, TOWN_TOWERS, standsAt } = __modules["sim/zones/town-buildings.js"];
+const { TOWN_LOW_TOPS } = __modules["sim/zones/town-footprints.js"];
 const { openClosures, closureColliders, edgeFences, fenceColliders, closureWings } = __modules["sim/zones/closures.js"];
 const { OGANIRU_CLOSURES, OGANIRU_EDGE_LINES, onOganiru, nearOganiru, oganiruGroundY, oganiruSurface, oganiruOnDeck, oganiruBlocked, oganiruDecksAt, oganiruStructureAt } = __modules["sim/zones/oganiru.js"];
 
-const { HABITATION, onUpriver, onHabitation, habitationGroundY, habitationStep, HABITATION_COLLIDERS, habitationRootAt, habitationRailsAt } = __modules["sim/zones/habitation.js"];
+const { HABITATION, onUpriver, onHabitation, habitationGroundY, habitationStep, HABITATION_COLLIDERS, habitationRootAt, habitationRailsAt, upriverTop } = __modules["sim/zones/habitation.js"];
 
 
 const { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } = __modules["sim/zones/atani-town.js"];
@@ -7585,9 +7841,38 @@ function zoneShedWalls(s) {
   return walls;
 }
 
+const POST_CLEAR = 1.3;
+function compoundPostsAt(b) {
+  if (b.kind === 'church' || !b.veranda || !b.frame) return [];
+  const f = b.frame, posts = Math.max(2, Math.round(f.length / 5) + 1), out = [];
+  const doors = (b.doors || []).map((d) => ({ u: (d.x - f.ox) * f.ax + (d.z - f.oz) * f.az, v: (d.x - f.ox) * f.nx + (d.z - f.oz) * f.nz })).filter((d) => Math.abs(d.v) < 0.5);
+  for (let i = 0; i < posts; i += 1) {
+    const u = 0.2 + (i * (f.length - 0.4)) / (posts - 1), v = -2.05;
+    if (doors.some((d) => Math.abs(d.u - u) < POST_CLEAR)) continue;
+    const x = f.ox + f.ax * u + f.nx * v, z = f.oz + f.az * u + f.nz * v;
+    if (ZONE_SERVICES.some((s) => Math.hypot(s.x - x, s.z - z) < POST_CLEAR)) continue;
+    out.push([x, z]);
+  }
+  return out;
+}
+function verandaPostsAt(b) {
+  const dir = b.door === 's' ? 1 : -1, front = b.z + (dir * b.d) / 2, depth = 2.6, vw = Math.min(b.w, b.kind === 'home' ? 5 : b.w);
+  const posts = Math.max(2, Math.round(vw / 4.5) + 1), out = [];
+  for (let i = 0; i < posts; i += 1) {
+    const px = b.x - vw / 2 + 0.3 + (i * (vw - 0.6)) / (posts - 1);
+    const pz = front + dir * (depth - 0.25);
+    if (Math.abs(px - b.x) < POST_CLEAR || ZONE_SERVICES.some((s) => Math.hypot(s.x - px, s.z - pz) < POST_CLEAR)) continue;
+    out.push([px, pz]);
+  }
+  return out;
+}
+const compoundPosts = (b) => compoundPostsAt(b).map(([x, z]) => boxOf(x, z, 0.15, 0.15));
+const verandaPosts = (b) => verandaPostsAt(b).map(([x, z]) => boxOf(x, z, 0.16, 0.16));
+
 function buildFixedColliders() {
   const boxes = [];
   for (const b of ZONE_BUILDINGS) if (b.kind !== 'tower') boxes.push(boxOf(b.x, b.z, b.w / 2, b.d / 2));
+  for (const b of ZONE_BUILDINGS) if (b.kind !== 'tower' && b.kind !== 'city' && b.kind !== 'showroom') boxes.push(...verandaPosts(b));
   boxes.push(...CITY_COLLIDERS, ...POWERBIKE_COLLIDERS);
   for (const s of ZONE_STALLS) boxes.push({ x0: s.x - 1.5, x1: s.x + 1.5, z0: s.z - 0.9, z1: s.z + 0.9 });
   for (const m of ZONE_MOULD_STATIONS) boxes.push({ x0: m.x - 0.7, x1: m.x + 0.7, z0: m.z - 0.6, z1: m.z + 0.6 });
@@ -7598,6 +7883,8 @@ function buildFixedColliders() {
   const sh = ZONE_PROPS.shelter;
   boxes.push({ x0: sh.x - 6, x1: sh.x + 6, z0: sh.z - 2.5, z1: sh.z + 2.5 });   // motor park shelter posts
   boxes.push({ x0: -64, x1: -50, z0: -196, z1: -176 });                          // cured block stacks
+  boxes.push({ x0: ZONE_PROPS.yardApron.x - 0.4, x1: ZONE_PROPS.yardApron.x + 1.9, z0: ZONE_PROPS.yardApron.z - 0.25, z1: ZONE_PROPS.yardApron.z + 0.25 });
+  for (const c of ZONE_COMPOUNDS) for (const y of c.yard) if (y.kind === 'lawn') for (const z of [y.z0, y.z1]) boxes.push({ x0: y.x0, x1: y.x1, z0: z - 0.25, z1: z + 0.25, barrier: true });
   for (const h of ZONE_HOUSES) if (!h.tower) { if (h.model) { const b = boxOf(h.x, h.z, h.w / 2, h.d / 2); boxes.push(...standsAt(h.id, b.x0, b.z0, b.x1, b.z1)); } else boxes.push(boxOf(h.x, h.z, h.w / 2, h.d / 2)); }
   boxes.push(...TOWER_COLLIDERS);                                                // the owner's towers (town-buildings.js)
   for (const s of ZONE_SHEDS) boxes.push(...zoneShedWalls(s));
@@ -7608,6 +7895,7 @@ function buildFixedColliders() {
       for (const item of b.items) if (item.solid) boxes.push(boxOf(item.x, item.z, item.sx / 2, item.sz / 2));
       if (b.tower) boxes.push({ x0: b.tower.x0, x1: b.tower.x1, z0: b.tower.z0, z1: b.tower.z1 });
       if (b.apse) boxes.push({ ...b.apse });
+      boxes.push(...compoundPosts(b));
     }
     for (const y of c.yard) {
       if (YARD_SOLIDS[y.kind]) boxes.push(boxOf(y.x, y.z, ...YARD_SOLIDS[y.kind]));
@@ -7935,7 +8223,117 @@ const ZONE_TREES = Object.freeze(TOWN_TREES.filter((t) => !underBridge(t) && !in
 
 
 const inHabitation = (x, z) => x > HABITATION.bounds.x0 - 6 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1;
-const zoneGroundY = (x, z) => (inHabitation(x, z) && !(onUpriver(x, z) && !onHabitation(x, z)) ? habitationGroundY(x, z) : cityGroundY(x, z) || outskirtsGroundY(x, z) || oganiruGroundY(x, z));
+const ROAD_TOPS = Object.freeze({ asphalt: 0.08, laterite: 0.06, shoulder: 0.04, shoulderWidth: 1.2, city: 0.08, crown: 0.05, crownFrom: -35, crownTo: 108 });
+const DRAWN_ROADS = ZONE_ROADS.filter((r) => r.id !== 'market');
+const ROADS_BOX = (() => { const b = { x0: Infinity, z0: Infinity, x1: -Infinity, z1: -Infinity }; for (const r of DRAWN_ROADS) { b.x0 = Math.min(b.x0, r.x0 - 2); b.z0 = Math.min(b.z0, r.z0 - 2); b.x1 = Math.max(b.x1, r.x1 + 2); b.z1 = Math.max(b.z1, r.z1 + 2); } return Object.freeze(b); })();
+function townRoadTop(x, z) {
+  if (x < ROADS_BOX.x0 || x > ROADS_BOX.x1 || z < ROADS_BOX.z0 || z > ROADS_BOX.z1) return 0;
+  let top = 0;
+  for (const r of DRAWN_ROADS) {
+    if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) { top = Math.max(top, r.surface === 'asphalt' ? ROAD_TOPS.asphalt : ROAD_TOPS.laterite); continue; }
+    if (r.surface !== 'asphalt' || top >= ROAD_TOPS.shoulder) continue;
+    const along = r.x1 - r.x0 > r.z1 - r.z0, sx = along ? 0 : ROAD_TOPS.shoulderWidth, sz = along ? ROAD_TOPS.shoulderWidth : 0;
+    if (x > r.x0 - sx && x < r.x1 + sx && z > r.z0 - sz && z < r.z1 + sz) top = ROAD_TOPS.shoulder;
+  }
+  return top;
+}
+const SHOWROOM_FRONTS = ZONE_BUILDINGS.filter((b) => b.kind === 'showroom').flatMap((b) => {
+  const dir = b.door === 's' ? 1 : -1, front = b.z + (dir * b.d) / 2, at = (w, d, along, y) => Object.freeze({ x0: b.x - w / 2, x1: b.x + w / 2, z0: front + dir * along - d / 2, z1: front + dir * along + d / 2, y });
+  return [
+    Object.freeze({ x0: b.x - b.w / 2 - 0.7, x1: b.x + b.w / 2 + 0.7, z0: b.z - b.d / 2 - 0.7, z1: b.z + b.d / 2 + 0.7, y: 0.5 }),
+    at(5.2, 1.0, 1.15, 0.33), at(5.8, 1.0, 1.75, 0.165), at(7, 6.2, 4.4, 0.06),
+  ];
+});
+const VERANDAS = Object.freeze([...SHOWROOM_FRONTS, ...ZONE_BUILDINGS.filter((b) => b.kind !== 'city' && b.kind !== 'showroom' && b.kind !== 'tower').flatMap((b) => {
+  const dir = b.door === 's' ? 1 : -1, front = b.z + (dir * b.d) / 2, depth = 2.6, vw = Math.min(b.w, b.kind === 'home' ? 5 : b.w);
+  const step = front + dir * (depth + 0.22);
+  return [
+    Object.freeze({ x0: b.x - vw / 2, x1: b.x + vw / 2, z0: Math.min(front, front + dir * depth), z1: Math.max(front, front + dir * depth), y: 0.24 }),
+    Object.freeze({ x0: b.x - 0.9, x1: b.x + 0.9, z0: step - 0.225, z1: step + 0.225, y: 0.12 }),
+  ];
+})]);
+const VERANDA_INDEX = indexBoxes(VERANDAS);
+function verandaTop(x, z) {
+  const list = VERANDA_INDEX.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL));
+  if (!list) return 0;
+  let top = 0;
+  for (const v of list) if (x > v.x0 && x < v.x1 && z > v.z0 && z < v.z1 && v.y > top) top = v.y;
+  return top;
+}
+const inCityArea = (x, z) => x >= CITY_AREA.x0 && x <= CITY_AREA.x1 && z >= CITY_AREA.z0 && z <= CITY_AREA.z1;
+const inAny = (list, x, z) => list.some((b) => x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1);
+function cityTop(x, z) {
+  if (inAny(PAVEMENTS, x, z)) return ROAD_TOPS.city + cityGroundY(x, z);
+  if (z > ROAD_TOPS.crownFrom && z < ROAD_TOPS.crownTo && x >= BOULEVARD.x0 && x <= BOULEVARD.x1) return ROAD_TOPS.city + ROAD_TOPS.crown * Math.max(0, 1 - (x / BOULEVARD.x1) ** 2);
+  if (inAny(LANDINGS, x, z)) return ROAD_TOPS.city;
+  return null;
+}
+const COMPOUND_TOPS = Object.freeze({ floor: 0.04, veranda: 0.035, dais: 0.1, daisStep: 0.05, yard: 0.03, pitch: 0.026 });
+const COMPOUND_SURFACES = Object.freeze(ZONE_COMPOUNDS.flatMap((c) => [
+  ...c.buildings.flatMap((b) => [
+    { x0: b.x0 - 0.05, x1: b.x1 + 0.05, z0: b.z0 - 0.05, z1: b.z1 + 0.05, y: COMPOUND_TOPS.floor },
+    ...(b.veranda ? [{ x0: b.veranda.x0, x1: b.veranda.x1, z0: b.veranda.z0, z1: b.veranda.z1, y: COMPOUND_TOPS.veranda }] : []),
+    ...b.items.filter((i) => i.kind === 'dais').flatMap((i) => [
+      { x0: i.x - i.sx / 2 - 0.15, x1: i.x + i.sx / 2 + 0.15, z0: i.z - i.sz / 2, z1: i.z + i.sz / 2, y: COMPOUND_TOPS.daisStep },
+      { x0: i.x - i.sx / 2, x1: i.x + i.sx / 2, z0: i.z - i.sz / 2, z1: i.z + i.sz / 2, y: COMPOUND_TOPS.dais },
+    ]),
+  ]),
+  ...c.yard.filter((y) => y.kind === 'parking' || y.kind === 'assembly' || y.kind === 'lawn' || y.kind === 'pitch').map((y) => ({ x0: y.x0, x1: y.x1, z0: y.z0, z1: y.z1, y: y.kind === 'pitch' ? COMPOUND_TOPS.pitch : COMPOUND_TOPS.yard })),
+]).map(Object.freeze));
+const COMPOUND_INDEX = indexBoxes(COMPOUND_SURFACES);
+function compoundTop(x, z) {
+  const list = COMPOUND_INDEX.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL));
+  if (!list) return 0;
+  let top = 0;
+  for (const v of list) if (x > v.x0 && x < v.x1 && z > v.z0 && z < v.z1 && v.y > top) top = v.y;
+  return top;
+}
+const LOW_CELL = 4;
+const LOW_TOPS = (() => {
+  const cells = new Map();
+  for (const e of [...TOWN_TOWERS, ...ZONE_HOUSES.filter((h) => h.model && !h.tower)]) {
+    const tris = TOWN_LOW_TOPS[e.model];
+    if (!tris) continue;
+    const c = Math.cos(e.heading), s = Math.sin(e.heading);
+    for (let i = 0; i < tris.length; i += 9) {
+      const p = [0, 1, 2].map((j) => { const lx = tris[i + j * 3] / 1e4, ly = tris[i + j * 3 + 1] / 1e4, lz = tris[i + j * 3 + 2] / 1e4; return [e.x + e.k * (lx * c + lz * s), e.k * ly, e.z + e.k * (-lx * s + lz * c)]; });
+      const ys = p.map((q) => q[1]);
+      if (Math.max(...ys) < 0.012 || Math.min(...ys) > 0.21) continue;
+      const rec = Object.freeze(p.flat());
+      const xs = p.map((q) => q[0]), zs = p.map((q) => q[2]);
+      for (let a = Math.floor(Math.min(...xs) / LOW_CELL); a <= Math.floor(Math.max(...xs) / LOW_CELL); a += 1) for (let b = Math.floor(Math.min(...zs) / LOW_CELL); b <= Math.floor(Math.max(...zs) / LOW_CELL); b += 1) {
+        const key = a * 4096 + b; const list = cells.get(key); if (list) list.push(rec); else cells.set(key, [rec]);
+      }
+    }
+  }
+  return cells;
+})();
+function lowTop(x, z) {
+  const list = LOW_TOPS.get(Math.floor(x / LOW_CELL) * 4096 + Math.floor(z / LOW_CELL));
+  if (!list) return 0;
+  let top = 0;
+  for (const [ax, ay, az, bx, by, bz, cx, cy, cz] of list) {
+    const d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+    if (Math.abs(d) < 1e-12) continue;
+    const l1 = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / d, l2 = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / d, l3 = 1 - l1 - l2;
+    if (l1 < -1e-6 || l2 < -1e-6 || l3 < -1e-6) continue;
+    top = Math.max(top, l1 * ay + l2 * by + l3 * cy);
+  }
+  return top;
+}
+const JETTY_TOP = 0.065;
+function heapTop(x, z) {
+  let top = 0;
+  for (const [hx, hz, r, h] of ZONE_PROPS.sandHeaps) { const d = Math.hypot(x - hx, z - hz); if (d < r) top = Math.max(top, h * (1 - d / r)); }
+  if (x > ZONE_JETTY.x0 && x < ZONE_JETTY.x1 && z > ZONE_JETTY.z0 && z < ZONE_JETTY.z1) top = Math.max(top, JETTY_TOP);
+  return top;
+}
+const townGround = (x, z) => Math.max(townRoadTop(x, z), verandaTop(x, z), compoundTop(x, z), powerbikeGroundY(x, z), upriverTop(x, z), heapTop(x, z), lowTop(x, z), outskirtsGroundY(x, z)) || oganiruGroundY(x, z);
+function cityGround(x, z) {
+  const c = cityTop(x, z);
+  return c === null ? townGround(x, z) : Math.max(c, verandaTop(x, z));
+}
+const zoneGroundY = (x, z) => (inHabitation(x, z) && !(onUpriver(x, z) && !onHabitation(x, z)) ? habitationGroundY(x, z) : inCityArea(x, z) ? cityGround(x, z) : townGround(x, z));
 const inOganiru = (x, z) => nearOganiru(x, z, 20);
 function zoneLevel(x, z, y) {
   const g = zoneGroundY(x, z);
@@ -7949,7 +8347,14 @@ let lampBlocker = null;
 const setLampBlocker = (fn) => { lampBlocker = fn; };
 const zoneStep = (ax, az, bx, bz) => (inHabitation(ax, az) || inHabitation(bx, bz) ? habitationStep(ax, az, bx, bz) : true);
 
-const BILLBOARD_COLLIDERS = ZONE_BILLBOARDS.flatMap((b) => b.feet.map((f) => Object.freeze({ x0: f[0], z0: f[1], x1: f[2], z1: f[3], barrier: false, billboard: b.id })));
+const BILLBOARD_COLLIDERS = ZONE_BILLBOARDS.flatMap((b) => [
+  ...b.feet.map((f) => Object.freeze({ x0: f[0], z0: f[1], x1: f[2], z1: f[3], barrier: false, billboard: b.id })),
+  ...basesOf(b.type, b.scale).map((q) => {
+    const c = Math.cos(b.heading), s = Math.sin(b.heading);
+    const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([i, k]) => { const lx = q.x + i * q.half, lz = q.z + k * q.half; return [b.x + lx * c + lz * s, b.z - lx * s + lz * c]; });
+    return Object.freeze({ x0: Math.min(...corners.map((p) => p[0])), z0: Math.min(...corners.map((p) => p[1])), x1: Math.max(...corners.map((p) => p[0])), z1: Math.max(...corners.map((p) => p[1])), barrier: false, billboard: b.id, base: true });
+  }),
+]);
 
 const ZONE_CLOSURES = Object.freeze([...openClosures(), ...OGANIRU_CLOSURES]);
 const onLand = (x, z) => onGround(x, z) || onOutskirts(x, z) || onUpriver(x, z) || onHabitation(x, z) || onOganiru(x, z);
@@ -8013,7 +8418,7 @@ function zoneBlockKind(x, z, extra = [], radius = 0.4, y = undefined) {
   return kind;
 }
 
-return { ...__modules["sim/zones/atani-city.js"], ...__modules["sim/zones/atani-powerbike.js"], ...__modules["sim/zones/asaba-carshow.js"], ...__modules["sim/zones/asaba-sports.js"], ...__modules["sim/zones/supplied-vehicles.js"], ...__modules["sim/zones/oganiru.js"], ...__modules["sim/zones/habitation.js"], ...__modules["sim/zones/town-buildings.js"], ...__modules["sim/zones/atani-outskirts.js"], ...__modules["sim/zones/closures.js"], ZONE, zoneToGeo, zoneShoreZ, ZONE_JETTY, zoneSwimmable, zoneToWater, ZONE_ROADS, ZONE_BUILDINGS, ZONE_HOUSES, ZONE_SHEDS, ZONE_COMPOUNDS, ZONE_FARMLAND, ZONE_RANKS, ZONE_STOPS, ZONE_SOUNDS, ZONE_NOTICES, ZONE_SHOPS, zoneShop, zoneBuilding, ZONE_SERVICES, zoneService, ZONE_MOULD_STATIONS, ZONE_BENCHES, ZONE_STALLS, ZONE_CAST, ZONE_VEHICLES, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, ZONE_LAMPS, ZONE_PROPS, ZONING, ZONE_PARCELS, zoneParcel, zoneParcelByPlot, zoneSiteLayout, ZONE_ALLOCATIONS, ZONE_PLACES, ZONE_RESIDENTS, ZONE_FORMER_RESIDENTS, zoneResident, ZONE_ACCOUNT_HOLDERS, zoneAccountHolder, ZONE_TEXT, ZONE_POPULATION, zoneShedWalls, ZONE_NODES, ZONE_EDGES, ZONE_SPOTS, ZONE_ROOMS, ZONE_HOMES, ZONE_VENUES, ZONE_GRAPH_PROBLEMS, ZONE_PATROLS, zoneRoomAt, ZONE_TREES, zoneGroundY, zoneLevel, zoneSurfaceY, zoneDeckOver, zoneDeckHeights, setLampBlocker, zoneStep, ZONE_CLOSURES, ZONE_CLOSURE_WINGS, ZONE_EDGE_FENCES, ZONE_COLLIDERS, zoneSolid, zoneOnGround, zoneWalkable, zoneBlockKind };
+return { ...__modules["sim/zones/atani-city.js"], ...__modules["sim/zones/atani-powerbike.js"], ...__modules["sim/zones/asaba-carshow.js"], ...__modules["sim/zones/asaba-sports.js"], ...__modules["sim/zones/supplied-vehicles.js"], ...__modules["sim/zones/oganiru.js"], ...__modules["sim/zones/habitation.js"], ...__modules["sim/zones/town-buildings.js"], ...__modules["sim/zones/atani-outskirts.js"], ...__modules["sim/zones/closures.js"], ZONE, zoneToGeo, zoneShoreZ, ZONE_JETTY, zoneSwimmable, zoneToWater, ZONE_ROADS, ZONE_BUILDINGS, ZONE_HOUSES, ZONE_SHEDS, ZONE_COMPOUNDS, ZONE_FARMLAND, ZONE_RANKS, ZONE_STOPS, ZONE_SOUNDS, ZONE_NOTICES, ZONE_SHOPS, zoneShop, zoneBuilding, ZONE_SERVICES, zoneService, ZONE_MOULD_STATIONS, ZONE_BENCHES, ZONE_STALLS, ZONE_CAST, ZONE_VEHICLES, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, ZONE_LAMPS, ZONE_PROPS, ZONING, ZONE_PARCELS, zoneParcel, zoneParcelByPlot, zoneSiteLayout, ZONE_ALLOCATIONS, ZONE_PLACES, ZONE_RESIDENTS, ZONE_FORMER_RESIDENTS, zoneResident, ZONE_ACCOUNT_HOLDERS, zoneAccountHolder, ZONE_TEXT, ZONE_POPULATION, zoneShedWalls, compoundPostsAt, verandaPostsAt, ZONE_NODES, ZONE_EDGES, ZONE_SPOTS, ZONE_ROOMS, ZONE_HOMES, ZONE_VENUES, ZONE_GRAPH_PROBLEMS, ZONE_PATROLS, zoneRoomAt, ZONE_TREES, ROAD_TOPS, townRoadTop, VERANDAS, COMPOUND_TOPS, COMPOUND_SURFACES, zoneGroundY, zoneLevel, zoneSurfaceY, zoneDeckOver, zoneDeckHeights, setLampBlocker, zoneStep, ZONE_CLOSURES, ZONE_CLOSURE_WINGS, ZONE_EDGE_FENCES, ZONE_COLLIDERS, zoneSolid, zoneOnGround, zoneWalkable, zoneBlockKind };
 })();
 
 __modules["sim/zone.js"] = (function () {
@@ -11971,7 +12376,7 @@ return { OKADA_RULES, MOTO, motoSpeedAt, okadaFare, createOkada };
 })();
 
 __modules["sim/city-walks.js"] = (function () {
-const { OGANIRU, OGANIRU_ROADS, OGANIRU_KERBED, OGANIRU_JUNCTIONS, OGANIRU_DECKS, OGANIRU_TOWERS, towerFront, OGANIRU_ROUNDABOUTS, OGANIRU_PLACES, OGANIRU_CUTTING, EXPRESSWAY_Z, expresswayY, oganiruGroundY, onOganiru, roadWidthAt, zoneWalkable } = __modules["sim/zone.js"];
+const { OGANIRU, OGANIRU_ROADS, OGANIRU_KERBED, OGANIRU_JUNCTIONS, OGANIRU_DECKS, OGANIRU_TOWERS, towerFront, OGANIRU_ROUNDABOUTS, OGANIRU_PLACES, OGANIRU_CUTTING, EXPRESSWAY_Z, expresswayY, oganiruGroundY, onOganiru, roadWidthAt, zoneWalkable, inMouth } = __modules["sim/zone.js"];
 const { walkLevel } = __modules["sim/levels.js"];
 
 const KERB = OGANIRU.kerb;
@@ -12095,7 +12500,7 @@ function* build() {
     let prev = -1, first = -1;
     for (let a = 0; a < 360; a += 10) {
       const x = rb.x + R * Math.sin((a * Math.PI) / 180), z = rb.z + R * Math.cos((a * Math.PI) / 180);
-      if (oganiruGroundY(x, z) < KERB - 0.02) { prev = -1; continue; }
+      if (inMouth(rb, x, z) || oganiruGroundY(x, z) < KERB - 0.02) { prev = -1; continue; }
       const k = add(x, z, KERB, true, 'walk');
       if (prev < 0) { run += 1; ends.push(k); }
       runOf[k] = run;
@@ -21583,6 +21988,12 @@ async function restoreGeometry() {
   return n;
 }
 const geometryKeptAside = () => sentAway.size;
+async function numbersOf(attribute) {
+  if (!attribute) return null;
+  if (attribute.array) return attribute.array;
+  const kept = sentAway.get(attribute);
+  return kept ? new kept.type(await kept.blob.arrayBuffer()) : null;
+}
 const ownerOf = new WeakMap();       // attribute -> its geometry
 function letGoOnceSent(geometry) {
   const kept = Object.values(geometry.attributes);
@@ -22194,7 +22605,7 @@ function buildingKit() {
   return buildingMaterials;
 }
 
-return { linear, place, restoreGeometry, geometryKeptAside, letGoOnceSent, restMesh, wakeMesh, settleMesh, isResting, restState, Batch, Chunked, createSight, gableGeometry, lathe, limb, nameTexture, textTexture, noise, smoothNoise, facadeTexture, grainTexture, grassTexture, corrugatedTextures, rippleNormalTexture, plasterNormalTexture, clothTexture, faceTexture, shadeOf, addPitchedRoof, addWindow, setLite, isLite, surface, buildingKit };
+return { linear, place, restoreGeometry, geometryKeptAside, numbersOf, letGoOnceSent, restMesh, wakeMesh, settleMesh, isResting, restState, Batch, Chunked, createSight, gableGeometry, lathe, limb, nameTexture, textTexture, noise, smoothNoise, facadeTexture, grainTexture, grassTexture, corrugatedTextures, rippleNormalTexture, plasterNormalTexture, clothTexture, faceTexture, shadeOf, addPitchedRoof, addWindow, setLite, isLite, surface, buildingKit };
 })();
 
 __modules["client/render-vehicles.js"] = (function () {
@@ -22433,7 +22844,45 @@ const vehicleTriangles = (ids, lod = 0) => (Array.isArray(ids) ? ids : [ids]).fi
 return { VEHICLE_SLOTS, vehicleMeta, vehicleHas, vehicleParts, VEHICLE_GROUPS, vehiclePart, vehicleGeometry, vehicleTriangles };
 })();
 
+__modules["client/marks.js"] = (function () {
+const DRAW = Object.freeze({ marks: 1, standing: 2 });
+
+function markMaterial(material, { add = false } = {}) {
+  material.transparent = false;
+  material.depthWrite = false;
+  if (add) {
+    material.blending = THREE.AdditiveBlending;
+  } else if (material.blending !== THREE.CustomBlending) {
+    material.blending = THREE.CustomBlending;
+    material.blendEquation = THREE.AddEquation;
+    material.blendSrc = THREE.OneFactor;
+    material.blendDst = THREE.OneMinusSrcAlphaFactor;
+    material.premultipliedAlpha = true;
+  }
+  material.needsUpdate = true;
+  return material;
+}
+
+function asMark(object) {
+  object.renderOrder = DRAW.marks;
+  object.userData.mark = true;
+  return object;
+}
+
+function standing(object) {
+  if (!object) return object;
+  object.traverse((o) => {
+    if ((o.isMesh || o.isPoints || o.isLine || o.isSprite) && !o.userData.mark && o.renderOrder < DRAW.standing) o.renderOrder = DRAW.standing;
+  });
+  return object;
+}
+
+return { DRAW, markMaterial, asMark, standing };
+})();
+
 __modules["client/soft-patch.js"] = (function () {
+
+const { markMaterial, asMark } = __modules["client/marks.js"];
 
 let material = null, geometry = null, picture = null;
 const PATCH = Object.freeze({ alone: 0.32, withSun: 0.17 });
@@ -22453,13 +22902,13 @@ function patchPicture() {
 }
 function shared() {
   if (!material) {
-    material = new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: PATCH.alone, depthWrite: false });
+    material = markMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: PATCH.alone, depthWrite: false }));
     geometry = new THREE.PlaneGeometry(1, 1); geometry.rotateX(-Math.PI / 2);
   }
   return { material, geometry };
 }
 
-function softPatch(group, { length, width, y = 0.035 } = {}) {
+function softPatch(group, { length, width, y = 0.012 } = {}) {
   if (!group || !(length > 0) || !(width > 0)) return null;
   const s = shared();
   const mesh = new THREE.Mesh(s.geometry, s.material);
@@ -22467,7 +22916,7 @@ function softPatch(group, { length, width, y = 0.035 } = {}) {
   mesh.scale.set(width * 1.25, 1, length * 1.15);
   mesh.position.y = y;
   mesh.castShadow = false; mesh.receiveShadow = false;
-  mesh.renderOrder = -1;
+  asMark(mesh);
   group.add(mesh);
   return mesh;
 }
@@ -22492,6 +22941,7 @@ const { VEHICLE_SLOTS, vehicleMeta, vehicleGeometry, vehicleTriangles } = __modu
 const { resolveLook } = __modules["sim/vehicle-looks.js"];
 const { softPatchUnder } = __modules["client/soft-patch.js"];
 const { letPaintedGo } = __modules["client/painted.js"];
+const { standing } = __modules["client/marks.js"];
 
 const SLOT = Object.fromEntries(VEHICLE_SLOTS.map((name, i) => [name, i]));
 const N = VEHICLE_SLOTS.length;
@@ -22857,6 +23307,7 @@ function makeVehicleModel(look, { plate = null, region = '', level = 0, shadows 
       for (const e of extras) e.geometry.dispose();
     },
   };
+  standing(group);
   api.setLevel(level);
   shared.live.add(api);
   return api;
@@ -23734,6 +24185,7 @@ function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
   const z0 = -35, z1 = 108;                                 // between the junctions (the junctions are the cross roads' own)
   B.road.add(groundStrip(BOULEVARD.x0, z0, BOULEVARD.x1, z1, (x) => crownY(x), 0.5), ident, 0xffffff);
   const mark = (x0, zA, x1, zB, hex) => {
+    if (x1 - x0 > 0.6) { const n = Math.ceil((x1 - x0) / 0.5); for (let k = 0; k < n; k += 1) mark(x0 + ((x1 - x0) * k) / n, zA, x0 + ((x1 - x0) * (k + 1)) / n, zB, hex); return; }
     const x = (x0 + x1) / 2, z = (zA + zB) / 2, inBlock = z > z0 && z < z1 && Math.abs(x) <= BOULEVARD.x1;
     const y = inBlock ? crownY(x) : ROAD_TOP;
     B.paint.box(x1 - x0, 0.006, zB - zA, place(x, y + 0.004, z), hex);
@@ -23782,8 +24234,10 @@ function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
         if (PAVEMENTS.some((q) => q !== p && ox > q.x0 && ox < q.x1 && oz > q.z0 && oz < q.z1)) continue;
         const h = groundTop(x, z) + 0.008;
         const shade = 0.92 + hash(i, e.at) * 0.1;
-        if (e.axis === 'z') B.concrete.box(0.2, h, b - a, place(x, h / 2, m), 0xc9c5bc, shade);
-        else B.concrete.box(b - a, h, 0.2, place(m, h / 2, z), 0xc9c5bc, shade);
+        const [xa, za, xb, zb] = e.axis === 'z' ? [x, a, x, b] : [a, z, b, z];
+        const tip = Math.atan2(groundTop(xb, zb) - groundTop(xa, za), b - a);
+        if (e.axis === 'z') B.concrete.box(0.2, h, b - a, place(x, h / 2, m, 0, 1, 1, 1, -tip, 0), 0xc9c5bc, shade);
+        else B.concrete.box(b - a, h, 0.2, place(m, h / 2, z, 0, 1, 1, 1, 0, tip), 0xc9c5bc, shade);
       }
     }
   }
@@ -24221,7 +24675,7 @@ return { setRiver, riverState, riverShader, createRiverMirror };
 
 __modules["client/render-world.js"] = (function () {
 
-const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, zoneShoreZ, zoneWalkable, oganiruAway, POWERBIKE , HABITATION, RIVER_HEAD, RIVER_FAR, UPRIVER } = __modules["sim/zone.js"];
+const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, zoneShoreZ, zoneWalkable, oganiruAway, POWERBIKE , HABITATION, RIVER_HEAD, RIVER_FAR, UPRIVER, CITY_AREA, verandaPostsAt } = __modules["sim/zone.js"];
 const { Batch, Chunked, createSight, place, linear, lathe, textTexture, noise, smoothNoise, grainTexture, grassTexture, rippleNormalTexture, shadeOf, addPitchedRoof, addWindow, buildingKit, surface, isLite } = __modules["client/render-kit.js"];
 const { addVehicle } = __modules["client/render-vehicles.js"];
 const { makeVehicleModel } = __modules["client/vehicle-models.js"];
@@ -24235,6 +24689,17 @@ const { riverShader } = __modules["client/river-water.js"];
 const mixOf = (a, b, k) => new THREE.Color(a).lerp(new THREE.Color(b), k).getHex();
 const onRoad = (x, z, pad = 0) => ZONE_ROADS.some((r) => x > r.x0 - pad && x < r.x1 + pad && z > r.z0 - pad && z < r.z1 + pad);
 const wornAt = (x, z) => { let busiest = 0; for (const [wx, wz, radius] of ZONE_PROPS.worn) busiest = Math.max(busiest, 1 - Math.hypot(x - wx, z - wz) / radius); return busiest; };
+function softGround(x, z) {
+  const b = ZONE.bounds;
+  if (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) return null;
+  if (onRoad(x, z) || (x > CITY_AREA.x0 && x < CITY_AREA.x1 && z > CITY_AREA.z0 && z < CITY_AREA.z1)) return null;
+  if (x > ZONE_JETTY.x0 - 0.5 && x < ZONE_JETTY.x1 + 0.5 && z > ZONE_JETTY.z0 - 0.5 && z < ZONE_JETTY.z1 + 0.5) return null;
+  const toShore = zoneShoreZ(x) - z;
+  if (toShore < 0.3) return null;
+  if (toShore < 14) return 'sand';
+  if (wornAt(x, z) * 1.7 - 0.2 > 0.55 || onRoad(x, z, 2.2)) return 'earth';
+  return null;
+}
 
 const HABITATION_EDGE = HABITATION.bounds.x0;
 function buildGround() {
@@ -24247,6 +24712,14 @@ function buildGround() {
   geometry.rotateX(-Math.PI / 2);
   geometry.translate((gx0 + gx1) / 2, 0, (b.minZ + b.maxZ) / 2);
   const position = geometry.attributes.position;
+  {
+    let J = 0;
+    for (let iy = 0; iy <= 160; iy += 1) if (Math.abs(position.getZ(iy * 171) - 150) < Math.abs(position.getZ(J * 171) - 150)) J = iy;
+    for (let ix = 0; ix <= 170; ix += 1) {
+      const delta = zoneShoreZ(position.getX(ix)) - position.getZ(J * 171 + ix);
+      for (let iy = Math.max(0, J - 3); iy <= Math.min(160, J + 3); iy += 1) position.setZ(iy * 171 + ix, position.getZ(iy * 171 + ix) + delta * (1 - Math.abs(iy - J) / 3));
+    }
+  }
   const colours = new Float32Array(position.count * 3);
   const grassA = linear(0x5f9440), grassB = linear(0x8cb655), dryGrass = linear(0xa9a85a), earth = linear(ZONE_PROPS.earth), sand = linear(0xe2d2a2), bed = linear(0x6b6a4c);
   const c = new THREE.Color();
@@ -24265,12 +24738,12 @@ function buildGround() {
     let y = 0;
     if (toShore < 0) { y = Math.max(-3.2, toShore * 0.16); c.lerp(bed, Math.min(1, -toShore / 10)); }
     const outside = Math.max(b.minX - x, x - b.maxX, b.minZ - z, 0);
-    if (outside > 0 && toShore > 0) y = Math.min(9, outside * 0.03) * smoothNoise(x / 60, z / 60);
+    if (outside > 0 && toShore > 0) y = Math.min(9, Math.max(0, outside - 2) * 0.03) * smoothNoise(x / 60, z / 60);
     if (x > b.maxX && toShore > 0) y *= Math.max(0, Math.min(1, (HABITATION_EDGE - x) / 40));
     {
       const off = (q) => Math.hypot(Math.max(q.x0 - x, 0, x - q.x1), Math.max(q.z0 - z, 0, z - q.z1));
       const near = Math.min(off(UPRIVER.road), off(UPRIVER.park));
-      if (near < 16 && y > -0.06) { const k = Math.max(0, Math.min(1, (near - 6) / 10)); y = -0.06 + (y + 0.06) * k * k * (3 - 2 * k); }
+      if (near < 16 && y > 0) { const k = Math.max(0, Math.min(1, (near - 6) / 10)); y *= k * k * (3 - 2 * k); }
     }
     if (x < b.minX - 6 && z > -650 && z < 140 && toShore > 0) y = -0.12;
     if ((z < b.minZ + 4 || outside > 0) && toShore > 0) { const away = oganiruAway(x, z); if (away < CITY_FLAT.rise && y > -0.12) { const k = Math.max(0, Math.min(1, (away - CITY_FLAT.flat) / (CITY_FLAT.rise - CITY_FLAT.flat))); y = -0.12 + (y + 0.12) * k * k * (3 - 2 * k); } }
@@ -24423,10 +24896,7 @@ function addBuilding(B, signs, b) {
   solid.box(1.8, 0.12, 0.45, place(b.x, 0.06, front + dir * (depth + 0.22)), 0x8d877b);
   roofs.box(vw + 0.7, 0.06, depth + 0.6, place(b.x, base + b.h * 0.8, front + (dir * depth) / 2, 0, 1, 1, 1, dir * 0.16, 0), b.roof, 0.92, 'plan');
   solid.box(vw + 0.2, 0.16, 0.16, place(b.x, base + b.h * 0.72 - 0.02, front + dir * (depth - 0.25)), 0xe4e0d4);
-  const posts = Math.max(2, Math.round(vw / 4.5) + 1);
-  for (let i = 0; i < posts; i += 1) {
-    const px = b.x - vw / 2 + 0.3 + (i * (vw - 0.6)) / (posts - 1);
-    const pz = front + dir * (depth - 0.25);
+  for (const [px, pz] of verandaPostsAt(b)) {
     solid.round(new THREE.CylinderGeometry(0.1, 0.12, b.h * 0.72 - 0.24, 12), place(px, 0.24 + (b.h * 0.72 - 0.24) / 2, pz), 0xeeeae0);
     solid.box(0.32, 0.14, 0.32, place(px, 0.31, pz), 0xd9d4c6);
     solid.box(0.28, 0.1, 0.28, place(px, base + b.h * 0.72 - 0.15, pz), 0xd9d4c6);
@@ -24727,7 +25197,7 @@ function buildWorld(scene) {
   return { glowMaterial, waterMaterial, water, roadMaterial: roadMesh.material, lampHeads, signs, showrooms, city, tick, setQuality, parkedVehicles, seeVehicles, see: (x, z, reach, far = reach) => { sight.look(x, z, reach, far); if (quality >= 3) for (const mesh of grass) mesh.visible = false; } };
 }
 
-return { addTree, CITY_FLAT, buildWorld };
+return { softGround, addTree, CITY_FLAT, buildWorld };
 })();
 
 __modules["client/program-ready.js"] = (function () {
@@ -24784,7 +25254,7 @@ return { programsReady };
 __modules["client/render-outskirts.js"] = (function () {
 
 const { programsReady } = __modules["client/program-ready.js"];
-const { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS, oganiruAway } = __modules["sim/zone.js"];
+const { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS, oganiruAway, bridgeDeckY } = __modules["sim/zone.js"];
 const { Chunked, createSight, place, linear, noise, smoothNoise, grassTexture, grainTexture, textTexture, surface, buildingKit } = __modules["client/render-kit.js"];
 const { addTree, CITY_FLAT } = __modules["client/render-world.js"];
 const { Foliage, foliageMaterials } = __modules["client/render-foliage.js"];
@@ -24810,8 +25280,9 @@ function buildGround() {
     c.copy(grassA).lerp(grassB, patch).lerp(dry, Math.max(0, smoothNoise(x / 55 + 9, z / 55) - 0.5) * 1.3);
     const far = away(x, z);
     if (z > -62 && z < -18) c.lerp(earth, 0.55 * Math.max(0, 1 - Math.abs(z + 40) / 22));
-    const rise = Math.max(0, Math.min(1, (far - 40) / 160)) * Math.max(0, Math.min(1, (-232 - x) / 60)) * Math.max(0, Math.min(1, (120 - z) / 60));
+    const rise = Math.max(0, Math.min(1, (far - 40) / 160)) * Math.max(0, Math.min(1, (ZONE.bounds.minX - 6 - x) / 60)) * Math.max(0, Math.min(1, (120 - z) / 60));
     let y = rise * (2 + smoothNoise(x / 90, z / 90) * 9);
+    if (x > ZONE.bounds.minX - 6) y = Math.min(y, -0.06);
     const city = oganiruAway(x, z);
     if (city < CITY_FLAT.rise) { const k = Math.max(0, Math.min(1, (city - CITY_FLAT.flat) / (CITY_FLAT.rise - CITY_FLAT.flat))); y = -0.02 + (y + 0.02) * k * k * (3 - 2 * k); }
     P.setY(i, y);
@@ -24832,14 +25303,14 @@ function addRoad(B, r) {
   B.roads.box(w + (along ? 0 : 2.6), 0.04, d + (along ? 2.6 : 0), place(cx, 0.02, cz), ZONE_PROPS.laterite, 0.95);
   B.roads.box(w, 0.06, d, place(cx, 0.05, cz), TAR);
   if (r.bays) {
-    for (let x = r.x0 + 3; x < r.x1 - 2; x += 2.6) for (const zz of [r.z0 + 3, r.z0 + 30, r.z0 + 52, r.z1 - 6]) B.paint.box(0.12, 0.02, 5, place(x, 0.085, zz), LINE);
+    for (let x = r.x0 + 3; x < r.x1 - 2; x += 2.6) for (const zz of [r.z0 + 3, r.z0 + 30, r.z0 + 52, r.z1 - 6]) B.paint.box(0.12, 0.01, 5, place(x, 0.085, zz), LINE);
     return;
   }
   const length = along ? w : d;
-  for (let s = 4; s < length - 4; s += 9) B.paint.box(along ? 3 : 0.16, 0.02, along ? 0.16 : 3, place(along ? r.x0 + s : cx, 0.085, along ? cz : r.z0 + s), LINE);
+  for (let s = 4; s < length - 4; s += 9) B.paint.box(along ? 3 : 0.16, 0.01, along ? 0.16 : 3, place(along ? r.x0 + s : cx, 0.085, along ? cz : r.z0 + s), LINE);
   if (r.edgeLines) for (const side of [-1, 1]) {
-    if (along) B.paint.box(w, 0.02, 0.14, place(cx, 0.084, cz + side * (d / 2 - 0.5)), LINE, 0.9);
-    else B.paint.box(0.14, 0.02, d, place(cx + side * (w / 2 - 0.5), 0.084, cz), LINE, 0.9);
+    if (along) B.paint.box(w, 0.01, 0.14, place(cx, 0.084, cz + side * (d / 2 - 0.5)), LINE, 0.9);
+    else B.paint.box(0.14, 0.01, d, place(cx + side * (w / 2 - 0.5), 0.084, cz), LINE, 0.9);
   }
 }
 
@@ -24870,12 +25341,12 @@ function addSign(B, s, signs) {
 
 function addBridge(B, heads) {
   const b = BRIDGE, cx = (b.x0 + b.x1) / 2, W = b.x1 - b.x0;
-  const Y = (z) => zoneGroundY(cx, z);
+  const Y = (z) => bridgeDeckY(z);
   const step = 3;
   for (let z = b.start; z < b.end - 0.01; z += step) {
     const z2 = Math.min(b.end, z + step), zm = (z + z2) / 2, y1 = Y(z), y2 = Y(z2), ym = (y1 + y2) / 2;
     const pitch = -Math.atan2(y2 - y1, z2 - z), len = Math.hypot(z2 - z, y2 - y1) + 0.04;
-    B.roads.box(b.roadway.x1 - b.roadway.x0, 0.06, len, place(cx, ym + 0.03, zm, 0, 1, 1, 1, pitch), TAR);
+    B.roads.box(b.roadway.x1 - b.roadway.x0, 0.08, len, place(cx, ym + 0.04, zm, 0, 1, 1, 1, pitch), TAR);
     for (const side of [-1, 1]) B.solid.box((W - (b.roadway.x1 - b.roadway.x0)) / 2, 0.22, len, place(cx + side * ((b.roadway.x1 - b.roadway.x0) / 2 + (W - (b.roadway.x1 - b.roadway.x0)) / 4), ym + 0.1, zm, 0, 1, 1, 1, pitch), CONCRETE);
     B.solid.box(W, 0.9, len, place(cx, ym - 0.45, zm, 0, 1, 1, 1, pitch), z < 150 ? CONCRETE : STEEL_DARK, 0.9);
     if (Math.floor(z / step) % 3 === 0) B.paint.box(0.16, 0.02, 2.4, place(cx, ym + 0.075, zm, 0, 1, 1, 1, pitch), LINE);
@@ -24936,7 +25407,7 @@ function addBridge(B, heads) {
     B.solid.box(W - 0.4, 1.2, 2.0, place(cx, deckBottom - 0.4, z), CONCRETE);
     B.solid.box(W - 5.4, 0.8, 1.2, place(cx, deckBottom - 3.4, z), CONCRETE_OLD);
   }
-  B.solid.box(W + 1, 1.6, 2, place(cx, BRIDGE.farBank - 0.6, BRIDGE.land + 1), CONCRETE_OLD);
+  B.solid.box(W + 1, 1.6, 2, place(cx, BRIDGE.farBank - 0.8, BRIDGE.land + 1), CONCRETE_OLD);
 }
 
 function addAirport(B, glass, signs, heads) {
@@ -24944,28 +25415,28 @@ function addAirport(B, glass, signs, heads) {
   const slab = (r, colour, y = 0.06) => B.roads.box(r.x1 - r.x0, 0.08, r.z1 - r.z0, place((r.x0 + r.x1) / 2, y, (r.z0 + r.z1) / 2), colour);
   const R = A.runway, rz = (R.z0 + R.z1) / 2;
   slab(R, 0x6b6b6e, 0.05);
-  for (let x = R.x0 + 60; x < R.x1 - 60; x += 30) B.paint.box(15, 0.02, 0.45, place(x + 7.5, 0.1, rz), LINE);
+  for (let x = R.x0 + 60; x < R.x1 - 60; x += 30) B.paint.box(15, 0.01, 0.45, place(x + 7.5, 0.095, rz), LINE);
   for (const [end, dir] of [[R.x0, 1], [R.x1, -1]]) {
-    for (let k = -7; k <= 7; k += 1) if (k) B.paint.box(30, 0.02, 1.4, place(end + dir * 22, 0.1, rz + k * 2.4), LINE);
-    for (const at of [150, 210]) for (const s of [-1, 1]) B.paint.box(22, 0.02, 3, place(end + dir * at, 0.1, rz + s * 7), LINE);
+    for (let k = -7; k <= 7; k += 1) if (k) B.paint.box(30, 0.01, 1.4, place(end + dir * 22, 0.095, rz + k * 2.4), LINE);
+    for (const at of [150, 210]) for (const s of [-1, 1]) B.paint.box(22, 0.01, 3, place(end + dir * at, 0.095, rz + s * 7), LINE);
   }
   for (let x = R.x0; x <= R.x1; x += 30) for (const z of [R.z0 + 0.6, R.z1 - 0.6]) { B.solid.box(0.25, 0.3, 0.25, place(x, 0.2, z), 0x3a3d42); B.glow.box(0.2, 0.08, 0.2, place(x, 0.38, z), 0xfff4d8); }
   for (const [text, x, turn] of [[R.designators[0], R.x0 + 70, -Math.PI / 2], [R.designators[1], R.x1 - 70, Math.PI / 2]]) {
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(14, 22), new THREE.MeshBasicMaterial({ map: textTexture([text], { width: 256, height: 384, background: '#6b6b6e', colour: '#efeee9', size: 260 }), transparent: false }));
-    mesh.rotation.set(-Math.PI / 2, 0, turn); mesh.position.set(x, 0.11, rz); signs.push(mesh);
+    mesh.rotation.set(-Math.PI / 2, 0, turn); mesh.position.set(x, 0.1, rz); signs.push(mesh);
   }
   for (const t of [A.taxiway, ...A.links]) {
     slab(t, 0x59595c, 0.055);
     const along = t.x1 - t.x0 > t.z1 - t.z0;
-    B.paint.box(along ? t.x1 - t.x0 : 0.3, 0.02, along ? 0.3 : t.z1 - t.z0, place((t.x0 + t.x1) / 2, 0.105, (t.z0 + t.z1) / 2), YELLOW);
+    B.paint.box(along ? t.x1 - t.x0 : 0.3, 0.01, along ? 0.3 : t.z1 - t.z0, place((t.x0 + t.x1) / 2, 0.1, (t.z0 + t.z1) / 2), YELLOW);
     if (along) for (let x = t.x0; x <= t.x1; x += 40) for (const z of [t.z0 + 0.4, t.z1 - 0.4]) B.glow.box(0.18, 0.2, 0.18, place(x, 0.2, z), 0x6fa8ff);
   }
   slab(A.apron, 0x8d8b86, 0.06);
   A.stands.forEach((s, i) => {
-    B.paint.box(0.3, 0.02, 60, place(s.x, 0.11, s.z - 10), YELLOW);
-    B.paint.box(8, 0.02, 0.3, place(s.x, 0.11, s.z + 17), YELLOW);
+    B.paint.box(0.3, 0.01, 60, place(s.x, 0.105, s.z - 10), YELLOW);
+    B.paint.box(8, 0.01, 0.3, place(s.x, 0.105, s.z + 17), YELLOW);
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ map: textTexture([String(i + 1)], { width: 128, height: 128, background: '#8d8b86', colour: '#d8b33a', size: 100 }) }));
-    mesh.rotation.set(-Math.PI / 2, 0, Math.PI); mesh.position.set(s.x + 4, 0.115, s.z + 20); signs.push(mesh);
+    mesh.rotation.set(-Math.PI / 2, 0, Math.PI); mesh.position.set(s.x + 4, 0.106, s.z + 20); signs.push(mesh);
   });
 
   const T = A.terminal, tw = T.x1 - T.x0, td = T.z1 - T.z0, tx = (T.x0 + T.x1) / 2, tzm = (T.z0 + T.z1) / 2;
@@ -25614,7 +26085,7 @@ return { CITY_ADVERTS, cityAdvertArt };
 
 __modules["client/render-town.js"] = (function () {
 
-const { ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_BUILDINGS, ZONE_RANKS, ZONE_SPOTS, ZONE_CAST, CITY_AREA, zoneShedWalls } = __modules["sim/zone.js"];
+const { ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_BUILDINGS, ZONE_RANKS, ZONE_SPOTS, ZONE_CAST, CITY_AREA, zoneShedWalls, compoundPostsAt } = __modules["sim/zone.js"];
 const { Batch, Chunked, createSight, place, linear, textTexture, noise, shadeOf, addPitchedRoof, buildingKit } = __modules["client/render-kit.js"];
 const { addVehicle } = __modules["client/render-vehicles.js"];
 const { houseBench } = __modules["sim/layout.js"];
@@ -25781,9 +26252,7 @@ function addEnterable(lower, upper, inner, b, signs) {
   const vw = v.x1 - v.x0, vd = v.z1 - v.z0;
   const tilt = 0.16;
   upper.roofs.box(vw + (alongX ? 0.6 : 0.5), 0.06, vd + (alongX ? 0.5 : 0.6), place((v.x0 + v.x1) / 2 - f.nx * 0.2, h * 0.84, (v.z0 + v.z1) / 2 - f.nz * 0.2, 0, 1, 1, 1, alongX ? -f.nz * tilt : 0, alongX ? 0 : f.nx * tilt), b.roof, 0.92, alongX ? 'plan' : 'planZ');
-  const posts = Math.max(2, Math.round(f.length / 5) + 1);
-  for (let i = 0; i < posts; i += 1) {
-    const [px, pz] = at(0.2 + (i * (f.length - 0.4)) / (posts - 1), -2.05);
+  for (const [px, pz] of compoundPostsAt(b)) {
     upper.solid.round(new THREE.CylinderGeometry(0.08, 0.1, h * 0.78, 8), place(px, h * 0.39, pz), 0xeeeae0);
     lower.solid.box(0.3, 0.14, 0.3, place(px, 0.07, pz), 0xd9d4c6);
   }
@@ -25883,7 +26352,7 @@ function addYard(B, c, signs) {
   for (const y of c.yard) {
     if (y.kind === 'parking') {
       solid.box(y.x1 - y.x0, 0.03, y.z1 - y.z0, place((y.x0 + y.x1) / 2, 0.015, (y.z0 + y.z1) / 2), 0x77756e);
-      for (let i = 0; i <= y.bays; i += 1) solid.box(0.12, 0.02, (y.z1 - y.z0) * 0.6, place(y.x0 + ((y.x1 - y.x0) * i) / y.bays, 0.04, (y.z0 + y.z1) / 2), 0xe8e2d0);
+      for (let i = 0; i <= y.bays; i += 1) solid.box(0.12, 0.008, (y.z1 - y.z0) * 0.6, place(y.x0 + 0.06 + ((y.x1 - y.x0 - 0.12) * i) / y.bays, 0.034, (y.z0 + y.z1) / 2), 0xe8e2d0);
     } else if (y.kind === 'vehicle') {
       if (y.vehicle === 'ambulance') {
       } else addVehicle(solid, glow, { kind: 'pickup', x: y.x, z: y.z, heading: y.heading, body: y.colour });
@@ -25914,13 +26383,13 @@ function addYard(B, c, signs) {
       const pw = y.x1 - y.x0, pd = y.z1 - y.z0, px = (y.x0 + y.x1) / 2, pz = (y.z0 + y.z1) / 2;
       solid.box(pw, 0.025, pd, place(px, 0.012, pz), 0x7fae52);
       solid.box(pw * 0.5, 0.027, pd * 0.5, place(px, 0.013, pz), 0xb9945e);              // worn in the middle
-      for (const [x, z, sx, sz] of [[px, y.z0, pw, 0.12], [px, y.z1, pw, 0.12], [y.x0, pz, 0.12, pd], [y.x1, pz, 0.12, pd], y.goals === 'z' ? [px, pz, pw, 0.12] : [px, pz, 0.12, pd]]) solid.box(sx, 0.03, sz, place(x, 0.03, z), 0xf4f4f0);
+      for (const [x, z, sx, sz] of [[px, y.z0 + 0.06, pw, 0.12], [px, y.z1 - 0.06, pw, 0.12], [y.x0 + 0.06, pz, 0.12, pd], [y.x1 - 0.06, pz, 0.12, pd], y.goals === 'z' ? [px, pz, pw, 0.12] : [px, pz, 0.12, pd]]) solid.box(sx, 0.008, sz, place(x, 0.031, z), 0xf4f4f0);
       for (const end of [-1, 1]) {
         const gx = y.goals === 'x' ? px + end * (pw / 2 - 0.2) : px, gz = y.goals === 'z' ? pz + end * (pd / 2 - 0.2) : pz;
         for (const side of [-1, 1]) solid.round(new THREE.CylinderGeometry(0.05, 0.05, 2.2, 6), place(gx + (y.goals === 'z' ? side * 2.6 : 0), 1.1, gz + (y.goals === 'x' ? side * 2.6 : 0)), 0xf4f4f0);
         solid.box(y.goals === 'z' ? 5.3 : 0.1, 0.1, y.goals === 'x' ? 5.3 : 0.1, place(gx, 2.2, gz), 0xf4f4f0);
       }
-      if (y.track) for (const off of [1.6, 3.0]) for (const [x, z, sx, sz] of [[px, y.z0 - off, pw + off * 2, 0.1], [px, y.z1 + off, pw + off * 2, 0.1], [y.x0 - off, pz, 0.1, pd + off * 2], [y.x1 + off, pz, 0.1, pd + off * 2]]) solid.box(sx, 0.02, sz, place(x, 0.02, z), 0xe8e2d0);
+      if (y.track) for (const off of [1.6, 3.0]) for (const [x, z, sx, sz] of [[px, y.z0 - off, pw + off * 2, 0.1], [px, y.z1 + off, pw + off * 2, 0.1], [y.x0 - off, pz, 0.1, pd + off * 2], [y.x1 + off, pz, 0.1, pd + off * 2]]) solid.box(sx, 0.008, sz, place(x, 0.006, z), 0xe8e2d0);
     } else if (y.kind === 'swing') {
       for (const side of [-1, 1]) { solid.round(new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6), place(y.x + side * 1.5, 1.25, y.z - 0.4, 0, 1, 1, 1, 0.3, 0), 0x2f6fab); solid.round(new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6), place(y.x + side * 1.5, 1.25, y.z + 0.4, 0, 1, 1, 1, -0.3, 0), 0x2f6fab); }
       solid.box(3.2, 0.1, 0.1, place(y.x, 2.45, y.z), 0x2f6fab);
@@ -25999,7 +26468,7 @@ function addShed(B, s, signs) {
   if (city) solid.box(sx + 0.7, 0.12, sz + 0.7, place(s.x + fx * 0.25, 2.46, s.z + fz * 0.25), 0x34383d);
   else roofs.box(sx + 0.9, 0.05, sz + 0.9, place(s.x + fx * 0.3, 2.42, s.z + fz * 0.3, 0, 1, 1, 1, alongX ? fz * 0.12 : 0, alongX ? 0 : -fx * 0.12), [0x8f989e, 0x7a2f22, 0x355e3b, 0x4f6272][Math.abs(Math.round(s.x + s.z)) % 4], 1, alongX ? 'plan' : 'planZ');
   for (const side of [-1, 1]) solid.box(0.08, 2.4, 0.08, place(s.x + fx * (alongX ? sz : sx) / 2 + (alongX ? side * (sx / 2 - 0.05) : 0), 1.2, s.z + fz * (alongX ? sz : sx) / 2 + (alongX ? 0 : side * (sz / 2 - 0.05))), 0x6a5038);
-  solid.box(sx, 0.03, sz, place(s.x, 0.015, s.z), 0x9c958a);
+  solid.box(sx, 0.015, sz, place(s.x, 0.0075, s.z), 0x9c958a);
   const board = sign(s.sign, Math.min(s.w + 0.6, Math.max(3, s.sign.length * 0.26)), 0.5, ['#f5c518', '#171a2e']);
   board.position.set(s.x + fx * ((alongX ? sz : sx) / 2 + 0.5), 2.85, s.z + fz * ((alongX ? sz : sx) / 2 + 0.5));
   board.rotation.y = Math.atan2(fx, fz);
@@ -27759,6 +28228,7 @@ const { splitGLB } = __modules["client/glb-read.js"];
 const { gunzip } = __modules["client/inflate.js"];
 const { nameTexture, surface, isLite } = __modules["client/render-kit.js"];
 const { softShadowPicture, FIGURE_PATCH } = __modules["client/soft-patch.js"];
+const { markMaterial, asMark, standing } = __modules["client/marks.js"];
 const { SEAT_POSE } = __modules["client/seat-pose.js"];
 const { borrowedFor, seatFor, loadMoves } = __modules["client/figure-moves.js"];
 const { pictureSize } = __modules["client/budget.js"];
@@ -27863,6 +28333,7 @@ const PACE = Object.freeze({ punch: 1.9, heavy: 1.5, kick: 1.35, hit: 1.4, fall:
 const JUMP = Object.freeze({ from: 0.85, off: 1.36, on: 2.12, to: 3.05, pace: 1.55, high: 0.45 });
 const STAIRS_PACE = 1.4;
 const FEET = ['foot_l', 'foot_r', 'ball_l', 'ball_r'];
+const PLANT = Object.freeze({ step: 0.35, most: 0.3, lifted: 0.09, ease: 14 });
 
 const SEATED_HEIGHT = 0.845;
 const GRIP = { x: 0.25, y: 0.3, z: 0.38 };
@@ -28092,9 +28563,13 @@ function makeAnimatedRig(id, labelText, shadow = false, police = null, size = 1)
     label.scale.set(0.95, 0.18, 1); label.position.set(0, 2.14, 0); label.visible = false;
     group.add(label);
   }
-  const blob = new THREE.Mesh(new THREE.CircleGeometry(0.4, 18), new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false }));
-  blob.rotation.x = -Math.PI / 2; blob.position.y = 0.09; group.add(blob);
+  const blob = asMark(new THREE.Mesh(new THREE.CircleGeometry(0.4, 18), markMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false }))));
+  blob.rotation.x = -Math.PI / 2; blob.position.y = 0.012; group.add(blob);
   const tmp = { a: new THREE.Vector3(), b: new THREE.Vector3(), q: new THREE.Quaternion(), w: new THREE.Quaternion(), p: new THREE.Quaternion(), axis: new THREE.Vector3() };
+  const tall = (spec.height || 1.75) * (size > 0.5 && size < 1.5 ? size : 1);
+  const V = () => new THREE.Vector3(), Q = () => new THREE.Quaternion();
+  const PL = { g: V(), f: V(), b: V(), l: V(), t: V(), u: V(), v: V(), fwd: V(), up: new THREE.Vector3(0, 1, 0), fq: Q(), sq: Q(), pq: Q(), one: Q(), S: V(), K: V(), F: V(), dir: V(), pole: V(), mid: V(), knee: V(), end: V(), a: V(), c: V(), w: V(), q: Q(), r: Q(), s: Q() };
+  const legs = ['l', 'r'].map((s) => ({ s, on: false, d: 0, w: 0, rest: undefined, n: new THREE.Vector3(0, 1, 0), kept: ['thigh', 'calf', 'foot'].map(() => ({ bone: null, clip: new THREE.Quaternion(), done: new THREE.Quaternion() })), bent: false }));
 
   const rig = {
     animated: id, figure: id, group, body: holder, lift, label, blob, mesh: null, triangles: 0, spec, speed: 0, idleTime: 0, phase: 0, scale: 1, stride: 1,
@@ -28249,10 +28724,106 @@ function makeAnimatedRig(id, labelText, shadow = false, police = null, size = 1)
       rig.jumpLift = j ? jumped : rig.jumpLift * Math.max(0, 1 - dt * 10);
       if (Math.abs(rig.jumpLift) < 1e-4) rig.jumpLift = 0;
       if (!rig.seated) lift.position.y = rig.drop + rig.jumpLift;
+      plantFeet(dt);
     },
     dispose() { if (rig.mixer) rig.mixer.stopAllAction(); blob.geometry.dispose(); blob.material.dispose(); if (label) { label.material.map.dispose(); label.material.dispose(); } if (!released) { released = true; releaseModel(id); } },
   };
 
+  function plantFeet(dt) {
+    unbend();
+    const ground = rig.ground;
+    if (typeof ground !== 'function' || !rig.bones || rig.seated || rig.lying || rig.jumping || rig.swimming || rig.climbing || rig.held) { rig.plantDrop = 0; return; }
+    group.updateMatrixWorld(true);
+    group.getWorldPosition(PL.g);
+    const g0 = ground(PL.g.x, PL.g.z);
+    if (!Number.isFinite(g0)) { rig.plantDrop = 0; return; }
+    const k = tall / 1.75;
+    PL.fwd.set(0, 0, 1).transformDirection(holder.matrixWorld);
+    let low = 0, any = false;
+    for (const leg of legs) {
+      leg.on = false;
+      const foot = rig.bones.get(`foot_${leg.s}`);
+      if (!foot) continue;
+      foot.getWorldPosition(PL.f);
+      const gf = ground(PL.f.x, PL.f.z);
+      if (!Number.isFinite(gf) || Math.abs(gf - g0) > PLANT.step * k) continue;
+      holder.worldToLocal(PL.l.copy(PL.f));
+      const y = PL.l.y - lift.position.y;
+      leg.rest = leg.rest === undefined ? y : Math.min(leg.rest, y);
+      leg.w = 1 - smooth01((y - leg.rest) / (PLANT.lifted * k));
+      leg.on = true; leg.d = gf - g0; any = true;
+      if (leg.d < low) low = leg.d;
+      const ball = rig.bones.get(`ball_${leg.s}`);
+      if (ball) ball.getWorldPosition(PL.b); else PL.b.copy(PL.f).add(PL.fwd);
+      PL.u.set(PL.b.x - PL.f.x, 0, PL.b.z - PL.f.z);
+      if (PL.u.lengthSq() < 1e-6) PL.u.set(PL.fwd.x, 0, PL.fwd.z);
+      PL.u.normalize().multiplyScalar(0.14 * k);
+      const ga = ground(PL.f.x + PL.u.x, PL.f.z + PL.u.z), gs = ground(PL.f.x + PL.u.z * 0.7, PL.f.z - PL.u.x * 0.7);
+      const da = Number.isFinite(ga) && Math.abs(ga - gf) < 0.06 * k ? ga - gf : 0, ds = Number.isFinite(gs) && Math.abs(gs - gf) < 0.05 * k ? gs - gf : 0;
+      PL.t.set(PL.u.x, da, PL.u.z); PL.v.set(PL.u.z * 0.7, ds, -PL.u.x * 0.7);
+      leg.n.crossVectors(PL.t, PL.v).normalize();
+      if (leg.n.y < 0) leg.n.negate();
+    }
+    const want = any ? Math.max(-PLANT.most * k, low) : 0;
+    rig.plantDrop = (rig.plantDrop || 0) + (want - (rig.plantDrop || 0)) * Math.min(1, dt * PLANT.ease);
+    if (!any) { if (Math.abs(rig.plantDrop) < 1e-4) rig.plantDrop = 0; lift.position.y += rig.plantDrop; return; }
+    lift.position.y += rig.plantDrop;
+    holder.updateMatrixWorld(true);
+    for (const leg of legs) {
+      if (!leg.on) continue;
+      const thigh = rig.bones.get(`thigh_${leg.s}`), calf = rig.bones.get(`calf_${leg.s}`), foot = rig.bones.get(`foot_${leg.s}`);
+      if (!thigh || !calf) continue;
+      const raise = leg.d - rig.plantDrop;
+      const tilted = leg.n.y < 0.9995 && leg.w > 0.01;
+      if (Math.abs(raise) < 0.002 && !tilted) continue;
+      [thigh, calf, foot].forEach((b, i) => { leg.kept[i].bone = b; leg.kept[i].clip.copy(b.quaternion); });
+      foot.getWorldQuaternion(PL.fq);
+      if (Math.abs(raise) >= 0.002) { foot.getWorldPosition(PL.t); PL.t.y += raise; legTo(thigh, calf, foot, PL.t); }
+      if (tilted) { PL.sq.setFromUnitVectors(PL.up, leg.n); if (leg.w < 1) PL.sq.slerp(PL.one, 1 - leg.w); PL.fq.premultiply(PL.sq); }
+      foot.parent.getWorldQuaternion(PL.pq);
+      foot.quaternion.copy(PL.pq.invert().multiply(PL.fq));
+      foot.updateMatrixWorld(true);
+      for (const k of leg.kept) k.done.copy(k.bone.quaternion);
+      leg.bent = true;
+    }
+  }
+  function unbend() {
+    for (const leg of legs) {
+      if (!leg.bent) continue;
+      leg.bent = false;
+      let any = false;
+      for (const k of leg.kept) if (k.bone && k.bone.quaternion.equals(k.done)) { k.bone.quaternion.copy(k.clip); any = true; }
+      if (any) group.updateMatrixWorld(true);
+    }
+  }
+  function turnTo(bone, child, to) {
+    bone.getWorldPosition(PL.a); child.getWorldPosition(PL.c);
+    PL.c.sub(PL.a); PL.w.copy(to).sub(PL.a);
+    if (PL.c.lengthSq() < 1e-12 || PL.w.lengthSq() < 1e-12) return;
+    PL.q.setFromUnitVectors(PL.c.normalize(), PL.w.normalize());
+    bone.getWorldQuaternion(PL.r); bone.parent.getWorldQuaternion(PL.s);
+    bone.quaternion.copy(PL.s.invert().multiply(PL.q.multiply(PL.r)));
+    bone.updateMatrixWorld(true);
+  }
+  function legTo(thigh, calf, foot, target) {
+    thigh.getWorldPosition(PL.S); calf.getWorldPosition(PL.K); foot.getWorldPosition(PL.F);
+    const l1 = PL.S.distanceTo(PL.K), l2 = PL.K.distanceTo(PL.F);
+    PL.dir.copy(target).sub(PL.S);
+    const d = Math.min(Math.max(PL.dir.length(), Math.abs(l1 - l2) + 1e-3), (l1 + l2) * 0.999);
+    PL.dir.normalize();
+    PL.mid.copy(PL.F).sub(PL.S).normalize();
+    PL.pole.copy(PL.K).sub(PL.S);
+    PL.pole.addScaledVector(PL.mid, -PL.pole.dot(PL.mid));
+    if (PL.pole.lengthSq() < 1e-6) PL.pole.copy(PL.fwd);
+    PL.pole.addScaledVector(PL.dir, -PL.pole.dot(PL.dir));
+    if (PL.pole.lengthSq() < 1e-10) return;
+    PL.pole.normalize();
+    const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
+    PL.knee.copy(PL.S).addScaledVector(PL.dir, a).addScaledVector(PL.pole, h);
+    PL.end.copy(PL.S).addScaledVector(PL.dir, d);
+    turnTo(thigh, calf, PL.knee);
+    turnTo(calf, foot, PL.end);
+  }
   function feetLow() {
     if (!rig.bones) return Infinity;
     const was = lift.position.y;
@@ -28306,6 +28877,7 @@ function makeAnimatedRig(id, labelText, shadow = false, police = null, size = 1)
     }
     if (spec.rig === 'mixamo') for (const [ue, mx] of Object.entries(MIXAMO)) { const b = rig.bones.get(boneName(`mixamorig:${mx}`)); if (b && !rig.bones.has(ue)) rig.bones.set(ue, b); }
     rig.mesh = mesh; rig.triangles = model.triangles; rig.labels = labels;
+    standing(group);
     rig.mixer = new THREE.AnimationMixer(root);
     const hips = spec.rig === 'mixamo' ? boneName('mixamorig:Hips') : 'pelvis';
     const hipBone = rig.bones.get(hips);
@@ -28455,7 +29027,7 @@ function limpLean(rig, dt) {
   spine.updateMatrixWorld(true);
 }
 
-return { TOWN_MOODS, ANIMATED, PRIORITY, JUMP, dropUnusedFigures, heldModels, figureProgress, figureHere, lightCopy, figureTurn, lightFiles, figureLog, loadAnimated, warmFigures, reach, makeAnimatedRig, holdFigure, letGoFigure, bakeFigureMoves, driveAnimated };
+return { TOWN_MOODS, ANIMATED, PRIORITY, JUMP, PLANT, dropUnusedFigures, heldModels, figureProgress, figureHere, lightCopy, figureTurn, lightFiles, figureLog, loadAnimated, warmFigures, reach, makeAnimatedRig, holdFigure, letGoFigure, bakeFigureMoves, driveAnimated };
 })();
 
 __modules["client/character.js"] = (function () {
@@ -28463,6 +29035,7 @@ __modules["client/character.js"] = (function () {
 const { REACTIONS, REACTION_FPS } = __modules["client/reaction-data.js"];
 const { linear, nameTexture, surface } = __modules["client/render-kit.js"];
 const { softShadowPicture, FIGURE_PATCH } = __modules["client/soft-patch.js"];
+const { markMaterial, asMark, standing } = __modules["client/marks.js"];
 const { kitPart, kitBones, kitPose, kitIdle, figureMeta, KIT_SHADE_ONE } = __modules["client/character-kit.js"];
 const { characterSpec, configFromLook } = __modules["sim/characters.js"];
 const { printTexture } = __modules["client/character-looks.js"];
@@ -28759,10 +29332,11 @@ function makeFigure(spec, labelText, shadow = false) {
     label.visible = false;
     group.add(label);
   }
-  const blob = new THREE.Mesh(new THREE.CircleGeometry(0.4, 18), new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false }));
+  const blob = asMark(new THREE.Mesh(new THREE.CircleGeometry(0.4, 18), markMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false }))));
   blob.rotation.x = -Math.PI / 2;
-  blob.position.y = 0.09;
+  blob.position.y = 0.012;
   group.add(blob);
+  standing(group);
 
   const rig = {
     group, body: holder, mesh, bones, skeleton, template, pose, label, blob, spec, triangles,
@@ -28985,6 +29559,7 @@ return { STRIKES, startStrike, poseFighter, poseTaking, soundOf };
 
 __modules["client/crowd-figures.js"] = (function () {
 const { ANIMATED, holdFigure, letGoFigure, bakeFigureMoves } = __modules["client/animated.js"];
+const { DRAW } = __modules["client/marks.js"];
 
 const FPS = 24;                 // frames a second of a walk or a standing, as written down
 const LINGER = 20;              // seconds a figure nobody near wears is kept before it is let go
@@ -29034,6 +29609,7 @@ objectTangent = (crowdSkin * vec4(objectTangent, 0.0)).xyz;
     mesh.name = `crowd:${kind.id}`;
     mesh.count = 0; mesh.frustumCulled = false; mesh.castShadow = false; mesh.receiveShadow = false;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.renderOrder = DRAW.standing;
     scene.add(mesh);
     Object.assign(kind, { state: 'ready', mesh, frame, moves, material, geometry, baked, scale: model.height > 0 && ANIMATED[kind.id] ? ANIMATED[kind.id].height / model.height : 1, n: 0 });
   }
@@ -30742,6 +31318,7 @@ const { BIKE_PARTS } = __modules["client/bike-parts.js"];
 const { surface, isLite } = __modules["client/render-kit.js"];
 const { fetchKept, letGoOnceDrawn, decodeAtMost } = __modules["client/glb.js"];
 const { deviceKind, PICTURES } = __modules["client/budget.js"];
+const { standing } = __modules["client/marks.js"];
 
 const cache = new Map();          // one geometry and material a bike and set of pictures, however many are drawn (most recently used last)
 const users = new Map();          // how many of each are in the scene now
@@ -30946,6 +31523,7 @@ async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1, tier 
   const fx = lampsOf(spec, frame, { group: unrake, at: [fx0, F.y, F.z] });
   const metres = (v) => v * scale;
   const wheelRadius = { front: metres(F.r), rear: metres(R.r) };
+  standing(group);
   return {
     id, group, scale, spec,
     seat: new THREE.Vector3(...spec.seat).multiplyScalar(scale),
@@ -31297,6 +31875,7 @@ __modules["client/render-crowd.js"] = (function () {
 
 const { Batch, place, linear, surface } = __modules["client/render-kit.js"];
 const { softShadowPicture, FIGURE_PATCH } = __modules["client/soft-patch.js"];
+const { markMaterial, asMark, standing, DRAW } = __modules["client/marks.js"];
 const { makeCharacter, animateCharacter, seatCharacter, standCharacter, showName, layCharacter, reactionLength } = __modules["client/render-people.js"];
 const { poseFighter } = __modules["client/combat-view.js"];
 const { zoneGroundY, zoneSurfaceY, habitationClimbing } = __modules["sim/zone.js"];
@@ -31319,13 +31898,14 @@ const MAX_FIGURES = 520;
 const RIG = { take: 24, drop: 30, close: 7.5, far: 10.5 };
 const BUILD_PAUSE = 0.11;        // seconds between one figure being made and the next
 const WARDROBE = deviceKind() === 'lite' ? 8 : 36;
+const PLANT_NEAR = deviceKind() === 'lite' ? 15 : 30;
 const MAX_CROWD = 200;
 const angleGap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
 
 
 function figureParts() {
   const lambert = () => new THREE.MeshLambertMaterial();
-  const make = (geometry) => { const mesh = new THREE.InstancedMesh(geometry, lambert(), MAX_FIGURES); mesh.frustumCulled = false; mesh.count = 0; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_FIGURES * 3), 3); mesh.instanceColor.setUsage(THREE.DynamicDrawUsage); return mesh; };
+  const make = (geometry) => { const mesh = new THREE.InstancedMesh(geometry, lambert(), MAX_FIGURES); mesh.frustumCulled = false; mesh.count = 0; mesh.renderOrder = DRAW.standing; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_FIGURES * 3), 3); mesh.instanceColor.setUsage(THREE.DynamicDrawUsage); return mesh; };
   const down = (top, bottom, length, segments = 6) => { const g = new THREE.CylinderGeometry(top, bottom, length, segments, 1); g.translate(0, -length / 2, 0); return g; };
   const torso = new THREE.CylinderGeometry(0.2, 0.165, 0.56, 8, 1);
   torso.translate(0, 0.28, 0);
@@ -31348,10 +31928,9 @@ function figureParts() {
     thighL: make(down(0.075, 0.058, 0.44)), thighR: make(down(0.075, 0.058, 0.44)),
     shinL: make(mergeTwo(shin, foot)), shinR: make(mergeTwo(shin, foot)),
   };
-  const shade = new THREE.InstancedMesh(blob, new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false }), MAX_FIGURES);
+  const shade = asMark(new THREE.InstancedMesh(blob, markMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false })), MAX_FIGURES));
   shade.frustumCulled = false;
   shade.count = 0;
-  shade.renderOrder = 1;
   const body = new THREE.BoxGeometry(0.38, 0.56, 0.22);
   body.translate(0, 0.28, 0);
   const far = { body: make(body), head: make((() => { const g = new THREE.IcosahedronGeometry(0.125, 0); g.translate(0, 0.15, 0); return g; })()), legs: make((() => { const g = new THREE.BoxGeometry(0.3, 0.9, 0.2); g.translate(0, -0.45, 0); return g; })()) };
@@ -31390,7 +31969,9 @@ function bikeMesh(material, variant) {
     B.box(0.3, 0.11, 0.02, place(0, 0.5, -0.97), 0xf3ecdc);                                   // plate
     bikeGeometry.set(variant, B.build(material).geometry);
   }
-  return new THREE.Mesh(bikeGeometry.get(variant), material);
+  const mesh = new THREE.Mesh(bikeGeometry.get(variant), material);
+  mesh.renderOrder = DRAW.standing;
+  return mesh;
 }
 
 
@@ -31400,8 +31981,8 @@ function createCrowd(scene) {
   scene.add(shade);
   const crowdFigures = createCrowdFigures(scene, { kinds: 8, each: 24 });
   let crowdMost = null;
-  const crowdShade = new THREE.InstancedMesh(shade.geometry, shade.material, MAX_CROWD);
-  crowdShade.frustumCulled = false; crowdShade.count = 0; crowdShade.renderOrder = 1; crowdShade.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const crowdShade = asMark(new THREE.InstancedMesh(shade.geometry, shade.material, MAX_CROWD));
+  crowdShade.frustumCulled = false; crowdShade.count = 0; crowdShade.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(crowdShade);
   const sight = new THREE.Frustum(), seen3 = new THREE.Matrix4(), ball = new THREE.Sphere(new THREE.Vector3(), 1.3);
   const bikeMaterial = surface({ vertexColors: true, roughness: 0.6, metalness: 0.25 });
@@ -31484,7 +32065,7 @@ function createCrowd(scene) {
     put(parts.shinR, joint(K, J, 0, -0.44, 0, kneeR), fig.legs);
     if (fig.skirt) put(parts.skirt, joint(K, M, 0, hip + 0.04, seated ? 0.12 : 0, seated ? -1.2 : 0, 1, seated ? 0.5 : fig.skirt === 1 ? 0.5 : 0.82, 1), fig.bottom);
     else parts.skirt.setMatrixAt(n, HIDE);
-    if (pose === POSE.lie || pose === POSE.ride) shade.setMatrixAt(n, HIDE); else { P.set(x, 0.06 + ground, z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); shade.setMatrixAt(n, L); }
+    if (pose === POSE.lie || pose === POSE.ride) shade.setMatrixAt(n, HIDE); else { P.set(x, 0.012 + ground, z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); shade.setMatrixAt(n, L); }
     n += 1;
   }
 
@@ -31584,6 +32165,8 @@ function createCrowd(scene) {
     const went = rig.atX === undefined ? 0 : Math.hypot(actor.x - rig.atX, actor.z - rig.atZ);
     rig.atX = actor.x; rig.atZ = actor.z;
     rig.pace = (rig.pace === undefined ? 1.35 : rig.pace) + (Math.min(rig.animated ? 6 : 2.4, went / Math.max(dt, 0.001)) - (rig.pace === undefined ? 1.35 : rig.pace)) * Math.min(1, dt * 3);
+    rig.level = actor.y;
+    rig.ground = rig.animated && actor.pose !== POSE.sit && actor.d < PLANT_NEAR ? rig.groundAt || (rig.groundAt = (x, z) => groundOf(x, z, rig.level)) : null;
     animateCharacter(rig, dt, moving ? Math.max(0.7, rig.pace) : 0, false);
     if (actor.pose === POSE.sit) { seatCharacter(rig); g.position.y = -0.44 * s; rig.armL.shoulder.rotation.x = -0.35; rig.armR.shoulder.rotation.x = -0.35; rig.armL.elbow.rotation.x = -0.9; rig.armR.elbow.rotation.x = -0.9; } else standCharacter(rig);
     if (actor.fall) { actor.fall += (0 - actor.fall) * Math.min(1, dt * 4); if (actor.fall < 0.002) actor.fall = 0; layCharacter(rig, actor.fall); }
@@ -31733,7 +32316,7 @@ function createCrowd(scene) {
           if (cam) { ball.center.set(x, y + 0.9, z); if (!sight.intersectsSphere(ball)) continue; }
           if (actor.seed === undefined) actor.seed = ((actor.i * 0.6180339887) % 1) || 0.5;
           if (crowdFigures.put(id, ANIMATED[id].npc && look.height ? look.height : 1, x, y, z, actor.h, moving ? Math.max(0.7, actor.pace) : 0, actor, dt)) {
-            if (c < MAX_CROWD) { const s = info.fig.scale || 1; P.set(x, 0.06 + y, z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); crowdShade.setMatrixAt(c, L); c += 1; }
+            if (c < MAX_CROWD) { const s = info.fig.scale || 1; P.set(x, 0.012 + y, z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); crowdShade.setMatrixAt(c, L); c += 1; }
             continue;
           }
         }
@@ -31862,6 +32445,8 @@ function createCrowd(scene) {
         else if (other.rig.reaction) other.rig.reaction.weight = Math.max(0, other.rig.reaction.weight - dt * 4);
       }
       other.rig.limp = Number.isFinite(q.health) && q.health <= 20 && !seated && !other.rig.swimming;
+      other.rig.peerAt = q;
+      other.rig.ground = other.rig.animated && !seated && !other.rig.swimming && Math.hypot(other.x - frame.eye.x, other.z - frame.eye.z) < PLANT_NEAR ? other.rig.groundAt || (other.rig.groundAt = (x, z) => groundOfPeer(x, z, other.rig.peerAt)) : null;
       animateCharacter(other.rig, dt, seated ? 0 : other.rig.swimming ? Math.min(2, gap * 4) : gap > 0.12 ? Math.min(5.6, gap * 4 + 1.5) : 0, false);
       showName(other.rig, Math.hypot(other.x - frame.eye.x, other.z - frame.eye.z) < 12, dt);
       const flat = !!(stance && (stance.down || stance.dead)) || (other.rig.swimming && !other.rig.animated);
@@ -32628,6 +33213,7 @@ return { createFireflies };
 })();
 
 __modules["client/wet-tracks.js"] = (function () {
+const { asMark } = __modules["client/marks.js"];
 
 const VERT = `attribute float aFade; varying vec2 vUv; varying float vFade;
 void main() {
@@ -32666,6 +33252,7 @@ function tread() {
 }
 
 const LIFE = { foot: 30, wheel: 45 };          // seconds a mark lasts on drying ground (less while it rains)
+const SOFT = Object.freeze({ life: { foot: 75, wheel: 100 }, sand: 0.3, earth: 0.36 });
 const KINDS = { car: { rear: 1.35, track: 1.55, width: 0.2 }, keke: { rear: 0.9, track: 1.15, width: 0.15 }, bike: { rear: 0.7, track: 0, width: 0.11 } };
 
 function createWetTracks(scene, { lite = false } = {}) {
@@ -32677,7 +33264,7 @@ function createWetTracks(scene, { lite = false } = {}) {
     geometry.setAttribute('aFade', new THREE.InstancedBufferAttribute(fade, 1).setUsage(THREE.DynamicDrawUsage));
     const material = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG, uniforms: { map: { value: map }, strength: { value: 0 } },
-      transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+      transparent: false, depthWrite: false, fog: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
       blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.ZeroFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
       blendEquationAlpha: THREE.AddEquation, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
     });
@@ -32686,9 +33273,9 @@ function createWetTracks(scene, { lite = false } = {}) {
     mesh.frustumCulled = false;
     mesh.count = 0;
     mesh.visible = false;
-    mesh.renderOrder = 1;
+    asMark(mesh);
     scene.add(mesh);
-    return { mesh, fade, born: new Float32Array(count), life: new Float32Array(count), next: 0, used: 0 };
+    return { mesh, fade, born: new Float32Array(count), life: new Float32Array(count), power: new Float32Array(count), next: 0, used: 0 };
   };
   const feet = make(lite ? 220 : 400, sole(), 0.13, 0.28);
   const wheels = make(lite ? 260 : 480, tread(), 1, 1);
@@ -32696,7 +33283,7 @@ function createWetTracks(scene, { lite = false } = {}) {
   const last = new Map();               // a walker's or vehicle's key -> where its last mark was
   let clock = 0, laid = 0;
 
-  function lay(set, x, y, z, heading, width, length, flip, life) {
+  function lay(set, x, y, z, heading, width, length, flip, life, power = 0) {
     const i = set.next;
     set.next = (set.next + 1) % set.fade.length;
     set.used = Math.min(set.fade.length, set.used + 1);
@@ -32704,12 +33291,12 @@ function createWetTracks(scene, { lite = false } = {}) {
     s.set(flip ? -width : width, 1, length);
     m.compose(p.set(x, y + 0.02, z), q, s);
     set.mesh.setMatrixAt(i, m);
-    set.born[i] = clock; set.life[i] = life;
+    set.born[i] = clock; set.life[i] = life; set.power[i] = power;
     set.mesh.instanceMatrix.needsUpdate = true;
     laid += 1;
   }
 
-  function update(dt, { amount = 0, wet = 0, raining = 0, ground = () => 0, movers = [], eye = null } = {}) {
+  function update(dt, { amount = 0, wet = 0, raining = 0, ground = () => 0, movers = [], eye = null, soft = null } = {}) {
     clock += dt;
     const leaving = amount > 0 && wet > 0.12;
     const life = raining > 0.05 ? 0.35 : 1;
@@ -32719,14 +33306,17 @@ function createWetTracks(scene, { lite = false } = {}) {
       let e = last.get(w.key);
       if (!e) { last.set(w.key, { x: w.x, z: w.z, left: false, l: null, r: null }); continue; }
       const step = Math.hypot(w.x - e.x, w.z - e.z);
-      if (step > 6 || !leaving || (eye && Math.hypot(w.x - eye.x, w.z - eye.z) > 70)) { e.x = w.x; e.z = w.z; e.l = e.r = null; continue; }
+      const kindHere = !leaving && soft && amount > 0 ? soft(w.x, w.z) : null;
+      if (step > 6 || (!leaving && !kindHere) || (eye && Math.hypot(w.x - eye.x, w.z - eye.z) > 70)) { e.x = w.x; e.z = w.z; e.l = e.r = null; continue; }
+      const power = leaving ? 0 : SOFT[kindHere] || SOFT.earth;
+      const lifeFoot = leaving ? LIFE.foot * life : SOFT.life.foot * life, lifeWheel = leaving ? LIFE.wheel * life : SOFT.life.wheel * life;
       const sn = Math.sin(w.heading), cs = Math.cos(w.heading);
       if (w.kind === 'foot') {
         if (step < 0.72) continue;
         e.x = w.x; e.z = w.z; e.left = !e.left;
         const side = e.left ? 0.1 : -0.1;
         const x = w.x + cs * side, z = w.z - sn * side;
-        lay(feet, x, ground(x, z), z, w.heading, 1, 1, e.left, LIFE.foot * life);
+        lay(feet, x, ground(x, z), z, w.heading, 1, 1, e.left, lifeFoot, power);
         continue;
       }
       const kind = KINDS[w.kind];
@@ -32741,7 +33331,7 @@ function createWetTracks(scene, { lite = false } = {}) {
           const dx = at.x - from.x, dz = at.z - from.z, len = Math.hypot(dx, dz);
           if (len > 0.05 && len < 3) {
             const mx = (at.x + from.x) / 2, mz = (at.z + from.z) / 2;
-            lay(wheels, mx, ground(mx, mz), mz, Math.atan2(dx, dz), kind.width, len + 0.04, false, LIFE.wheel * life);
+            lay(wheels, mx, ground(mx, mz), mz, Math.atan2(dx, dz), kind.width, len + 0.04, false, lifeWheel, power);
           }
         }
       });
@@ -32750,18 +33340,19 @@ function createWetTracks(scene, { lite = false } = {}) {
     }
     for (const key of last.keys()) if (!seen.has(key)) last.delete(key);
     const dryness = Math.max(0, Math.min(1, (wet - 0.05) / 0.35));
+    const wetPower = 0.32 + 0.2 * dryness;
     for (const set of [feet, wheels]) {
       let any = 0;
       for (let i = 0; i < set.used; i += 1) {
         const age = clock - set.born[i], t = set.life[i] > 0 ? age / set.life[i] : 1;
         const f = t >= 1 ? 0 : Math.min(1, age * 4) * (1 - t * t);
-        set.fade[i] = f;
+        set.fade[i] = f * (set.power[i] > 0 ? set.power[i] : wetPower);
         if (f > 0) any += 1;
       }
       set.mesh.count = set.used;
       set.mesh.visible = any > 0 && amount > 0;
       if (set.mesh.visible) set.mesh.geometry.attributes.aFade.needsUpdate = true;
-      set.mesh.material.uniforms.strength.value = amount * (0.32 + 0.2 * dryness) * (set === feet ? 1 : 0.85);
+      set.mesh.material.uniforms.strength.value = amount * (set === feet ? 1 : 0.85);
     }
   }
   return {
@@ -32771,6 +33362,85 @@ function createWetTracks(scene, { lite = false } = {}) {
 }
 
 return { createWetTracks };
+})();
+
+__modules["client/water-rings.js"] = (function () {
+
+const LIFE = 1.5;                                    // seconds a ring lasts
+const SIZE = { foot: [0.16, 0.85], car: [0.9, 2.6], keke: [0.6, 1.9], bike: [0.3, 1.2] };     // radius as it starts, as it ends
+const EVERY = { moving: 0.32, still: 1.1 };          // seconds between rings, going and standing
+const DEPTH = { foot: [0.05, 1.25], car: [0.05, 0.6], keke: [0.05, 0.45], bike: [0.05, 0.4] };  // the depths it is waded or driven in
+
+function ringPicture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const r = g.createRadialGradient(32, 32, 18, 32, 32, 31);
+  r.addColorStop(0, 'rgba(255,255,255,0)'); r.addColorStop(0.55, 'rgba(255,255,255,0.85)'); r.addColorStop(0.75, 'rgba(255,255,255,0.35)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+
+function createWaterRings(scene, { lite = false } = {}) {
+  const MOST = lite ? 40 : 90;
+  const geometry = new THREE.PlaneGeometry(2, 2); geometry.rotateX(-Math.PI / 2);
+  const fade = new Float32Array(MOST);
+  geometry.setAttribute('aFade', new THREE.InstancedBufferAttribute(fade, 1).setUsage(THREE.DynamicDrawUsage));
+  const material = new THREE.MeshBasicMaterial({ map: ringPicture(), color: 0xe8f2f4, transparent: true, depthWrite: false, opacity: 0.55, toneMapped: false });
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float aFade;\nvarying float vFade;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvFade = aFade;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vFade;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.a *= vFade;');
+  };
+  material.customProgramCacheKey = () => 'pcw-water-rings';
+  const mesh = new THREE.InstancedMesh(geometry, material, MOST);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.name = 'water-rings'; mesh.frustumCulled = false; mesh.count = 0; mesh.visible = false;
+  mesh.renderOrder = 3;
+  scene.add(mesh);
+  const list = [];                   // { x, y, z, r0, r1, age }
+  const last = new Map();            // a mover's key -> { x, z, wait }
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+  let made = 0;
+
+  function update(dt, { amount = 0, movers = [], water = () => null, eye = null } = {}) {
+    const seen = new Set();
+    if (amount > 0) for (const w of movers) {
+      const size = SIZE[w.kind], depths = DEPTH[w.kind];
+      if (!size) continue;
+      if (eye && Math.hypot(w.x - eye.x, w.z - eye.z) > 60) continue;
+      seen.add(w.key);
+      let e = last.get(w.key);
+      if (!e) { e = { x: w.x, z: w.z, wait: 0 }; last.set(w.key, e); }
+      const went = Math.hypot(w.x - e.x, w.z - e.z);
+      e.x = w.x; e.z = w.z;
+      e.wait -= dt;
+      if (e.wait > 0) continue;
+      const at = water(w.x, w.z);
+      if (!at || !(at.depth > depths[0]) || !(at.depth < depths[1])) { e.wait = 0.25; continue; }
+      const speed = dt > 0 ? went / dt : 0;
+      e.wait = speed > 0.3 ? EVERY.moving / Math.min(3, Math.max(1, speed / 1.4)) : EVERY.still;
+      list.push({ x: w.x, y: at.level + 0.012, z: w.z, r0: size[0], r1: size[1] * (speed > 0.3 ? 1 : 0.7), age: 0 });
+      made += 1;
+      if (list.length > MOST) list.shift();
+    }
+    for (const key of last.keys()) if (!seen.has(key)) last.delete(key);
+    let n = 0;
+    for (let i = list.length - 1; i >= 0; i -= 1) { list[i].age += dt; if (list[i].age >= LIFE) list.splice(i, 1); }
+    for (const r of list) {
+      const t = r.age / LIFE, e = 1 - (1 - t) * (1 - t);
+      const radius = r.r0 + (r.r1 - r.r0) * e;
+      m.compose(p.set(r.x, r.y, r.z), q, s.set(radius, 1, radius));
+      mesh.setMatrixAt(n, m);
+      fade[n] = Math.min(1, t * 8) * (1 - t);
+      n += 1;
+    }
+    mesh.count = n;
+    mesh.visible = n > 0 && amount > 0;
+    if (n) { mesh.instanceMatrix.needsUpdate = true; geometry.attributes.aFade.needsUpdate = true; }
+  }
+  return { update, state: () => ({ rings: mesh.visible ? mesh.count : 0, made }) };
+}
+
+return { createWaterRings };
 })();
 
 __modules["client/render-actors.js"] = (function () {
@@ -32847,12 +33517,12 @@ function createParcelLayer(scene) {
       const colour = STATUS_COLOUR[key];
       const w = p.x1 - p.x0;
       const d = p.z1 - p.z0;
-      batch.box(w, 0.05, 0.1, place(p.cx, 0.04, p.z0 + 0.05), colour);
-      batch.box(w, 0.05, 0.1, place(p.cx, 0.04, p.z1 - 0.05), colour);
-      batch.box(0.1, 0.05, d, place(p.x0 + 0.05, 0.04, p.cz), colour);
-      batch.box(0.1, 0.05, d, place(p.x1 - 0.05, 0.04, p.cz), colour);
+      batch.box(w, 0.012, 0.1, place(p.cx, 0.009, p.z0 + 0.05), colour);
+      batch.box(w, 0.012, 0.1, place(p.cx, 0.009, p.z1 - 0.05), colour);
+      batch.box(0.1, 0.012, d, place(p.x0 + 0.05, 0.009, p.cz), colour);
+      batch.box(0.1, 0.012, d, place(p.x1 - 0.05, 0.009, p.cz), colour);
       for (const [x, z] of [[p.x0, p.z0], [p.x1, p.z0], [p.x0, p.z1], [p.x1, p.z1]]) {
-        batch.box(0.22, 0.5, 0.22, place(x + (x === p.x0 ? 0.11 : -0.11), 0.25, z + (z === p.z0 ? 0.11 : -0.11)), colour);
+        batch.box(0.26, 0.014, 0.26, place(x + (x === p.x0 ? 0.13 : -0.13), 0.009, z + (z === p.z0 ? 0.13 : -0.13)), colour);
       }
       let board = boards.get(p.id);
       if (!board) { board = boardFor(p); boards.set(p.id, board); }
@@ -39656,6 +40326,7 @@ const { fetchKept, letGoOnceDrawn, decodeAtMost } = __modules["client/glb.js"];
 const { vehicleEnvironment } = __modules["client/vehicle-models.js"];
 const { deviceKind, PICTURES } = __modules["client/budget.js"];
 const { TWO_DOORS, DOOR, DOORS_UP } = __modules["sim/car-doors.js"];
+const { standing } = __modules["client/marks.js"];
 
 const cache = new Map();          // one geometry set and material a car and set of pictures, however many are drawn (most recently used last)
 const users = new Map();          // how many of each are in the scene now
@@ -39798,6 +40469,24 @@ function trim(keep = KEEP) {
 }
 const trimCars = () => trim(0);
 
+const settled = new Map();
+function onTyres(spec) {
+  if (settled.has(spec)) return settled.get(spec);
+  const ws = (spec.wheels || []).map((w) => { const c = w.c || [w.x, w.y, w.z]; return { x: c[0], z: c[2], low: c[1] - w.r }; });
+  let out = { y: 0, pitch: 0, roll: 0, wheels: ws.map(() => 0) };
+  if (ws.length >= 3) {
+    const n = ws.length, mx = ws.reduce((s, w) => s + w.x, 0) / n, mz = ws.reduce((s, w) => s + w.z, 0) / n, ml = ws.reduce((s, w) => s + w.low, 0) / n;
+    let sxx = 0, szz = 0, sxz = 0, sxl = 0, szl = 0;
+    for (const w of ws) { const dx = w.x - mx, dz = w.z - mz, dl = w.low - ml; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; sxl += dx * dl; szl += dz * dl; }
+    const det = sxx * szz - sxz * sxz;
+    const bx = Math.abs(det) > 1e-12 ? (sxl * szz - szl * sxz) / det : 0, bz = Math.abs(det) > 1e-12 ? (szl * sxx - sxl * sxz) / det : 0;
+    const a = ml - bx * mx - bz * mz;
+    out = { y: -a, pitch: Math.atan(bz), roll: -Math.atan(bx), wheels: ws.map((w) => -(w.low - (a + bx * w.x + bz * w.z))) };
+  }
+  settled.set(spec, out);
+  return out;
+}
+
 function picture(url, colour, own, priority) {
   const map = new THREE.Texture();
   map.flipY = false; map.anisotropy = 8;
@@ -39902,6 +40591,8 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
   const scale = length / spec.length;
   const group = new THREE.Group(); group.name = `car:${id}`;
   const frame = new THREE.Group(); frame.scale.setScalar(scale); group.add(frame);
+  const tyres = onTyres(spec);
+  frame.position.y = tyres.y * scale; frame.rotation.set(tyres.pitch, 0, tyres.roll);
   if (patch) softPatch(group, { length, width: spec.body * scale });
   const mesh = (g) => { const m = new THREE.Mesh(g, material); m.castShadow = true; m.receiveShadow = false; return m; };
   const springs = new THREE.Group(); springs.position.set(0, spec.height * 0.35, 0); frame.add(springs);
@@ -39942,19 +40633,20 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
   const X = new THREE.Vector3(1, 0, 0);
   const wheels = spec.wheels.map((w, k) => {
     const c = w.c || [w.x, w.y, w.z];
-    const at = new THREE.Group(); at.position.set(c[0], c[1], c[2]); frame.add(at);
+    const at = new THREE.Group(); at.position.set(c[0], c[1] + tyres.wheels[k], c[2]); frame.add(at);
     const steer = new THREE.Group(); at.add(steer);
     const spin = new THREE.Group(); steer.add(spin);
     const straight = new THREE.Group(); spin.add(straight);
     if (w.axle) straight.quaternion.setFromUnitVectors(new THREE.Vector3(w.axle[0], w.axle[1], w.axle[2]).normalize(), X);
     const m = mesh(geometries[k + 1]); m.position.set(-c[0], -c[1], -c[2]); straight.add(m);
-    return { at, steer, spin, r: w.r * scale, front: k < 2, y: c[1], x: c[0] * scale, z: c[2] * scale };
+    return { at, steer, spin, r: w.r * scale, front: k < 2, y: c[1] + tyres.wheels[k], x: c[0] * scale, z: c[2] * scale };
   });
   const springsY = spec.height * 0.35;
   const lampFrame = new THREE.Group(); lampFrame.position.set(0, -spec.height * 0.35, 0); springs.add(lampFrame);
   const fx = lampsOf(spec, lampFrame);
   const toBody = (v) => v;           // (the lamps are on the body: they pitch and roll with it)
   const cabin = new THREE.Group(); cabin.position.set(0, -spec.height * 0.35, 0); springs.add(cabin);
+  standing(group);
   return {
     id, group, scale, spec, frame, toBody, cabin,
     driver: spec.driver || null,
@@ -39971,6 +40663,12 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
       springs.position.y = springsY + rise / scale;
     },
     lamps(state) { fx.set(state); },
+    tyreBottom(k, out = new THREE.Vector3()) {
+      const w = wheels[k]; if (!w) return null;
+      w.at.getWorldPosition(out);
+      const up = new THREE.Vector3(0, 1, 0).transformDirection(frame.matrixWorld);
+      return out.addScaledVector(up, -w.r);
+    },
     headlampAt: (out = new THREE.Vector3()) => fx.head.getWorldPosition(out),
     doors: () => (doorSet ? Object.fromEntries([...doorParts].map(([k, part]) => [k, part.angle])) : null),
     whole: () => (!doorSet ? body.visible : opened ? rest.visible && !body.visible && [...doorParts.values()].every((part) => part.hinge.visible) : body.visible && !rest.visible),
@@ -40599,6 +41297,7 @@ const { SPORTS_PARTS } = __modules["client/sports-parts.js"];
 const { surface } = __modules["client/render-kit.js"];
 const { fetchKept, letGoOnceDrawn, decodeAtMost } = __modules["client/glb.js"];
 const { deviceKind } = __modules["client/budget.js"];
+const { standing } = __modules["client/marks.js"];
 
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
 const cache = new Map();          // `${id}:${tier}` \u2192 its geometry and material, however many are drawn (most recently used last)
@@ -40768,6 +41467,7 @@ async function loadSport(id, { base = 'sports/', tier = null, own = false, prior
   const helm = names.includes('helm') ? pivot(frame, V(spec.helm.p), 'helm') : null;
   const helmAxis = spec.helm ? V(spec.helm.axis).normalize() : null;
   const q = new THREE.Quaternion();
+  standing(group);
   return {
     id, group, spec, frame, lean,
     size: V(spec.size),
@@ -46051,6 +46751,7 @@ return { RADAR_COLOURS, radarPoint, createRadar };
 })();
 
 __modules["client/blood.js"] = (function () {
+const { markMaterial, asMark } = __modules["client/marks.js"];
 
 const MOST_POOLS = 24;
 const DROPS = 72;
@@ -46076,7 +46777,7 @@ const hash = (key) => { let h = 7; for (let i = 0; i < key.length; i += 1) h = (
 
 function createBlood(scene) {
   const pools = new Map();       // key -> { mesh, x, z, h, r, want, gone, opacity }
-  const material = () => new THREE.MeshStandardMaterial({ color: 0x5c0509, roughness: 0.28, metalness: 0.05, transparent: true, opacity: 0.92, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const material = () => markMaterial(new THREE.MeshStandardMaterial({ color: 0x5c0509, roughness: 0.28, metalness: 0.05, transparent: true, opacity: 0.92, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
   const dropMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.035, 6, 4), new THREE.MeshBasicMaterial({ color: 0x7a0a0e }), DROPS);
   dropMesh.frustumCulled = false; dropMesh.count = 0;
   scene.add(dropMesh);
@@ -46092,8 +46793,7 @@ function createBlood(scene) {
       const cx = b.x + Math.sin(b.h) * (b.lying ? 0.55 : 0), cz = b.z + Math.cos(b.h) * (b.lying ? 0.55 : 0);
       if (!p) {
         if (pools.size >= MOST_POOLS) { const oldest = [...pools.entries()].sort((u, v) => u[1].born - v[1].born)[0]; scene.remove(oldest[1].mesh); oldest[1].mesh.geometry.dispose(); oldest[1].mesh.material.dispose(); pools.delete(oldest[0]); }
-        const mesh = new THREE.Mesh(poolGeometry(hash(b.key)), material());
-        mesh.renderOrder = 1;
+        const mesh = asMark(new THREE.Mesh(poolGeometry(hash(b.key)), material()));
         scene.add(mesh);
         p = { mesh, x: cx, z: cz, h: b.h, r: 0.05, want: 0, gone: 0, born: performance.now() };
         pools.set(b.key, p);
@@ -49241,6 +49941,39 @@ const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (er
 const TRAFFIC_DRAWN = Object.freeze({ lite: Object.freeze({ most: 2, sight: 45, tier: '512' }), full: Object.freeze({ most: 5, sight: 90, tier: '1k' }) });
 const SPRINGS = Object.freeze({ pitch: 0.012, most: 0.05, roll: 0.0045 });
 const DRIVE = Object.freeze({ recline: 0.38, mostRecline: 0.62, sink: 0.08, slide: 0.14, headRoom: 0.04, wheelTurn: 1.4, wheelMost: 0.6, look: 0.35 });
+const SETTLE = Object.freeze({ most: 0.25, step: 0.5, travel: 0.12 });
+const fit = { g: [], x: [], z: [] };
+function settle(wheels, x, z, h, y, groundY, out) {
+  const s = Math.sin(h), c = Math.cos(h);
+  const g0 = groundY(x, z, y);
+  const n = wheels.length;
+  let mx = 0, mz = 0, mg = 0;
+  for (let k = 0; k < n; k += 1) {
+    const wl = wheels[k];
+    let g = groundY(x + wl.x * c + wl.z * s, z - wl.x * s + wl.z * c, y);
+    if (!Number.isFinite(g) || Math.abs(g - g0) > SETTLE.step) g = g0;
+    fit.g[k] = g; fit.x[k] = wl.x; fit.z[k] = wl.z;
+    mx += wl.x; mz += wl.z; mg += g;
+  }
+  mx /= n; mz /= n; mg /= n;
+  let sxx = 0, szz = 0, sxz = 0, sxg = 0, szg = 0;
+  for (let k = 0; k < n; k += 1) {
+    const dx = fit.x[k] - mx, dz = fit.z[k] - mz, dg = fit.g[k] - mg;
+    sxx += dx * dx; szz += dz * dz; sxz += dx * dz; sxg += dx * dg; szg += dz * dg;
+  }
+  const det = sxx * szz - sxz * sxz;
+  let across = 0, along = 0;
+  if (Math.abs(det) > 1e-9) { across = (sxg * szz - szg * sxz) / det; along = (szg * sxx - sxg * sxz) / det; }
+  across = Math.max(-SETTLE.most, Math.min(SETTLE.most, across));
+  along = Math.max(-SETTLE.most, Math.min(SETTLE.most, along));
+  out.y = mg - across * mx - along * mz;
+  out.pitch = -Math.atan(along);
+  out.roll = Math.atan(across);
+  const lifts = out.lifts || (out.lifts = []);
+  for (let k = 0; k < n; k += 1) lifts[k] = Math.max(-SETTLE.travel, Math.min(SETTLE.travel, fit.g[k] - (out.y + across * fit.x[k] + along * fit.z[k])));
+  lifts.length = n;
+  return out;
+}
 const w = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), hip: new THREE.Vector3(), q: new THREE.Quaternion(), r: new THREE.Quaternion(), axis: new THREE.Vector3(), up: new THREE.Vector3(), x: new THREE.Vector3(), u: new THREE.Vector3(), n: new THREE.Vector3(), centre: new THREE.Vector3(), grip: new THREE.Vector3() };
 
 function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}, onBump = () => {} } = {}) {
@@ -49278,15 +50011,17 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
   }
   const nearBars = [], NONE = [];
   const barsNear = (bodies, x, z, reach) => { nearBars.length = 0; for (const b of bodies) if (Math.abs((b.ax + b.bx) / 2 - x) < reach && Math.abs((b.az + b.bz) / 2 - z) < reach) nearBars.push(b); return nearBars; };
+  const sat = (e) => e.sat || (e.sat = { y: 0, pitch: 0, roll: 0, lifts: [], all: [] });
+  const sitOn = (e, d, groundY) => {
+    const g = e.car.group, on = settle(e.car.wheels, d.x, d.z, d.h, d.y, groundY, sat(e));
+    g.position.set(d.x, on.y, d.z);
+    g.rotation.set(on.pitch, d.h, on.roll, 'YXZ');
+    g.visible = true;
+    return on;
+  };
   const place = (e, d, groundY, dt, night, bodies = []) => {
     const fx = springs(e, d, dt);
-    const g = e.car.group;
-    const gy = groundY(d.x, d.z, d.y);
-    g.position.set(d.x, gy, d.z);
-    const half = e.car.size ? e.car.size.length * 0.38 : 1.7;
-    const slope = (groundY(d.x + Math.sin(d.h) * half, d.z + Math.cos(d.h) * half, d.y) - groundY(d.x - Math.sin(d.h) * half, d.z - Math.cos(d.h) * half, d.y)) / (2 * half);
-    g.rotation.set(Math.abs(slope) > 0.002 && Math.abs(slope) < 0.25 ? -Math.atan(slope) : 0, d.h, 0, 'YXZ');
-    g.visible = true;
+    const on = sitOn(e, d, groundY);
     const bars = bodies.length ? barsNear(bodies, d.x, d.z, e.car.size.length / 2 + 2) : NONE;
     const lifts = e.lifts || (e.lifts = []);
     wheelLifts(bars, e.car.wheels, d.x, d.z, d.h, -(d.steer || 0), lifts);
@@ -49299,7 +50034,9 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
     const pk = e.peak || (e.peak = { lifts: [], pitchMin: 0, pitchMax: 0, roll: 0 });
     for (let k = 0; k < lifts.length; k += 1) pk.lifts[k] = Math.max(pk.lifts[k] || 0, lifts[k]);
     pk.pitchMin = Math.min(pk.pitchMin, b.pitch); pk.pitchMax = Math.max(pk.pitchMax, b.pitch); pk.roll = Math.max(pk.roll, Math.abs(b.roll));
-    e.car.pose({ travelled: e.travelled, steerAngle: -(d.steer || 0), pitch: fx.pitch + b.pitch, roll: fx.roll + b.roll, lifts, rise: b.rise, doors: d.doors || null });
+    for (let k = 0; k < lifts.length; k += 1) on.all[k] = lifts[k] + (on.lifts[k] || 0);
+    on.all.length = lifts.length;
+    e.car.pose({ travelled: e.travelled, steerAngle: -(d.steer || 0), pitch: fx.pitch + b.pitch, roll: fx.roll + b.roll, lifts: on.all, rise: b.rise, doors: d.doors || null });
     e.state = { head: night > 0.25 || d.lamps ? 1 : 0, tail: night > 0.25 || d.lamps ? 1 : 0, brake: (d.brake && (d.speed || 0) > 0.2) || d.held ? 1 : 0, reverse: (d.speed || 0) < -0.2 ? 1 : 0 };
     e.car.lamps(e.state);
   };
@@ -49338,10 +50075,8 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
     }
     const near = parked.filter((p) => POWER_CARS[p.car] && dist(p) <= SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, parkedMost);
     const stand = (e, p) => {
-      e.car.group.position.set(p.x, groundY(p.x, p.z, p.y), p.z);
-      e.car.group.rotation.set(0, p.h, 0);
-      e.car.group.visible = true;
-      e.car.pose({ travelled: e.travelled, steerAngle: 0, pitch: 0, roll: 0, doors: p.doors || null });
+      const on = sitOn(e, p, groundY);
+      e.car.pose({ travelled: e.travelled, steerAngle: 0, pitch: 0, roll: 0, lifts: on.lifts, doors: p.doors || null });
       e.car.lamps({});
     };
     for (const p of near) {
@@ -49449,7 +50184,7 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
   };
 }
 
-return { TRAFFIC_DRAWN, SPRINGS, DRIVE, createCarView };
+return { TRAFFIC_DRAWN, SPRINGS, DRIVE, SETTLE, createCarView };
 })();
 
 __modules["client/bike-impostors.js"] = (function () {
@@ -49467,6 +50202,7 @@ return { CAR_IMPOSTOR };
 __modules["client/vehicle-standins.js"] = (function () {
 const { BIKE_IMPOSTOR } = __modules["client/bike-impostors.js"];
 const { CAR_IMPOSTOR } = __modules["client/car-impostors.js"];
+const { DRAW } = __modules["client/marks.js"];
 
 const KEEP_IDLE = 30;              // seconds a sheet is kept after it was last drawn
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
@@ -49550,6 +50286,7 @@ function createStandins(scene, { lite = false } = {}) {
       if (!e) {
         const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size.size, size.size), s.material);
         mesh.name = `standin:${v.kind}:${v.id}`;
+        mesh.renderOrder = DRAW.standing;
         scene.add(mesh);
         e = { mesh, kind: v.kind, id: v.id, frame: -1 };
         shown.set(v.key, e);
@@ -49799,6 +50536,7 @@ const { COVER } = __modules["client/brand-data.js"];
 const { vehicleEnvironment } = __modules["client/vehicle-models.js"];
 const { addTree } = __modules["client/render-world.js"];
 const { Foliage, foliageMaterials } = __modules["client/render-foliage.js"];
+const { markMaterial, asMark } = __modules["client/marks.js"];
 
 const P = CARSHOW, C = CARSHOW.compound, G = CARSHOW.gate, H = CARSHOW.hall, S = CARSHOW.showroom;
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
@@ -50131,9 +50869,9 @@ function buildForecourt(group, { lite }) {
   for (const side of [-1, 1]) {
     for (let k = 0; k < 9; k += 1) {
       const x = G.x + side * (dw + 2.0 + k * 2.7);
-      for (const z of [-92, -112]) paint.box(0.12, 0.012, 5.0, place(x, 0.046, z), 0xf4f4ef);
+      for (const z of [-92, -112]) paint.box(0.12, 0.012, 5.0, place(x, 0.036, z), 0xf4f4ef);
     }
-    for (const z of [-89.5, -94.5, -109.5, -114.5]) paint.box(9 * 2.7, 0.012, 0.12, place(G.x + side * (dw + 2.0 + 4 * 2.7), 0.046, z), 0xf4f4ef);
+    for (const z of [-89.5, -94.5, -109.5, -114.5]) paint.box(9 * 2.7, 0.012, 0.12, place(G.x + side * (dw + 2.0 + 4 * 2.7), 0.036, z), 0xf4f4ef);
     kerb.box(0.2, 0.14, C.z1 - P.doors.z - 3, place(G.x + side * (dw + 0.1), 0.07, (C.z1 + P.doors.z + 1) / 2), 0xd8d3c7);
   }
   const pm = paint.build(surface({ vertexColors: true, roughness: 0.6, metalness: 0 })); pm.receiveShadow = true; group.add(pm);
@@ -50271,8 +51009,8 @@ function buildHall() {
     if (s.stand !== 'turntable') {
       if (s.stand === 'hero') gloss.round(new THREE.CylinderGeometry(s.r + 0.25, s.r + 0.3, 0.08, 64), place(s.x, 0.04, s.z), WHITE);
       gloss.round(new THREE.CylinderGeometry(s.r, s.r * 1.015, h0, 64), place(s.x, h0 / 2, s.z), WHITE);
-      glow.round(new THREE.TorusGeometry(s.r * 1.02, 0.025, 6, 96), place(s.x, 0.03, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
-    } else glow.round(new THREE.TorusGeometry(s.r + 0.1, 0.035, 6, 96), place(s.x, 0.03, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
+      glow.round(new THREE.TorusGeometry(s.r * 1.02, 0.025, 6, 96), place(s.x, 0, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
+    } else glow.round(new THREE.TorusGeometry(s.r + 0.1, 0.035, 6, 96), place(s.x, -0.01, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
     const car = POWER_CARS[s.car];
     const a = s.h, px = s.x + Math.sin(a) * (s.r + 0.4), pz = s.z + Math.cos(a) * (s.r + 0.4);
     metal.box(0.05, 0.55, 0.05, place(px, 0.275, pz), GREY);
@@ -50322,8 +51060,8 @@ function makeDisplay(display, group, standTop, sheet) {
   const holder = new THREE.Group();
   holder.position.set(display.x, standTop, display.z);
   group.add(holder);
-  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(car.width * 1.1, car.length * 1.05), new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }));
-  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006; shadow.renderOrder = 1;
+  const shadow = asMark(new THREE.Mesh(new THREE.PlaneGeometry(car.width * 1.1, car.length * 1.05), markMaterial(new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }))));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006;
   holder.add(shadow);
   return { display, car, imp, picture, holder, shadow, standTop, sheet, frame: -1, model: null, tier: null, heading: display.h };
 }
@@ -50607,6 +51345,7 @@ const { addTree } = __modules["client/render-world.js"];
 const { Foliage, foliageMaterials } = __modules["client/render-foliage.js"];
 const { pavingTextures, BLOCK } = __modules["client/render-carshow.js"];
 const { ICONS } = __modules["client/icons.js"];
+const { markMaterial, asMark } = __modules["client/marks.js"];
 
 const P = SPORTS_MALL, C = SPORTS_MALL.compound, B = SPORTS_MALL.building, H = SPORTS_MALL.hall, GW = SPORTS_MALL.gateway;
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
@@ -50784,8 +51523,8 @@ function buildForecourt(group, { lite }) {
   for (const bay of P.bays) {
     const n = Math.floor((bay.x1 - bay.x0) / bay.width);
     for (const [z, sgn] of [[bay.z0 + bay.depth / 2, 1], [bay.z1 - bay.depth / 2, -1]]) {
-      for (let k = 0; k <= n; k += 1) paint.box(0.12, 0.012, bay.depth, place(bay.x0 + k * bay.width, 0.046, z), 0xf4f4ef);
-      paint.box(n * bay.width, 0.012, 0.12, place(bay.x0 + (n * bay.width) / 2, 0.046, z - sgn * bay.depth / 2), 0xf4f4ef);
+      for (let k = 0; k <= n; k += 1) paint.box(0.12, 0.012, bay.depth, place(bay.x0 + k * bay.width, 0.036, z), 0xf4f4ef);
+      paint.box(n * bay.width, 0.012, 0.12, place(bay.x0 + (n * bay.width) / 2, 0.036, z - sgn * bay.depth / 2), 0xf4f4ef);
     }
   }
   for (const side of [-1, 1]) kerb.box(0.2, 0.14, W.z1 - W.z0 - 1, place(P.doors.x + side * ((W.x1 - W.x0) / 2 + 0.1), 0.07, (W.z0 + W.z1) / 2), 0xd8d3c7);
@@ -50972,7 +51711,7 @@ function buildHall() {
     const h0 = s.lift;
     gloss.round(new THREE.CylinderGeometry(s.r, s.r * 1.015, h0, 64), place(s.x, h0 / 2, s.z), WHITE);
     if (s.stand === 'platform') gloss.round(new THREE.CylinderGeometry(s.r * 0.86, s.r * 0.86, 0.012, 64), place(s.x, h0 + 0.006, s.z), 0x1f5f86);
-    glow.round(new THREE.TorusGeometry(s.r * 1.02, 0.025, 6, 96), place(s.x, 0.03, s.z, 0, 1, 1, 1, Math.PI / 2), 0x7dffb5);
+    glow.round(new THREE.TorusGeometry(s.r * 1.02, 0.025, 6, 96), place(s.x, 0, s.z, 0, 1, 1, 1, Math.PI / 2), 0x7dffb5);
     if (s.upright) for (const k2 of [-0.32, 0.32]) metal.box(0.05, 1.35, 0.05, place(s.x + Math.cos(s.h) * k2 - Math.sin(s.h) * 0.42, h0 + 0.675, s.z - Math.sin(s.h) * k2 - Math.cos(s.h) * 0.42), GREY);
     const item = SPORTS[s.item];
     const a = s.h, px = s.x + Math.sin(a) * (s.r + 0.35), pz = s.z + Math.cos(a) * (s.r + 0.35);
@@ -51028,8 +51767,8 @@ function holderOf(display, standTop, group) {
   group.add(holder);
   const item = SPORTS[display.item];
   void item;
-  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }));
-  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006; shadow.renderOrder = 1;
+  const shadow = asMark(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), markMaterial(new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }))));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006;
   holder.add(shadow);
   return { display, holder, shadow, standTop, model: null, tier: null };
 }
@@ -51163,6 +51902,7 @@ const { SUPPLIED_VEHICLES } = __modules["sim/zone.js"];
 const { loadSuppliedMesh } = __modules["client/supplied-model.js"];
 const { surface } = __modules["client/render-kit.js"];
 const { wantPicture } = __modules["client/glb.js"];
+const { standing } = __modules["client/marks.js"];
 
 function fitVehicle(mesh, v) {
   const pos = mesh.geometry.attributes.position, c = Math.cos(v.front), s = Math.sin(v.front);
@@ -51228,6 +51968,7 @@ function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } =
     standIn.position.y = (id === 'jet' ? 2.8 : v.height * 0.92) / 2; standIn.castShadow = true;
     holder.add(standIn);
     softPatch(holder, { length: v.length, width: v.width });
+    standing(holder);
     scene.add(holder);
     return { id, v, holder, standIn, model: null, loading: null, failed: null, triangles: 0, want: 0 };
   });
@@ -51241,7 +51982,7 @@ function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } =
       .then(({ mesh, triangles }) => {
         const { fit } = fitVehicle(mesh, p.v);
         p.model = fit; p.triangles = triangles;
-        p.holder.add(fit); p.standIn.visible = false;
+        p.holder.add(standing(fit)); p.standIn.visible = false;
       })
       .catch((error) => { p.failed = String(error.message || error); p.failedAt = performance.now(); })
       .finally(() => { p.loading = null; });
@@ -51275,7 +52016,7 @@ function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } =
   }
   function dressAmbulance(van) {
     if (!ambulance || ambulance.failed || van.dressed) return van.dressed || null;
-    van.group.add(ambulance.fit);
+    van.group.add(standing(ambulance.fit));
     ambulance.van = van;
     for (const child of van.group.children) if (child !== ambulance.fit) child.visible = false;
     const lamps = [];
@@ -51523,6 +52264,7 @@ const { hallModels, castShadows } = __modules["client/hall-models.js"];
 const { BIKE_IMPOSTOR } = __modules["client/bike-impostors.js"];
 const { COVER } = __modules["client/brand-data.js"];
 const { letPaintedGo } = __modules["client/painted.js"];
+const { markMaterial, asMark } = __modules["client/marks.js"];
 
 const P = POWERBIKE, M = POWERBIKE.model, H = POWERBIKE.hall;
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
@@ -51800,8 +52542,8 @@ function buildHall() {
     if (s.stand !== 'turntable') {
       if (s.stand === 'hero') gloss.round(new THREE.CylinderGeometry(s.r + 0.2, s.r + 0.24, 0.08, 48), place(s.x, 0.04, s.z), WHITE);
       gloss.round(new THREE.CylinderGeometry(s.r, s.r * 1.02, h0, 48), place(s.x, h0 / 2, s.z), WHITE);
-      glow.round(new THREE.TorusGeometry(s.r * 1.03, 0.022, 6, 64), place(s.x, 0.03, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
-    } else glow.round(new THREE.TorusGeometry(s.r + 0.08, 0.03, 6, 72), place(s.x, 0.03, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
+      glow.round(new THREE.TorusGeometry(s.r * 1.03, 0.022, 6, 64), place(s.x, 0, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
+    } else glow.round(new THREE.TorusGeometry(s.r + 0.08, 0.03, 6, 72), place(s.x, -0.006, s.z, 0, 1, 1, 1, Math.PI / 2), 0xffd27a);
     const bike = POWER_BIKES[s.bike];
     const a = s.h, px = s.x + Math.sin(a) * (s.r + 0.32), pz = s.z + Math.cos(a) * (s.r + 0.32);
     metal.box(0.05, 0.5, 0.05, place(px, 0.25, pz), STEEL);
@@ -51853,8 +52595,8 @@ function makeDisplay(display, group, standTop, sheet) {
   const holder = new THREE.Group();          // where the model stands, turned as it is shown
   holder.position.set(display.x, standTop, display.z);
   group.add(holder);
-  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.78, bike.length * 1.05), new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }));
-  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006; shadow.renderOrder = 1;
+  const shadow = asMark(new THREE.Mesh(new THREE.PlaneGeometry(0.78, bike.length * 1.05), markMaterial(new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }))));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006;
   holder.add(shadow);
   return { display, bike, imp, picture, holder, shadow, standTop, sheet, frame: -1, model: null, tier: null, heading: display.h };
 }
@@ -52853,6 +53595,7 @@ return { buildClosures };
 })();
 
 __modules["client/torch-beams.js"] = (function () {
+const { markMaterial, asMark } = __modules["client/marks.js"];
 
 const LENGTH = 11;         // metres: how far the beam is seen to reach
 const SPREAD = 0.42;       // radians: half the cone's width
@@ -52906,8 +53649,8 @@ function createTorchBeams(scene, { lite = false } = {}) {
     const material = beamMaterial();
     const beam = new THREE.Mesh(cone, material);
     beam.name = 'torch-beam'; beam.visible = false; beam.renderOrder = 3; beam.frustumCulled = false;
-    const patch = new THREE.Mesh(disc, new THREE.MeshBasicMaterial({ map: poolMap, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xf2f4ff, opacity: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, fog: false, toneMapped: false }));
-    patch.name = 'torch-pool'; patch.visible = false; patch.renderOrder = 2;
+    const patch = asMark(new THREE.Mesh(disc, markMaterial(new THREE.MeshBasicMaterial({ map: poolMap, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xf2f4ff, opacity: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, fog: false, toneMapped: false }), { add: true })));
+    patch.name = 'torch-pool'; patch.visible = false;
     scene.add(beam, patch);
     pool.push({ beam, patch, material });
   }
@@ -52949,7 +53692,8 @@ return { createTorchBeams };
 
 __modules["client/render-lamps.js"] = (function () {
 const { STREET_LAMPS, LAMP_KNOCK, lampsDown, lampOnAt, raiseLamp } = __modules["sim/street-lamps.js"];
-const { cityGroundY, zoneGroundY } = __modules["sim/zone.js"];
+const { cityGroundY, zoneGroundY, zoneSurfaceY } = __modules["sim/zone.js"];
+const { markMaterial, asMark } = __modules["client/marks.js"];
 const { Batch, place, linear, surface, buildingKit } = __modules["client/render-kit.js"];
 const { reflects } = __modules["client/render-finish.js"];
 const { STREET_LAMP } = __modules["client/light.js"];
@@ -53128,16 +53872,16 @@ function createStreetLamps(scene, { lite = false, now = () => performance.now() 
   }
   const heads = lamps.flatMap((L) => L.heads);
 
-  const poolMaterial = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  const poolMaterial = markMaterial(new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), { add: true });
   const disc = new THREE.PlaneGeometry(1, 1); disc.rotateX(-Math.PI / 2);
-  const pools = new THREE.InstancedMesh(disc, poolMaterial, heads.length + FIXED_MOST);
-  pools.frustumCulled = false; pools.renderOrder = 2; pools.visible = false; pools.name = 'lamp-pools';
+  const pools = asMark(new THREE.InstancedMesh(disc, poolMaterial, heads.length + FIXED_MOST));
+  pools.frustumCulled = false; pools.visible = false; pools.name = 'lamp-pools';
   scene.add(pools);
   const STREAKS = lite ? 16 : 40;
-  const streakMaterial = new THREE.MeshBasicMaterial({ map: streakTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: true, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 });
+  const streakMaterial = markMaterial(new THREE.MeshBasicMaterial({ map: streakTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: true, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }), { add: true });
   const strip = new THREE.PlaneGeometry(1, 1); strip.rotateX(-Math.PI / 2); strip.translate(0, 0, 0.5);
-  const streaks = new THREE.InstancedMesh(strip, streakMaterial, STREAKS);
-  streaks.frustumCulled = false; streaks.renderOrder = 3; streaks.visible = false; streaks.count = 0; streaks.name = 'lamp-streaks';
+  const streaks = asMark(new THREE.InstancedMesh(strip, streakMaterial, STREAKS));
+  streaks.frustumCulled = false; streaks.visible = false; streaks.count = 0; streaks.name = 'lamp-streaks';
   scene.add(streaks);
   const fixed = [];
 
@@ -53219,18 +53963,29 @@ function createStreetLamps(scene, { lite = false, now = () => performance.now() 
   }
 
   let lastNight = -1, onTimer = 0, lightTimer = 0, streakTimer = 0, poolsDirty = true;
-  const poolAt = new THREE.Matrix4();
+  const poolAt = new THREE.Matrix4(), poolTilt = new THREE.Quaternion(), poolUp = new THREE.Vector3(), poolSize = new THREE.Vector3(), poolPos = new THREE.Vector3();
+  function poolLay(h) {
+    if (h.lay) return h.lay;
+    const r = Math.max(0.6, (h.size || 6) * 0.3);
+    const at = (x, z) => zoneSurfaceY(x, z, h.ground);
+    const y = at(h.x, h.z);
+    const slope = (a, b) => { const s = (b - a) / (2 * r); return Math.abs(b - y) < r * 0.2 && Math.abs(a - y) < r * 0.2 && Math.abs(s) < 0.15 ? s : 0; };
+    const sx = slope(at(h.x - r, h.z), at(h.x + r, h.z)), sz = slope(at(h.x, h.z - r), at(h.x, h.z + r));
+    poolUp.set(-sx, 1, -sz).normalize();
+    h.lay = { y: y + 0.015, q: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), poolUp) };
+    return h.lay;
+  }
   function placePools() {
     let n = 0;
     for (const h of heads) {
       const L = h.lamp;
       const lit = L.on > 0.5 && L.shown && regions[regionOf(L.kind)];
-      poolAt.makeScale(lit ? h.size : 0, 1, lit ? h.size : 0);
-      poolAt.setPosition(h.x, h.ground + 0.07, h.z);
+      const lay = poolLay(h);
+      poolAt.compose(poolPos.set(h.x, lay.y, h.z), lay.q, poolSize.set(lit ? h.size : 0, 1, lit ? h.size : 0));
       pools.setMatrixAt(n, poolAt);
       n += 1;
     }
-    for (const f of fixed) { const lit = f.on && regions[f.region || 'city']; poolAt.makeScale(lit ? f.size : 0, 1, lit ? f.size : 0); poolAt.setPosition(f.x, f.ground + 0.07, f.z); if (n < pools.instanceMatrix.count) pools.setMatrixAt(n, poolAt); n += 1; }
+    for (const f of fixed) { const lit = f.on && regions[f.region || 'city']; poolTilt.identity(); poolAt.compose(poolPos.set(f.x, f.ground + 0.015, f.z), poolTilt, poolSize.set(lit ? f.size : 0, 1, lit ? f.size : 0)); if (n < pools.instanceMatrix.count) pools.setMatrixAt(n, poolAt); n += 1; }
     pools.count = Math.min(n, pools.instanceMatrix.count);
     pools.instanceMatrix.needsUpdate = true;
     poolsDirty = false;
@@ -53325,7 +54080,8 @@ function createStreetLamps(scene, { lite = false, now = () => performance.now() 
         const heading = Math.atan2(ex - h.x, ez - h.z);
         const len = Math.min(d * 0.85, 9 + h.y * 1.6);
         q.setFromAxisAngle(upY, heading);
-        m4.compose(pos.set(h.x, h.ground + 0.075, h.z), q, v3.set(0.9 + h.y * 0.05, 1, len));
+        q.premultiply(poolLay(h).q);
+        m4.compose(pos.set(h.x, poolLay(h).y + 0.005, h.z), q, v3.set(0.9 + h.y * 0.05, 1, len));
         streaks.setMatrixAt(n, m4);
         n += 1;
       }
@@ -53414,7 +54170,7 @@ return { Mesher, Q_UV };
 })();
 
 __modules["client/render-oganiru.js"] = (function () {
-const { OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_KERBED, OGANIRU_MEDIAN_GAPS, OGANIRU_TOWERS, OGANIRU_TREES, OGANIRU_PILLARS, OGANIRU_SIGNALS, OGANIRU_SIGNS, OGANIRU_JUNCTIONS, OGANIRU_ROUNDABOUTS, OGANIRU_CUTTING, OGANIRU_STOP_LINES, OGANIRU_PLACES, EXPRESSWAY_Z, oganiruAway, expresswayY, roadWidthAt, ZONE, signalState, HABITATION_MODELS, HABITATION, habitationGroundAt, ofOganiru } = __modules["sim/zone.js"];
+const { OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_KERBED, OGANIRU_MEDIAN_GAPS, OGANIRU_TOWERS, OGANIRU_TREES, OGANIRU_PILLARS, OGANIRU_SIGNALS, OGANIRU_SIGNS, OGANIRU_JUNCTIONS, OGANIRU_ROUNDABOUTS, OGANIRU_CUTTING, OGANIRU_STOP_LINES, OGANIRU_PLACES, EXPRESSWAY_Z, oganiruAway, expresswayY, roadWidthAt, ZONE, signalState, HABITATION_MODELS, HABITATION, habitationGroundAt, ofOganiru, SLIM_TREE_HEIGHT } = __modules["sim/zone.js"];
 const { Batch, place, linear, noise, smoothNoise, grassTexture, surface, buildingKit, letGoOnceSent } = __modules["client/render-kit.js"];
 const { Mesher, Q_UV } = __modules["client/render-mesher.js"];
 const { letPaintedGo } = __modules["client/painted.js"];
@@ -53562,9 +54318,12 @@ const OUTSKIRTS_GROUND = { x0: -1330, x1: -232, z0: -660 };
 const GROUND = { x0: -1500, x1: 1040, z0: -1740, z1: -12 };
 const HAB = HABITATION.bounds;
 const inHabitationLand = (x, z) => x > HAB.x0 - 1 && x < HAB.x1 + 1 && z > HAB.z0 - 1 && z < HAB.z1 + 1;
-function landY(x, z) {
+function landY(x, z, reach = 0) {
   const y = cityLandY(x, z);
-  return inHabitationLand(x, z) ? Math.min(y, habitationGroundAt(x, z) - 0.6) : y;
+  if (!inHabitationLand(x, z)) return y;
+  let low = habitationGroundAt(x, z);
+  if (reach > 0) for (let i = -4; i <= 4; i += 1) for (let k = -4; k <= 4; k += 1) low = Math.min(low, habitationGroundAt(x + (i * reach) / 4, z + (k * reach) / 4));
+  return Math.min(y, low - 0.6);
 }
 function cityLandY(x, z) {
   const away = oganiruAway(x, z);
@@ -53609,7 +54368,7 @@ function groundTile(T, lite) {
     const patch = smoothNoise(x / 34, z / 34) * 0.65 + smoothNoise(x / 9, z / 9) * 0.35;
     c.copy(grassA).lerp(grassB, patch).lerp(dry, Math.max(0, smoothNoise(x / 55 + 9, z / 55) - 0.5) * 1.3);
     if (oganiruAway(x, z) < 1) { const nearRoad = roadEdgeNear(x, z); if (nearRoad < 7) c.lerp(earth, 0.55 * (1 - nearRoad / 7) + 0.1 * smoothNoise(x / 6, z / 6)); }
-    return { x, y: landY(x, z), z, r: c.r, g: c.g, b: c.b };
+    return { x, y: landY(x, z, step), z, r: c.r, g: c.g, b: c.b };
   };
   const grid = zs.map((z) => xs.map((x) => at(x, z)));
   const put = (v) => { pos.push(v.x, v.y, v.z); col.push(v.r, v.g, v.b); uv.push(v.x / 3.2, v.z / 3.2); };
@@ -53638,7 +54397,7 @@ function baseGround(lite) {
   const at = (x, z) => {
     const patch = smoothNoise(x / 34, z / 34) * 0.65 + smoothNoise(x / 9, z / 9) * 0.35;
     c.copy(grassA).lerp(grassB, patch).lerp(dry, Math.max(0, smoothNoise(x / 55 + 9, z / 55) - 0.5) * 1.3);
-    return { x, y: landY(x, z) - 0.45, z, r: c.r, g: c.g, b: c.b };
+    return { x, y: landY(x, z, step) - 0.45, z, r: c.r, g: c.g, b: c.b };
   };
   const grid = zs.map((z) => xs.map((x) => at(x, z)));
   const pos = [], col = [], uv = [];
@@ -53854,11 +54613,11 @@ function roundaboutTile(M, rb, lite, shade, foliage) {
     M.grass.quad(c0, p0, p1, c0, GRASS, [[c0[0] / 3.2, c0[2] / 3.2], [p0[0] / 3.2, p0[2] / 3.2], [p1[0] / 3.2, p1[2] / 3.2], [c0[0] / 3.2, c0[2] / 3.2]], UP);
     const k = i % 2 ? KERB_BLACK : KERB_WHITE;
     const m = (a0 + a1) / 2;
-    M.solid.box(0.22, KERB + 0.04, (Math.PI * 2 * rb.island) / iseg - 0.03, rb.x + Math.sin(m) * rb.island, (KERB + 0.04) / 2, rb.z + Math.cos(m) * rb.island, k, m + Math.PI / 2);
+    M.solid.box(0.22, KERB_TOP, (Math.PI * 2 * rb.island) / iseg - 0.03, rb.x + Math.sin(m) * rb.island, KERB_TOP / 2, rb.z + Math.cos(m) * rb.island, k, m + Math.PI / 2);
     if (!mouth(m)) {
       const w0 = P(rb.outer, a0, KERB), w1 = P(rb.outer + rb.walk, a0, KERB), w2 = P(rb.outer + rb.walk, a1, KERB), w3 = P(rb.outer, a1, KERB);
       M.pave.quad(w0, w1, w2, w3, 0xe6e2d8, [[w0[0] / 2, w0[2] / 2], [w1[0] / 2, w1[2] / 2], [w2[0] / 2, w2[2] / 2], [w3[0] / 2, w3[2] / 2]], UP);
-      M.solid.box(0.22, KERB + 0.04, (Math.PI * 2 * rb.outer) / iseg - 0.03, rb.x + Math.sin(m) * rb.outer, (KERB + 0.04) / 2, rb.z + Math.cos(m) * rb.outer, k, m + Math.PI / 2);
+      M.solid.box(0.22, KERB_TOP, (Math.PI * 2 * rb.outer) / iseg - 0.03, rb.x + Math.sin(m) * rb.outer, KERB_TOP / 2, rb.z + Math.cos(m) * rb.outer, k, m + Math.PI / 2);
     }
   }
   if (rb.id === 'gate') {
@@ -53876,15 +54635,15 @@ function roundaboutTile(M, rb, lite, shade, foliage) {
   }
 }
 
-const KERB_TOP = KERB + 0.04;
+const KERB_TOP = KERB + 0.015, KERB_WIDTH = 0.22;
 function kerbRun(M, x0, z0, x1, z1, out) {
   const len = Math.hypot(x1 - x0, z1 - z0);
   if (len < 0.3) return;
-  const ox = out[0] * 0.11, oz = out[1] * 0.11;
+  const ox = out[0] * KERB_WIDTH, oz = out[1] * KERB_WIDTH;
   const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
   const u0 = (alongX ? x0 : z0) / 32, u1 = (alongX ? x1 : z1) / 32;
-  M.kerb.quad([x0 - ox, KERB_TOP, z0 - oz], [x1 - ox, KERB_TOP, z1 - oz], [x1 + ox, KERB_TOP, z1 + oz], [x0 + ox, KERB_TOP, z0 + oz], 0xffffff, [[u0, 0.9], [u1, 0.9], [u1, 1], [u0, 1]], UP);
-  M.kerb.quad([x0 + ox, 0, z0 + oz], [x1 + ox, 0, z1 + oz], [x1 + ox, KERB_TOP, z1 + oz], [x0 + ox, KERB_TOP, z0 + oz], 0xffffff, [[u0, 0], [u1, 0], [u1, 0.85], [u0, 0.85]], [out[0], 0, out[1]]);
+  M.kerb.quad([x0 - ox, KERB_TOP, z0 - oz], [x1 - ox, KERB_TOP, z1 - oz], [x1, KERB_TOP, z1], [x0, KERB_TOP, z0], 0xffffff, [[u0, 0.9], [u1, 0.9], [u1, 1], [u0, 1]], UP);
+  M.kerb.quad([x0, 0, z0], [x1, 0, z1], [x1, KERB_TOP, z1], [x0, KERB_TOP, z0], 0xffffff, [[u0, 0], [u1, 0], [u1, 0.85], [u0, 0.85]], [out[0], 0, out[1]]);
 }
 const ROAD_OF = new Map(OGANIRU_ROADS.map((r) => [r.id, r]));
 function* kerbsTile(M, T) {
@@ -54095,7 +54854,7 @@ const GORES = (() => {
 })();
 function goresTile(M, T) {
   for (const g of GORES) {
-    const at = (x, off, A) => { const y = g.twin || off <= EDGE ? A.main : A.ramp; return [x, y + (y > 0.35 ? 0.004 : DECK_LIFT) + 0.014, EZ + g.side * off]; };
+    const at = (x, off, A) => { const main = g.twin || off <= EDGE, y = main ? A.main : A.ramp; return [x, y + (y > 0.35 ? 0.004 + 0.014 : main && !g.twin ? PAINT_Y + 0.003 : DECK_LIFT + 0.008), EZ + g.side * off]; };
     for (let i = 0; i + 1 < g.pts.length; i += 1) {
       const a = g.pts[i], b = g.pts[i + 1];
       if (!inTile(T, a.x, EZ + g.side * a.lo)) continue;
@@ -54336,7 +55095,7 @@ const TREE_PICTURE_KEYS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', '
 function createSlimTrees(group, { lite, fetchFile, renderer }) {
   const info = HABITATION_MODELS.slimtree || { unit: 1, base: [0, 0, 0] };
   const copies = OGANIRU_TREES.filter((t) => t.kind === 'slim').map((t, i) => {
-    const height = 13.4 * t.size;
+    const height = SLIM_TREE_HEIGHT * t.size;
     const scale = height / info.unit;
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), t.turn);
     const off = new THREE.Vector3(info.base[0] * scale, info.base[1] * scale, info.base[2] * scale).applyQuaternion(q);
@@ -55576,6 +56335,7 @@ return { HOLD_TIME, RELOAD_STEPS, mendArmSkin, createGunHold };
 })();
 
 __modules["client/gun-fx.js"] = (function () {
+const { markMaterial, asMark } = __modules["client/marks.js"];
 
 const smooth = (t) => { const u = Math.max(0, Math.min(1, t)); return u * u * (3 - 2 * u); };
 
@@ -55681,8 +56441,9 @@ function createGunFx(scene, { lite = false, ground = () => 0, light = true, draw
   const BLOOD = new THREE.Color(0x6e0710), GRIT = new THREE.Color();
   const disc = new THREE.CircleGeometry(1, 10); disc.rotateX(-Math.PI / 2);
   const spotMaterial = new THREE.MeshBasicMaterial({ color: 0x4a050a, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const spots = bits(most.spots, disc, spotMaterial);
-  const marks = bits(most.marks, disc, new THREE.MeshBasicMaterial({ color: 0x1c1712, transparent: true, opacity: 0.7, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  const spots = bits(most.spots, disc, markMaterial(spotMaterial));
+  const marks = bits(most.marks, disc, markMaterial(new THREE.MeshBasicMaterial({ color: 0x1c1712, transparent: true, opacity: 0.7, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })));
+  asMark(spots.mesh); asMark(marks.mesh);
   const caseGeometry = new THREE.CylinderGeometry(0.0052, 0.0052, 0.045, 6); caseGeometry.rotateZ(Math.PI / 2);
   const cases = bits(most.cases, caseGeometry, new THREE.MeshStandardMaterial({ color: 0xb98a3e, metalness: 0.85, roughness: 0.35 }));
 
@@ -56944,7 +57705,7 @@ return { createGunNet };
 __modules["client/main.js"] = (function () {
 
 const { createHost } = __modules["sim/host.js"];
-const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, SPORTS_MALL, inSportsHall, onSportsExit, sportsDisplayNear, sportsBuildingAt, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA, zoneSurfaceY, zoneLevel, zoneDeckOver, oganiruTallAt, oganiruAway, ofOganiru, OGANIRU, OGANIRU_BILLBOARDS, OGANIRU_CUTTING, expresswayY } = __modules["sim/zone.js"];
+const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, SPORTS_MALL, inSportsHall, onSportsExit, sportsDisplayNear, sportsBuildingAt, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA, zoneSurfaceY, zoneLevel, zoneDeckOver, zoneDeckHeights, oganiruTallAt, oganiruAway, ofOganiru, OGANIRU, OGANIRU_BILLBOARDS, OGANIRU_CUTTING, expresswayY } = __modules["sim/zone.js"];
 const { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } = __modules["sim/sim.js"];
 const { FIGURES } = __modules["sim/figures.js"];
 const { DESIGNS, BUSINESSES } = __modules["sim/economy.js"];
@@ -56952,14 +57713,14 @@ const { VEHICLE_KINDS, RUN_RULES, vehicleFits, vehicleSpeedAt, vehicleBox, lower
 const { createTranslator } = __modules["sim/culture.js"];
 const { createLoopbackHub, createRoomTransport } = __modules["net/transport.js"];
 const { createLink } = __modules["net/link.js"];
-const { buildWorld } = __modules["client/render-world.js"];
+const { buildWorld, softGround } = __modules["client/render-world.js"];
 const { outskirtsSteps } = __modules["client/render-outskirts.js"];
 const { programsReady } = __modules["client/program-ready.js"];
 const { buildBillboards } = __modules["client/render-billboards.js"];
 const { cityAdvertArt } = __modules["client/render-city-adverts.js"];
 const { buildTown } = __modules["client/render-town.js"];
 const { createCrowd } = __modules["client/render-crowd.js"];
-const { linear, setLite, restoreGeometry, settleMesh, restState } = __modules["client/render-kit.js"];
+const { linear, setLite, restoreGeometry, settleMesh, restState, numbersOf } = __modules["client/render-kit.js"];
 const { fetchKept, restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable, setUploader } = __modules["client/glb.js"];
 const { createPictureKeeper } = __modules["client/picture-keeper.js"];
 const { gradeInstalled } = __modules["client/grade.js"];
@@ -56970,6 +57731,7 @@ const { setRiver, createRiverMirror, riverState } = __modules["client/river-wate
 const { createDust } = __modules["client/dust.js"];
 const { createFireflies } = __modules["client/fireflies.js"];
 const { createWetTracks } = __modules["client/wet-tracks.js"];
+const { createWaterRings } = __modules["client/water-rings.js"];
 const { makeVehicle, makeVan, createParcelLayer, createSiteLayer, createYardStacks } = __modules["client/render-actors.js"];
 const { initVehicles, setVehicleDaylight, vehicleWarmJobs, vehicleEnvironment, renewEnvironment } = __modules["client/vehicle-models.js"];
 const { vehicleMeta } = __modules["client/vehicle-kit.js"];
@@ -57310,7 +58072,7 @@ function start(carried) {
     }
   }
   let town = null, crowd = null, blood = null, sky = null, parcelLayer = null, siteLayer = null, yardStacks = null;
-  let dust = null, fireflies = null, wetTracks = null, glow = null, occlusion = null, riverMirror = null;
+  let dust = null, fireflies = null, wetTracks = null, waterRings = null, glow = null, occlusion = null, riverMirror = null;
   townSteps.push(['the buildings', () => { town = buildTown(scene, world.glowMaterial); }]);
   townSteps.push(['the people, the sky and the plots', () => {
     crowd = createCrowd(scene);
@@ -57319,6 +58081,7 @@ function start(carried) {
     dust = createDust(scene, { lite: LITE });
     fireflies = createFireflies(scene, { lite: LITE });
     wetTracks = createWetTracks(scene, { lite: LITE });
+    waterRings = createWaterRings(scene, { lite: LITE });
     parcelLayer = createParcelLayer(scene);
     siteLayer = createSiteLayer(scene);
     yardStacks = createYardStacks(scene);
@@ -57567,6 +58330,7 @@ function start(carried) {
   let characterTrouble = '';          // why the character kept with the account could not be brought here, if it could not
   let view = null;
   let predicted = { x: ZONE.spawn.x, z: ZONE.spawn.z, heading: 0 };
+  const myGround = (x, z) => zoneSurfaceY(x, z, levelAt(predicted));
   let me = null;
   const residentActors = new Map();
   const vehicleActors = new Map();
@@ -60758,6 +61522,7 @@ function start(carried) {
       me.group.rotation.set(0, board ? board.h : predicted.heading, astride ? moto.lean : 0);      // (lean positive: over to the right, into a right turn)
       me.climbing = !!me.animated && !driving && !riding && !astride && !incar && speed > 0.3 && habitationClimbing(me.group.position.x, me.group.position.z, predicted.heading);
       me.limp = !!self.critical && !driving && !riding && !astride && !incar && !self.swimming;
+      me.ground = me.animated && !driving && !riding && !astride && !incar && !self.swimming ? myGround : null;
       animateCharacter(me, dt, driving || riding || astride || incar ? 0 : speed, holding, led() ? 0 : going.turn);
       driveKitEmote(dt, speed);
       const myLevel = levelAt(predicted);
@@ -61081,7 +61846,8 @@ blood.update(dt, view.blood || []);
       sunWay.copy(sky.sun.position).sub(sky.sun.target.position).normalize();
       const sunny = skyState.sunUp > 0.02 ? Math.min(1, skyState.sunUp * 4) * (1 - skyState.dull) : 0;
       if (dust) dust.update(dt, { amount: hall ? 0 : airLevel.dust, eye: playing ? predicted : null, camera, height: bufferHeight, sunDir: sunWay, daylight: sunny, wet: groundWet, dirt: dirtAt, ground: zoneGroundY, movers, wind: GROUND_WIND, light: 1 - night * 0.85 });
-      if (wetTracks) wetTracks.update(dt, { amount: hall ? 0 : airLevel.wetTracks, wet: groundWet, raining: skyState.wetness, ground: zoneGroundY, movers, eye: playing ? predicted : null });
+      if (wetTracks) wetTracks.update(dt, { amount: hall ? 0 : airLevel.wetTracks, wet: groundWet, raining: skyState.wetness, ground: zoneGroundY, movers, eye: playing ? predicted : null, soft: softGround });
+      if (waterRings) waterRings.update(dt, { amount: hall ? 0 : airLevel.wetTracks, movers, water: habitationWaterAt, eye: playing ? predicted : null });
       if (fireflies) fireflies.update(dt, { amount: playing && !hall && habitationAway(predicted.x, predicted.z) <= 0 ? airLevel.fireflies * Math.max(0, Math.min(1, (night - 0.55) / 0.4)) * (1 - skyState.wetness) : 0, eye: playing ? predicted : null, camera, height: bufferHeight, ground: zoneGroundY });
     }
     world.glowMaterial.emissiveIntensity = night * 1.5;
@@ -61295,7 +62061,7 @@ blood.update(dt, view.blood || []);
     get inside() { return inside ? inside.id : null; },
     get quality() { return quality.level; }, get qualityDetail() { return quality.detail; }, graphicsBudget: graphicsBudgetMB, memoryLimit,
     cloudShadeAt,
-    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), patchOpacity: softPatchOpacity(), skyLight: sky.skyLight, warmth: sky.state().warmth, toneMapping: renderer.toneMapping, air: worldShadingState(), airLevel: { ...airLevel }, glow: glow ? glow.state() : null, dust: dust ? dust.state() : null, fireflies: fireflies ? fireflies.state() : null, wetTracks: wetTracks ? wetTracks.state() : null, occlusion: occlusion ? occlusion.state() : null, river: { ...riverState(), mirror: riverMirror ? riverMirror.state() : null }, finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit, kept: keeper ? keeper.state() : null, resting: restState() }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
+    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), patchOpacity: softPatchOpacity(), skyLight: sky.skyLight, warmth: sky.state().warmth, toneMapping: renderer.toneMapping, air: worldShadingState(), airLevel: { ...airLevel }, glow: glow ? glow.state() : null, dust: dust ? dust.state() : null, fireflies: fireflies ? fireflies.state() : null, wetTracks: wetTracks ? wetTracks.state() : null, waterRings: waterRings ? waterRings.state() : null, occlusion: occlusion ? occlusion.state() : null, river: { ...riverState(), mirror: riverMirror ? riverMirror.state() : null }, finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit, kept: keeper ? keeper.state() : null, resting: restState() }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
     get gunPlay() { return gunPlay; }, gunNet, gunTargets: () => gunTargets(), aimBy: (dx, dy) => aimBy(dx, dy),
@@ -61307,7 +62073,10 @@ blood.update(dt, view.blood || []);
     online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, exitGame: () => exitGame(), get exited() { return exited; }, get playing() { return playing; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },
-    walkable: (x, z) => zoneWalkable(x, z, structureBoxes()),
+    walkable: (x, z, y, radius) => zoneWalkable(x, z, structureBoxes(), Number.isFinite(radius) ? radius : undefined, y),
+    surfaceY: (x, z, y) => (Number.isFinite(y) ? zoneSurfaceY(x, z, y) : zoneGroundY(x, z)),
+    deckHeights: (x, z) => zoneDeckHeights(x, z),
+    numbersOf,
     saveNow() { writeStored(SAVE_KEY, { host: host.save(), playerId }); },
     get lite() { return LITE; }, get going() { return going; }, get me() { return me; },
     get beyond() { return outskirts.ready; }, get city() { return city; }, buildCity: () => buildCity(), letGoCity: () => letGoCity(), get cityStats() { return { ...cityStats }; }, get skyline() { return skyline; }, buildSkyline: () => buildSkyline(), get skylineStats() { return { ...skylineStats, ...(skyline ? skyline.stats() : {}) }; }, get streetLamps() { return streetLamps; }, get closures() { return closures; }, get billboards() { return billboards; }, get cityBoards() { return cityBoards; }, adBoard, buildBeyond: () => buildBeyond(), beginBeyond: () => { beyondBegun = true; }, get beyondSteps() { return { ...beyondStats }; },

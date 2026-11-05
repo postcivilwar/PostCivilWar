@@ -841,7 +841,9 @@ function goresTile(M, T) {
   for (const g of GORES) {
     // a point `off` out from the expressway's middle at x, on the road there (the expressway's, or beyond its edge the
     // slip road's), a little over its other markings
-    const at = (x, off, A) => { const y = g.twin || off <= EDGE ? A.main : A.ramp; return [x, y + (y > 0.35 ? 0.004 : DECK_LIFT) + 0.014, EZ + g.side * off]; };
+    // (over the expressway's road where it is on the ground, just over its own markings, PAINT_Y: 2.6 cm over it until
+    // 5 November 2026, as if it were a deck's)
+    const at = (x, off, A) => { const main = g.twin || off <= EDGE, y = main ? A.main : A.ramp; return [x, y + (y > 0.35 ? 0.004 + 0.014 : main && !g.twin ? PAINT_Y + 0.003 : DECK_LIFT + 0.008), EZ + g.side * off]; };
     for (let i = 0; i + 1 < g.pts.length; i += 1) {
       const a = g.pts[i], b = g.pts[i + 1];
       if (!inTile(T, a.x, EZ + g.side * a.lo)) continue;

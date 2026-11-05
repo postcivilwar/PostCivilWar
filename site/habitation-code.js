@@ -1261,9 +1261,9 @@ function buildUpriver(lite) {
   tar.box((p.x0 + p.x1) / 2, 0.05, (p.z0 + p.z1) / 2, ax, ay, az, p.x1 - p.x0, 0.06, p.z1 - p.z0, 1);
   const tarMesh = tar.build(new THREE.MeshStandardMaterial({ color: linear(0x56555a), roughness: 0.94, metalness: 0, map: grainTexture({ low: 0.66, coarse: 0.3, speck: 0.45, seed: 3 }) }));
   const paint = new Pieces();
-  for (let x = x0 + 2; x < r.x1 - 2; x += 9) paint.box(x + 1.5, 0.085, (r.z0 + r.z1) / 2, ax, ay, az, 3, 0.02, 0.14, 1);
-  for (const z of [r.z0 + 0.25, r.z1 - 0.25]) paint.box((x0 + r.x1) / 2, 0.085, z, ax, ay, az, r.x1 - x0, 0.02, 0.12, 1);
-  for (let x = p.x0 + 3; x < p.x1 - 2; x += 2.6) for (const z of [p.z0 + 3, p.z1 - 14]) paint.box(x, 0.085, z, ax, ay, az, 0.12, 0.02, 5, 1);
+  for (let x = x0 + 2; x < r.x1 - 2; x += 9) paint.box(x + 1.5, 0.085, (r.z0 + r.z1) / 2, ax, ay, az, 3, 0.01, 0.14, 1);
+  for (const z of [r.z0 + 0.25, r.z1 - 0.25]) paint.box((x0 + r.x1) / 2, 0.085, z, ax, ay, az, r.x1 - x0, 0.01, 0.12, 1);
+  for (let x = p.x0 + 3; x < p.x1 - 2; x += 2.6) for (const z of [p.z0 + 3, p.z1 - 14]) paint.box(x, 0.085, z, ax, ay, az, 0.12, 0.01, 5, 1);
   const paintMesh = paint.build(new THREE.MeshStandardMaterial({ color: linear(0xe6e2d6), roughness: 0.8, metalness: 0 }));
   shoulder.castShadow = tarMesh.castShadow = paintMesh.castShadow = false;
   group.add(shoulder, tarMesh, paintMesh);
@@ -2064,6 +2064,7 @@ __modules["client/render-habitation-life.js"] = (function () {
 
 const { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_PATHS, HABITATION_SHIFT, habitationWaterAt, habitationLand, habitationGroundAt, habitationFooting } = __modules["sim/zone.js"];
 const { linear } = __modules["client/render-kit.js"];
+const { markMaterial, asMark } = __modules["client/marks.js"];
 
 function dice(seed) {
   let a = seed >>> 0;
@@ -2409,14 +2410,14 @@ function createHabitationLife(scene, { lite = false } = {}) {
   const printGeom = new THREE.PlaneGeometry(0.13, 0.28); printGeom.rotateX(-Math.PI / 2);
   const printFade = new Float32Array(PRINTS);
   printGeom.setAttribute('printFade', new THREE.InstancedBufferAttribute(printFade, 1));
-  const printMat = new THREE.MeshBasicMaterial({ map: printTex, color: linear(0x6e5a3e), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const printMat = markMaterial(new THREE.MeshBasicMaterial({ map: printTex, color: linear(0x6e5a3e), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
   printMat.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float printFade;\nvarying float vPrintFade;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvPrintFade = printFade;');
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vPrintFade;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.a = texture2D(map, vMapUv).r * 0.42 * vPrintFade;');
   };
   printMat.customProgramCacheKey = () => 'pcw-habitation-print';
   const prints = new THREE.InstancedMesh(printGeom, printMat, PRINTS);
-  prints.name = 'footprints'; prints.frustumCulled = false; prints.count = 0; prints.renderOrder = 1;
+  prints.name = 'footprints'; prints.frustumCulled = false; prints.count = 0; asMark(prints);
   group.add(prints);
   const printList = [];            // { x, y, z, h, side, age }
   const walkers = new Map();       // key -> { x, z, gone, side }
