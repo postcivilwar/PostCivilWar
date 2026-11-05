@@ -322,8 +322,10 @@ await page.click('#drive-car');
 await page.waitForFunction(() => window.__nlw.view.self.incar && window.__nlw.carView.ready(), null, { timeout: 300000 }).catch(() => {});
 await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.predicted.heading + 0.5; n.cam.dist = 7; n.cam.pitch = 0.18; });
 await page.waitForTimeout(1500);
-const inCar = await page.evaluate(() => { const n = window.__nlw, c = n.carView.driven(); return { incar: n.view.self.incar && n.view.self.incar.car, drawn: !!c, at: c && [c.group.position.x, c.group.position.z], me: [n.predicted.x, n.predicted.z], figure: n.me.group.visible, mode: n.mode, engine: n.audio.status().car }; });
-check('Drive it: the Grey Saloon is brought to the player, who is in it (the figure inside, unseen), its engine started', inCar.incar === 'grey-saloon' && inCar.drawn && Math.hypot(inCar.at[0] - inCar.me[0], inCar.at[1] - inCar.me[1]) < 0.05 && !inCar.figure && inCar.mode === 'car' && inCar.engine && inCar.engine.running, inCar);
+const inCar = await page.evaluate(() => { const n = window.__nlw, c = n.carView.driven(); return { incar: n.view.self.incar && n.view.self.incar.car, drawn: !!c, glazed: !!(c && c.glazed), at: c && [c.group.position.x, c.group.position.z], me: [n.predicted.x, n.predicted.z], figure: n.me.group.visible, mode: n.mode, engine: n.audio.status().car }; });
+// (the Grey Saloon has real glass since 5 November 2026, Stage 2 of the owner's brief: the player is seen sitting in it
+// through the glass; before, its windows painted on, the figure inside was not drawn)
+check('Drive it: the Grey Saloon is brought to the player, who is in it (seen through its glass, sitting), its engine started', inCar.incar === 'grey-saloon' && inCar.drawn && inCar.glazed && Math.hypot(inCar.at[0] - inCar.me[0], inCar.at[1] - inCar.me[1]) < 0.05 && inCar.figure && inCar.mode === 'car' && inCar.engine && inCar.engine.running, inCar);
 await shot('14-in-the-car');
 const startAt = await page.evaluate(() => ({ x: window.__nlw.predicted.x, z: window.__nlw.predicted.z, h: window.__nlw.predicted.heading }));
 await page.keyboard.down('w'); await page.waitForTimeout(4000);
