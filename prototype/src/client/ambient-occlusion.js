@@ -64,8 +64,10 @@ export function createAmbientOcclusion(renderer, scene, camera) {
   quadScene.add(quad);
 
   // every solid, opaque surface given the AO's layer, so that only they are drawn into its picture (looked at again every
-  // two seconds: the town fetches and lets go of things as one moves)
-  const solid = (m) => m && m.visible !== false && !m.transparent && !(m.alphaTest > 0) && !m.alphaMap && m.depthWrite !== false && m.colorWrite !== false;
+  // two seconds: the town fetches and lets go of things as one moves). A car's body with its windows cut out of it (its
+  // windows picture its alphaMap, car-glass.js) is drawn into it whole, as the solid shell it is: left out, the cabin
+  // behind it would be darkened through it, its seats' and dashboard's shapes laid over the doors and the bonnet.
+  const solid = (m) => m && m.visible !== false && !m.transparent && !(m.alphaTest > 0) && (!m.alphaMap || !!(m.userData && m.userData.windowsCut)) && m.depthWrite !== false && m.colorWrite !== false;
   function sort() {
     casters = 0;
     scene.traverse((o) => {

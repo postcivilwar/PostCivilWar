@@ -349,33 +349,81 @@ def sheet(car, P, N, tex, glass, found, folder):
 
 def fit_of(spec, pos, body, n_z=33, n_y=19):
     """How much room the shell leaves inside, for fitting a cabin to it (the brief's part 3: "Fitted so nothing pokes
-    through the body or the glass"): cut across at `n_z` places along the car, at each of `n_y` heights, how far out
-    its side is (the nearer side's, from the middle line: a half width), and how high its top is over the middle line
-    (the roof, the glass, the bonnet). The model's units; null where the cut finds nothing."""
+    through the body or the glass"): cut across at `n_z` places along the car, at each of `n_y` heights (and more near
+    the roof), how far out its side is (the nearer side's, from the middle line: a half width); how high its top is
+    over the middle line (the roof, the glass, the bonnet: `top`), and the lowest that is across the middle two fifths
+    of its width (`low`: a curved bonnet or windscreen lower at its sides than at its middle); and how high the top is
+    at nine places across from the middle line out to the body's side (`roof`: for a lining that follows the roof's
+    curve down to its edges). The model's units; null where the cut finds nothing.
+    Each of the body's triangles that the cut crosses is a short line across it; the side at a height is read along
+    those lines where they cross that height: the skin nearest the middle line of the surface that faces out sideways
+    to its own side (the doors and the side glass; not a mirror, a flared arch or a sill further out, nor the roof, the
+    glass over the cabin or the floor, which cross a height near the middle line, nor a roof rail's inner face)."""
     A = pos[body]
     L, H, B = spec['length'], spec['height'], spec['body']
-    zs = np.linspace(-0.48 * L, 0.48 * L, n_z); ys = np.linspace(0.1 * H, H, n_y)
+    nrm = np.cross(A[:, 1] - A[:, 0], A[:, 2] - A[:, 0]); nrm /= (np.linalg.norm(nrm, axis=1, keepdims=True) + 1e-12)
+    # (heights a twentieth of the car's apart, and closer near the roof, where the shell rounds in to it)
+    zs = np.linspace(-0.48 * L, 0.48 * L, n_z); ys = np.unique(np.round(np.concatenate([np.linspace(0.1 * H, H, n_y), np.linspace(0.84 * H, H, 17)]), 6))
     lo = A[:, :, 2].min(axis=1); hi = A[:, :, 2].max(axis=1)
-    half, top = [], []
+    half, top, low, roof = [], [], [], []
     for z in zs:
-        T = A[(lo <= z) & (hi >= z)]
-        pts = []
+        on = (lo <= z) & (hi >= z)
+        T, F = A[on], nrm[on, 0]
+        # (each triangle's line across the cut: where two of its edges cross it)
+        ends = []
         for i, j in ((0, 1), (1, 2), (2, 0)):
             p, q = T[:, i], T[:, j]
             dz = q[:, 2] - p[:, 2]
             ok = (np.minimum(p[:, 2], q[:, 2]) <= z) & (np.maximum(p[:, 2], q[:, 2]) >= z) & (np.abs(dz) > 1e-12)
-            t = (z - p[ok, 2]) / dz[ok]
-            pts.append(p[ok] + (q[ok] - p[ok]) * t[:, None])
-        Q = np.concatenate(pts) if pts else np.zeros((0, 3))
+            t = np.where(ok, (z - p[:, 2]) / np.where(ok, dz, 1.0), np.nan)
+            ends.append(p + (q - p) * t[:, None])
+        E = np.stack(ends, axis=1)                         # (triangles, 3 edges, xyz), nan where an edge does not cross
+        good = ~np.isnan(E[..., 0])
+        first = np.argmax(good, axis=1); last = 2 - np.argmax(good[:, ::-1], axis=1)
+        two = good.sum(axis=1) >= 2
+        P0 = E[np.arange(len(E)), first][two]; P1 = E[np.arange(len(E)), last][two]; Fs = F[two]
+        side = np.abs(Fs) > 0.45
         row = []
         for y in ys:
-            band = Q[np.abs(Q[:, 1] - y) < 0.02 * H]
-            l, r = band[band[:, 0] > 0, 0], band[band[:, 0] < 0, 0]
-            row.append(round(float(min(l.max(), -r.min())), 4) if len(l) and len(r) else None)
+            a0, a1, f = P0[side], P1[side], Fs[side]
+            y0, y1 = a0[:, 1], a1[:, 1]
+            span = (np.minimum(y0, y1) <= y) & (np.maximum(y0, y1) >= y) & (np.abs(y1 - y0) > 1e-9)
+            k = (y - y0[span]) / (y1[span] - y0[span])
+            xs = a0[span, 0] + (a1[span, 0] - a0[span, 0]) * k
+            fs = f[span]
+            # (and the nearly flat lines at this height, at their ends)
+            flat = (np.abs(y1 - y0) <= 1e-9) & (np.abs(y0 - y) < 0.004 * H)
+            xs = np.concatenate([xs, a0[flat, 0], a1[flat, 0]]); fs = np.concatenate([fs, f[flat], f[flat]])
+            # (each side's skin faces out to that side: a roof rail's or a mirror's inner face does not)
+            l, r = xs[(xs > 0) & (fs > 0)], xs[(xs < 0) & (fs < 0)]
+            row.append(round(float(min(l.min(), -r.max())), 4) if len(l) and len(r) else None)
         half.append(row)
-        mid = Q[np.abs(Q[:, 0]) < 0.08 * B]
-        top.append(round(float(mid[:, 1].max()), 4) if len(mid) else None)
-    return {'z': [round(float(v), 4) for v in zs], 'y': [round(float(v), 4) for v in ys], 'half': half, 'top': top}
+        # (the top: the highest point of the lines over the middle line, and over each of a few lines across the middle
+        # two fifths, the lowest of those)
+        def highest(x0, w):
+            ys_ = []
+            for P_, Q_ in ((P0, P1), (P1, P0)):
+                near = np.abs(P_[:, 0] - x0) < w
+                ys_.append(P_[near, 1])
+            # (a line crossing x0: its height there)
+            dx = P1[:, 0] - P0[:, 0]
+            cross = (np.minimum(P0[:, 0], P1[:, 0]) <= x0) & (np.maximum(P0[:, 0], P1[:, 0]) >= x0) & (np.abs(dx) > 1e-9)
+            k = (x0 - P0[cross, 0]) / dx[cross]
+            ys_.append(P0[cross, 1] + (P1[cross, 1] - P0[cross, 1]) * k)
+            v = np.concatenate(ys_)
+            return float(v.max()) if len(v) else None
+        mid = highest(0.0, 0.08 * B)
+        top.append(round(mid, 4) if mid is not None else None)
+        tops = [h for h in (highest(x, 0.01 * B) for x in np.linspace(-B / 5, B / 5, 9)) if h is not None]
+        low.append(round(min(tops), 4) if tops else None)
+        # (the roof across: how high it is at nine places out from the middle line to the body's side, the lower of
+        # either side's)
+        across = []
+        for x in np.linspace(0, B / 2, 9):
+            a_, b_ = highest(x, 0.01 * B), highest(-x, 0.01 * B)
+            across.append(round(min(a_, b_), 4) if a_ is not None and b_ is not None else None)
+        roof.append(across)
+    return {'z': [round(float(v), 4) for v in zs], 'y': [round(float(v), 4) for v in ys], 'half': half, 'top': top, 'low': low, 'roof': roof, 'roofX': [round(float(v), 4) for v in np.linspace(0, B / 2, 9)]}
 
 
 def belt_of(spec, P, glass):

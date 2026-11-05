@@ -134,6 +134,8 @@ diffuseColor.a = clamp(max(glassBase, glassSlant) + glassDust * 0.35 + glassDrop
       m.alphaMap = picture;
       m.alphaTest = 0;
       m.side = THREE.DoubleSide;
+      // (still a solid shell, for the soft darkening where things meet: ambient-occlusion.js)
+      m.userData.windowsCut = true;
       const was = m.onBeforeCompile;
       const inner = { uInside: { value: insideColour } };
       m.onBeforeCompile = (shader, renderer) => {

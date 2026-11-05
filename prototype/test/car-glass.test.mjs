@@ -85,6 +85,85 @@ test('each sample car\'s cabin is inside its shell: nothing out past its sides, 
   }
 });
 
+// The car's own surface, from its shape file (as car-model.js reads it): its body's triangles laid flat on a grid a
+// centimetre square, along it and up (for each square, the nearest of its surface to the middle line on each side: the
+// skin, not a mirror or a flared arch further out) and along it and across (the highest of it: the roof, the glass, the
+// bonnet). The model's units.
+function surfaceOf(id, spec, scale) {
+  const buf = readFileSync(new URL(spec.files.mesh, GAME));
+  const n = spec.vertices;
+  const pos = new Float32Array(buf.buffer, buf.byteOffset, n * 3);
+  let at = n * 12 + n * 6 + (n % 2) * 2 + n * 8;
+  const index = new Uint32Array(buf.buffer.slice(buf.byteOffset + at, buf.byteOffset + at + spec.parts[0] * 12));
+  const cell = 0.01 / scale, L = spec.length, H = spec.height, B = spec.body;
+  const nz = Math.ceil(L * 1.1 / cell), ny = Math.ceil(H * 1.1 / cell), nx = Math.ceil(B * 1.4 / cell);
+  const iz = (z) => Math.floor((z + L * 0.55) / cell), iy = (y) => Math.floor((y + H * 0.05) / cell), ix = (x) => Math.floor((x + B * 0.7) / cell);
+  const left = new Float32Array(nz * ny).fill(Infinity), right = new Float32Array(nz * ny).fill(Infinity), top = new Float32Array(nz * nx).fill(-Infinity);
+  // (each triangle onto a plane: every square whose middle it covers given the third coordinate there)
+  const lay = (a, b, c, u, v, w, nu, nv, toU, toV, put) => {
+    const ua = pos[a * 3 + u], va = pos[a * 3 + v], ub = pos[b * 3 + u], vb = pos[b * 3 + v], uc = pos[c * 3 + u], vc = pos[c * 3 + v];
+    const d = (vb - vc) * (ua - uc) + (uc - ub) * (va - vc);
+    if (Math.abs(d) < 1e-14) return;
+    const u0 = Math.max(0, toU(Math.min(ua, ub, uc))), u1 = Math.min(nu - 1, toU(Math.max(ua, ub, uc))), v0 = Math.max(0, toV(Math.min(va, vb, vc))), v1 = Math.min(nv - 1, toV(Math.max(va, vb, vc)));
+    for (let i = u0; i <= u1; i += 1) for (let j = v0; j <= v1; j += 1) {
+      const pu = (i + 0.5) * cell - (u === 2 ? L * 0.55 : 0), pv = (j + 0.5) * cell - (v === 1 ? H * 0.05 : B * 0.7);
+      const l1 = ((vb - vc) * (pu - uc) + (uc - ub) * (pv - vc)) / d, l2 = ((vc - va) * (pu - uc) + (ua - uc) * (pv - vc)) / d, l3 = 1 - l1 - l2;
+      if (l1 < -1e-6 || l2 < -1e-6 || l3 < -1e-6) continue;
+      put(i, j, l1 * pos[a * 3 + w] + l2 * pos[b * 3 + w] + l3 * pos[c * 3 + w]);
+    }
+  };
+  const e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  for (let t = 0; t < spec.parts[0]; t += 1) {
+    const a = index[t * 3], b = index[t * 3 + 1], c = index[t * 3 + 2];
+    // (the sides from the surface that faces out sideways: the doors' skin and the side glass, not the roof, the glass
+    // over the cabin or the floor, which cross a height along it near the middle line, nor the inner face of a roof
+    // rail or a mirror, which face in)
+    e1.set(pos[b * 3] - pos[a * 3], pos[b * 3 + 1] - pos[a * 3 + 1], pos[b * 3 + 2] - pos[a * 3 + 2]);
+    e2.set(pos[c * 3] - pos[a * 3], pos[c * 3 + 1] - pos[a * 3 + 1], pos[c * 3 + 2] - pos[a * 3 + 2]);
+    const facing = e1.cross(e2).normalize().x;
+    if (Math.abs(facing) > 0.45) lay(a, b, c, 2, 1, 0, nz, ny, iz, iy, (i, j, x) => { const k = i * ny + j; if (x > 0 && facing > 0) left[k] = Math.min(left[k], x); else if (x < 0 && facing < 0) right[k] = Math.min(right[k], -x); });
+    lay(a, b, c, 2, 0, 1, nz, nx, iz, ix, (i, j, y) => { const k = i * nx + j; top[k] = Math.max(top[k], y); });
+  }
+  return {
+    // how far out the skin is on the side `s` (1 its left, -1 its right) at a place along it and a height, or null
+    side: (s, z, y) => { const i = iz(z), j = iy(y); if (i < 0 || i >= nz || j < 0 || j >= ny) return null; const v = (s > 0 ? left : right)[i * ny + j]; return Number.isFinite(v) ? v : null; },
+    // how high it is at a place along it and across, or null (the highest of the squares round it too: where the surface
+    // turns from the roof down to the side, its triangles laid flat may leave a square's middle uncovered)
+    top: (z, x) => {
+      const i = iz(z), j = ix(x); let v = -Infinity;
+      for (let a = Math.max(0, i - 1); a <= Math.min(nz - 1, i + 1); a += 1) for (let b = Math.max(0, j - 1); b <= Math.min(nx - 1, j + 1); b += 1) v = Math.max(v, top[a * nx + b]);
+      return Number.isFinite(v) ? v : null;
+    },
+  };
+}
+
+test('each sample car\'s cabin is inside its own surface: no point of it out through the body, the glass or the roof where the car is drawn', () => {
+  for (const id of SAMPLE) {
+    const spec = CAR_PARTS[id], w = CAR_WINDOWS[id], scale = POWER_CARS[id].length / spec.length;
+    const S = surfaceOf(id, spec, scale);
+    const cabin = makeCabin(id, spec, { scale, fit: w.fit, doors: [] });
+    cabin.group.updateMatrixWorld(true);
+    let side = 0, over = 0, worst = 0, at = null, what = null;
+    const tol = 0.004 / scale;
+    cabin.group.traverse((o) => {
+      if (!o.isMesh || !o.geometry.attributes.position) return;
+      const p = o.geometry.attributes.position, v = new THREE.Vector3();
+      for (let i = 0; i < p.count; i += 1) {
+        v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld);   // (the model's units: the group is scaled to them)
+        // (out through its side: past the skin on its own side, where the skin is found at its place and height)
+        const s = S.side(Math.sign(v.x) || 1, v.z, v.y);
+        if (Math.abs(v.x) > 0.02 * spec.body && s !== null && Math.abs(v.x) > s + tol) { side += 1; const e = (Math.abs(v.x) - s) * scale; if (e > worst) { worst = e; at = [v.x, v.y, v.z].map((q) => +(q * scale).toFixed(3)); what = `${o.name} side`; } }
+        // (out through its top: above the roof, the glass or the bonnet over it, where it is well in from the sides; near
+        // them the sides' glass leans in over it, and the side's test is the one that holds there)
+        const t = S.top(v.z, v.x);
+        if (s !== null && Math.abs(v.x) < s - 0.05 / scale && t !== null && v.y > t + tol) { over += 1; const e = (v.y - t) * scale; if (e > worst) { worst = e; at = [v.x, v.y, v.z].map((q) => +(q * scale).toFixed(3)); what = `${o.name} top`; } }
+      }
+    });
+    assert.equal(side + over, 0, `${id}: ${side} points of its cabin out through its sides and ${over} through its top, the most ${worst.toFixed(3)} m (${what}) at ${JSON.stringify(at)} (metres)`);
+    cabin.dispose();
+  }
+});
+
 test('every figure fits every seat of the sample cars: room over the head, sat as far back as the seat allows, and the wheel within the driver\'s reach', () => {
   // the tallest and the shortest of everyone who can sit in a car: the players' characters and the townspeople
   const heights = Object.values(ANIMATED).map((f) => f.height).filter(Number.isFinite);
@@ -99,7 +178,7 @@ test('every figure fits every seat of the sample cars: room over the head, sat a
     for (const h of [tall, short]) {
       const hipY = m.hip[1] - SEATING.sink;
       const head = hipY + 0.52 * h * Math.cos(SEATING.mostRecline);
-      assert.ok(head <= m.roof - SEATING.headRoom + 0.02, `${id}: a figure ${h} m tall has room over its head (${head.toFixed(3)} against the roof's ${m.roof.toFixed(3)})`);
+      assert.ok(head <= m.overHead - SEATING.headRoom + 0.02, `${id}: a figure ${h} m tall has room over its head (${head.toFixed(3)} against the lining's ${m.overHead.toFixed(3)} over the seat)`);
       const shoulder = [m.hip[0] + 0.2 * (h / 1.8) * 0, m.hip[1] + 0.3 * h * Math.cos(0.25), m.hip[2] - 0.3 * h * Math.sin(0.25)];
       const reach = Math.hypot(m.wheel[0] - shoulder[0], m.wheel[1] - shoulder[1], m.wheel[2] - shoulder[2]);
       assert.ok(reach <= 0.33 * h + SEATING.slide + 0.1, `${id}: a figure ${h} m tall reaches the wheel (${reach.toFixed(2)} m from the shoulder)`);

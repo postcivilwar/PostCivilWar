@@ -119,7 +119,9 @@ export function seatFigure(me, car, seat = 'driver', { steer = 0, move = null, t
   // a wheel further off than the arms reach: the body leant less far back, down to nearly upright
   for (let i = 0; i < 6 && short() > 0 && leant() > 0.12; i += 1) lean(-Math.min(0.05, leant() - 0.12));
   // the roof over the head: leant further back, then sunk lower, until the top of the head is clear
-  const roofY = spec.roof !== null && spec.roof !== undefined ? spec.roof : null;
+  // (with a fitted cabin, no higher than its lining over the seat: car-cabin.js `overHead`)
+  const lining = car.cabinMeasures && Number.isFinite(car.cabinMeasures.overHead) ? car.cabinMeasures.overHead / scale + 0.03 / scale : Infinity;
+  const roofY = spec.roof !== null && spec.roof !== undefined ? Math.min(spec.roof, lining) : null;
   if (roofY !== null && head) {
     const roofAt = at([hipAt[0], roofY - (car.cabinMeasures ? 0.03 / scale : 0), hipAt[2]], w.d).clone();
     const clear = () => { const top = head.getWorldPosition(w.a).addScaledVector(dir(0, 1, 0), 0.11 * H); return roofAt.clone().sub(top).dot(dir(0, 1, 0)) - SEATING.headRoom; };

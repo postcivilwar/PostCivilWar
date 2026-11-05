@@ -111,10 +111,11 @@ function slab(w, h, d, r) {
 
 
 // The room inside a car's shell, from its fit (tools/vehicles/windows.py `fit_of`: its half width at a grid of places
-// along it and heights, and how high its top is over its middle line), in metres: `room(z, y)` how far out its side is
-// there (null where nothing was found), `topAt(z)` how high its roof, glass or bonnet is over the middle line.
+// along it and heights, how high its top is over its middle line, and the lowest its top is across the middle two
+// fifths of its width), in metres: `room(z, y)` how far out its side is there (null where nothing was found),
+// `topAt(z)` how high its roof, glass or bonnet is over the middle line, `lowAt(z)` the lowest of it across the middle.
 function shellRoom(fit, scale) {
-  if (!fit) return { room: () => null, topAt: () => null };
+  if (!fit) return { room: () => null, topAt: () => null, lowAt: () => null, roofAt: () => null };
   const zs = fit.z, ys = fit.y;
   const find = (list, v) => { if (v <= list[0]) return [0, 0, 0]; const n = list.length - 1; if (v >= list[n]) return [n, n, 0]; let i = 0; while (list[i + 1] < v) i += 1; return [i, i + 1, (v - list[i]) / (list[i + 1] - list[i])]; };
   const room = (z, y) => {
@@ -127,13 +128,22 @@ function shellRoom(fit, scale) {
     const mean = w > 0 ? vals.reduce((s, [v, k]) => s + v * k, 0) / w : vals[0][0];
     return Math.min(mean, ...vals.filter(([, k]) => k > 0.25).map(([v]) => v)) * scale;
   };
-  const topAt = (z) => {
+  const along = (list) => (z) => {
     const [z0, z1, fz] = find(zs, z / scale);
-    const a = fit.top[z0], b = fit.top[z1];
+    const a = list[z0], b = list[z1];
     if (a === null && b === null) return null;
     return (a === null ? b : b === null ? a : Math.min(a + (b - a) * fz, Math.max(a, b))) * scale;
   };
-  return { room, topAt };
+  const topAt = along(fit.top);
+  // (how high the roof is at a place along the car and out from its middle line: the lowest of the measured places
+  // round it, where the roof curves down to its edges)
+  const roofAt = (z, x) => {
+    if (!fit.roof || !fit.roofX) return topAt(z);
+    const [z0, z1] = find(zs, z / scale), [x0, x1] = find(fit.roofX, Math.abs(x) / scale);
+    const v = [fit.roof[z0][x0], fit.roof[z0][x1], fit.roof[z1][x0], fit.roof[z1][x1]].filter((q) => q !== null);
+    return v.length ? Math.min(...v) * scale : topAt(z);
+  };
+  return { room, topAt, lowAt: fit.low ? along(fit.low) : topAt, roofAt };
 }
 
 // `id` the car, `spec` its measures (car-parts.js), `scale` metres to a unit of its model; `fit` its room inside;
@@ -206,7 +216,9 @@ function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = 
   // the narrowest the inside is over a stretch along the car and of heights
   const insideOver = (z0, z1, y0, y1) => { let w = Infinity; for (let i = 0; i <= 4; i += 1) for (let j = 0; j <= 2; j += 1) w = Math.min(w, inside(z0 + (z1 - z0) * i / 4, y0 + (y1 - y0) * j / 2)); return w; };
   // under the roof (or the glass) over a stretch along the car, less `gap`
-  const under = (z0, z1, gap = 0.02) => { let t = Infinity; for (let i = 0; i <= 6; i += 1) { const v = shell.topAt(z0 + (z1 - z0) * i / 6); if (v !== null) t = Math.min(t, v); } return Number.isFinite(t) ? t - gap : roof; };
+  // (`across`: under it across the middle of its width, where a curved bonnet or windscreen is lower at its sides: for
+  // what spans the width under them, the dashboard and the firewall)
+  const under = (z0, z1, gap = 0.02, across = false) => { let t = Infinity; for (let i = 0; i <= 6; i += 1) { const v = (across ? shell.lowAt : shell.topAt)(z0 + (z1 - z0) * i / 6); if (v !== null) t = Math.min(t, v); } return Number.isFinite(t) ? t - gap : roof; };
   const floor = Math.min(feet[0][1], feet[1][1]) - 0.05;
   const belt = hip[1] + (roof - hip[1]) * 0.4;
   // where things are along the car (z, metres): the front seats' backs, the dashboard's face, the rear bench
@@ -266,15 +278,15 @@ function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = 
   const dashLow = wheel[1] - 0.26;
   let dashDeep = 0.42;
   let dashTop = Math.min(belt + 0.04, wheel[1] + 0.16);
-  for (let k = 0; k < 8 && dashDeep > 0.16 && under(dashZ, dashZ + dashDeep, 0.03) < dashTop; k += 1) dashDeep -= 0.04;
-  dashTop = Math.min(dashTop, under(dashZ, dashZ + dashDeep, 0.03));
+  for (let k = 0; k < 8 && dashDeep > 0.16 && under(dashZ, dashZ + dashDeep, 0.03, true) < dashTop; k += 1) dashDeep -= 0.04;
+  dashTop = Math.min(dashTop, under(dashZ, dashZ + dashDeep, 0.03, true));
   const dashWide = 2 * insideOver(dashZ, dashZ + dashDeep, dashLow, dashTop);
   soft(dashWide, dashTop - dashLow, dashDeep, 0.06, 0, (dashTop + dashLow) / 2, dashZ + dashDeep / 2, T.dash);
   // (its upper edge rolled toward the windscreen, and a strip of wood or metal across its face)
   soft(dashWide - 0.04, 0.05, Math.max(0.12, dashDeep * 0.9), 0.025, 0, dashTop - 0.02, dashZ + dashDeep * 0.5, T.dash, 0.12);
   box(dashWide - 0.12, 0.035, 0.01, 0, dashLow + (dashTop - dashLow) * 0.45, dashZ - 0.012, T.wood || T.metal);
   // (the hood over the dials behind the wheel, and the dials' bezel)
-  soft(0.36, 0.09, 0.2, 0.04, hip[0], Math.min(dashTop + 0.02, under(dashZ, dashZ + 0.2, 0.06)), dashZ + 0.06, T.dash, 0.25);
+  soft(0.36, 0.09, 0.2, 0.04, hip[0], Math.min(dashTop + 0.02, under(dashZ, dashZ + 0.2, 0.06, true)), dashZ + 0.06, T.dash, 0.25);
   // (the centre stack: the screen's frame, the vents, the glovebox's line on the passenger's side)
   box(0.3, 0.2, 0.03, 0, dashLow + (dashTop - dashLow) * 0.7, dashZ - 0.01, 0x0b0b0c, -0.12);
   for (const x of [-0.11, 0.11, -dashWide / 2 + 0.12, dashWide / 2 - 0.12]) {
@@ -287,7 +299,7 @@ function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = 
   // (the firewall under it and in front of it, down to the floor and up to the windscreen's foot, closing the cabin at
   // the front: the engine never seen)
   const fireZ = dashZ + dashDeep;
-  const fireTop = under(fireZ - 0.02, fireZ + 0.04, 0.005);
+  const fireTop = under(fireZ - 0.02, fireZ + 0.04, 0.005, true);
   const fireWide = 2 * insideOver(fireZ - 0.05, fireZ + 0.05, floor, fireTop);
   box(fireWide, Math.max(0.05, fireTop - floor), 0.04, 0, (fireTop + floor) / 2, fireZ, 0x141415);
 
@@ -318,20 +330,50 @@ function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = 
   const liningZ0 = rearZ - 0.4, liningZ1 = dashZ - 0.05;
   const liningY = under(liningZ0 + 0.1, liningZ1 - 0.1, 0.012) ;
   const roofIn = Math.min(roof, liningY);
-  box(2 * insideOver(liningZ0, liningZ1, roofIn - 0.08, roofIn), 0.02, liningZ1 - liningZ0, 0, roofIn - 0.01, (liningZ0 + liningZ1) / 2, T.roof);
-  // (the visors over the front seats, in from the glass where the roof narrows at the windscreen's top)
-  const visorOut = Math.min(hip[0] + 0.16, insideOver(dashZ - 0.2, dashZ - 0.04, roofIn - 0.06, roofIn - 0.02) + 0.02);
+  const liningHalf = insideOver(liningZ0, liningZ1, roofIn - 0.08, roofIn);
+  // (in strips out from the middle line, each leaning from under the roof at its inner edge to under it at its outer,
+  // where the roof is lowest at each along the lining: it follows the roof's curve down to its edges, and a chord under
+  // a roof curved up is under the roof all across)
+  const roofOver = (x, z0, z1, gap) => { let t = roofIn; for (let i = 0; i <= 8; i += 1) { const r = shell.roofAt(z0 + (z1 - z0) * i / 8, x); if (r !== null) t = Math.min(t, r - gap); } return t; };
+  // (and in lengths along the car, each under the roof where it is lowest along that length: over the front seats as
+  // high as the roof is there, lower toward the back where a sloping roof comes down)
+  const STRIPS = 8, LENGTHS = 5, pieces = [];
+  for (let j = 0; j < LENGTHS; j += 1) {
+    const z0 = liningZ0 + (liningZ1 - liningZ0) * j / LENGTHS, z1 = liningZ0 + (liningZ1 - liningZ0) * (j + 1) / LENGTHS;
+    const edges = [];
+    for (let k = 0; k <= STRIPS; k += 1) { const x = liningHalf * k / STRIPS; edges.push({ x, t: roofOver(x, z0, z1, 0.012) }); }
+    pieces.push({ z0, z1, edges });
+    for (let k = 0; k < STRIPS; k += 1) {
+      const a = edges[k], b = edges[k + 1], dx = b.x - a.x, dt = b.t - a.t, wide = Math.hypot(dx, dt) + 0.004, tilt = Math.atan2(dt, dx);
+      // (its top face from a's height to b's: the plate's middle a half thickness under the line between them)
+      const mx = (a.x + b.x) / 2 + 0.01 * Math.sin(tilt), my = (a.t + b.t) / 2 - 0.01 * Math.cos(tilt);
+      for (const s of [-1, 1]) box(wide, 0.02, z1 - z0 + 0.004, s * mx, my, (z0 + z1) / 2, T.roof, 0, 0, s * tilt);
+    }
+  }
+  // (the lining's top, at a place along the car and across)
+  const liningAt = (x, z) => {
+    const p = pieces.find((q) => z >= q.z0 && z <= q.z1) || (z < liningZ0 ? pieces[0] : pieces[LENGTHS - 1]);
+    const e = p.edges, ax = Math.abs(x);
+    for (let k = 0; k < STRIPS; k += 1) if (ax <= e[k + 1].x) { const f = (ax - e[k].x) / Math.max(1e-6, e[k + 1].x - e[k].x); return e[k].t + (e[k + 1].t - e[k].t) * f; }
+    return e[STRIPS].t;
+  };
+  // (the visors over the front seats, in from the glass where the roof narrows at the windscreen's top, within the
+  // lining, and under the roof where it curves down over their outer ends)
+  const visorOut = Math.min(hip[0] + 0.16, liningHalf - 0.03, insideOver(dashZ - 0.2, dashZ - 0.04, roofIn - 0.06, roofIn - 0.02) + 0.02);
   const visorWide = Math.max(0.16, Math.min(0.32, visorOut - 0.06));
-  for (const s of [-1, 1]) box(visorWide, 0.012, 0.15, s * (visorOut - visorWide / 2), roofIn - 0.035, dashZ - 0.12, T.roof, 0.15);
+  const visorY = Math.min(roofIn - 0.035, roofOver(visorOut, dashZ - 0.2, dashZ - 0.04, 0.035));
+  for (const s of [-1, 1]) box(visorWide, 0.012, 0.15, s * (visorOut - visorWide / 2), visorY, dashZ - 0.12, T.roof, 0.15);
   box(0.024, 0.05, 0.02, 0, roofIn - 0.045, dashZ - 0.05, 0x101010);
   box(0.24, 0.06, 0.015, 0, roofIn - 0.095, dashZ - 0.06, 0x18181a);
   // (the pillars' trim either side of the windscreen and behind the front doors, inside the body's: a piece at a time up
-  // from the belt to the roof, each as far out as the room at its own height, so that it follows the glass leaning in)
+  // from the belt to the lining, each as far out as the room at its own height and a little above it (the shell is
+  // measured at heights a hand apart, and rounds in sharply to the roof), so that it follows the glass leaning in; the
+  // lining over its top)
   const pillar = (w, dd, zLow, zHigh, rx) => {
-    const n = 4, h = (roofIn - belt) / n;
+    const n = 4, h = (roofIn - 0.05 - belt) / n;
     for (let k = 0; k < n; k += 1) {
       const y0 = belt + k * h, z = zLow + (zHigh - zLow) * (k + 0.5) / n;
-      const x = insideOver(z - dd / 2, z + dd / 2, y0, y0 + h) - w / 2;
+      const x = insideOver(z - dd / 2, z + dd / 2, y0, Math.min(roofIn, y0 + h + 0.06)) - w / 2;
       for (const s of [-1, 1]) box(w, h + 0.012, dd, s * x, y0 + h / 2, z, T.roof, rx);
     }
   };
@@ -393,12 +435,16 @@ function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = 
     for (let i = 0; i < uv.count; i += 1) uv.setX(i, u0 + (u1 - u0) * (1 - uv.getX(i)));
     G.add(pg, at(x, y, z), 0xffffff);
   };
-  faceAt(0.26, 0.11, hip[0], Math.min(dashTop - 0.04, under(dashZ, dashZ + 0.1, 0.1)), dashZ + 0.04, 0, 0.68);
+  faceAt(0.26, 0.11, hip[0], Math.min(dashTop - 0.04, under(dashZ, dashZ + 0.1, 0.1, true)), dashZ + 0.04, 0, 0.68);
   faceAt(0.25, 0.17, 0, dashLow + (dashTop - dashLow) * 0.7, dashZ - 0.028, 0.7, 1);
   const glowShape = G.build(new THREE.MeshBasicMaterial()).geometry;
 
   // where things are, for the tests and for seating people (metres, the car's frame from its middle, its ground)
-  const measures = { seatTop, floor, roof: roofIn, belt, dashZ, dashTop, dashDeep, fireZ, shelfZ, shelfY, rearZ, hip, wheel };
+  // (`overHead`: the lining's underside over a front seat's head (the lower of it over the head's two sides), where it
+  // follows the roof's curve down: the highest a head may come there)
+  const headZ = hip[2] - 0.12;
+  const overHead = Math.min(liningAt(hip[0] - 0.08, headZ), liningAt(hip[0] + 0.08, headZ), liningAt(hip[0], headZ - 0.12), liningAt(hip[0], headZ + 0.1)) - 0.02;
+  const measures = { seatTop, floor, roof: roofIn, overHead, belt, dashZ, dashTop, dashDeep, fireZ, shelfZ, shelfY, rearZ, hip, wheel };
   return {
     whole, rest, doors: doorShapes, material, wheel: wheelShape, wheelMaterial, wheelAt: [wheel[0], wheel[1], wheel[2]], tilt: d.tilt || 0.38,
     glow: glowShape, lampShape: new THREE.PlaneGeometry(0.16, 0.08), lampAt: [0, roofIn - 0.025, (hip[2] + rearZ) / 2], measures,
