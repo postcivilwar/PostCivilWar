@@ -13967,7 +13967,9 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
       const r = (v, k = 100) => Math.round(v * k) / k;
       out.push({ n: c.n, model: c.model, person: onRoads(c) ? c.i : null, x: r(c.x), z: r(c.z), y: Number.isFinite(c.y) ? r(c.y) : undefined, h: r(c.h, 1000), speed: r(c.mode === 'drive' ? c.v : 0, 10), steer: r(c.steer || 0), brake: c.brake ? 1 : 0, held: !!c.held,
         mode: c.mode, mine: c.takenBy !== null && c.takenBy === viewerId, stopped: onRoads(c) && !c.frozen && c.v <= 0.6, hornAgo: c.hornAt ? r(real() - c.hornAt, 10) : -1,
-        riders: onRoads(c) ? c.riders.length : 0, ...(c.doors && c.doors.length ? { doors: c.doors.filter((q) => q.s > real() - 1.5).map((q) => [q.d, r(q.o - real()), r(q.s - real())]) } : {}) });
+        riders: onRoads(c) ? c.riders.length : 0,
+        who: onRoads(c) && typeof c.i === 'number' ? [[c.i, 'driver'], ...c.riders.map((q) => [q.i, q.seat])].filter(([i]) => !(hub.actors && hub.actors.has(i))) : [],
+        ...(c.doors && c.doors.length ? { doors: c.doors.filter((q) => q.s > real() - 1.5).map((q) => [q.d, r(q.o - real()), r(q.s - real())]) } : {}) });
     }
     return out;
   }
@@ -18503,7 +18505,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
     }
   }
 
-  function felled(i, { from = null, harm = 1, lie: lying = null, blood = true } = {}) {
+  function felled(i, { from = null, harm = 1, lie: lying = null, blood = true, down = false } = {}) {
     const now = real();
     const rec = book.npc[i] || (book.npc[i] = { at: -10, health: 100, t: state.t });
     if (rec.dead) return false;
@@ -18520,7 +18522,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
     m.after = 0;
     rec.upAt = now + lie;
     rec.then = { at: now + lie + IMPACT.rise + rng.next() * 0.4, from: from ? { x: from.x, z: from.z } : null };
-    rec.fall = { at: now, lie, rise: IMPACT.rise, h: m.h };
+    rec.fall = { at: now, lie, rise: IMPACT.rise, h: m.h, ...(down ? { down: true } : {}) };
     if (hub.reactions && hub.reactions.end) hub.reactions.end(i);
     return true;
   }
@@ -18570,7 +18572,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
       if (now - f.at > f.lie + f.rise + 0.5) { book.npc[key].fall = null; continue; }
       const m = actors.get(Number(key));
       if (!m || Math.hypot(m.x - x, m.z - z) > range) continue;
-      out.push([Number(key), Math.round((now - f.at) * 100) / 100, Math.round(f.lie * 100) / 100, f.rise, Math.round(f.h * 1000) / 1000]);
+      out.push([Number(key), Math.round((now - f.at) * 100) / 100, Math.round(f.lie * 100) / 100, f.rise, Math.round(f.h * 1000) / 1000, f.down ? 1 : 0]);
     }
     return out;
   }
@@ -19889,14 +19891,15 @@ const { GameError } = __modules["sim/registry.js"];
 const { PACE } = __modules["sim/actors.js"];
 const { POWER_CARS } = __modules["sim/power-cars.js"];
 const { levelAt } = __modules["sim/levels.js"];
-const { DOOR, doorPlace, doorStand, doorOut, doorOfSeat, doorsOf, toWorld, toCar, wayRound, TWO_DOORS } = __modules["sim/car-doors.js"];
+const { DOOR, doorPlace, doorStand, doorOut, doorOfSeat, doorsOf, toWorld, toCar, wayRound, TWO_DOORS, seatPlace } = __modules["sim/car-doors.js"];
 
 const HIJACK = Object.freeze({
   okada: Object.freeze({ lateral: Object.freeze([0.35, 1.6]), along: Object.freeze([-0.3, 1.1]), stand: Object.freeze([0.78, 0.25]), steps: Object.freeze([['reach', 0.5], ['pull', 1.4], ['mount', 2.2]]) }),
   keke: Object.freeze({ lateral: Object.freeze([0.5, 2.0]), along: Object.freeze([-0.25, 1.5]), stand: Object.freeze([1.12, 0.5]), steps: Object.freeze([['door', 0.6], ['enter', 1.7]]) }),
   car: Object.freeze({ steps: Object.freeze([['door', 0.7], ['pull', 1.7], ['enter', 2.5]]) }),
 });
-const CAR_TAKING = Object.freeze({ reach: 4.5, pace: 3.3, turn: 0.2, door: 0.55, pull: 1.05, pullBoth: 1.6, scramble: 0.75, enter: 0.8, shut: 0.35, slide: 0.85, out: 0.32, next: 0.55, slam: 0.5 });
+const CAR_TAKING = Object.freeze({ reach: 4.5, pace: 3.3, turn: 0.2, door: 0.55, pull: 1.75, pullBoth: 2.3, pulled: 1.7, scramble: 0.75, enter: 2.3, shut: 0.45, slide: 0.85, out: 0.32, next: 0.55, slam: 0.5 });
+const PULLED_TO = Object.freeze({ out: 1.19, back: 1.67, turn: 2.2 });
 function carRule(model) {
   const s = POWER_CARS[model] || { length: 4.8, width: 2.1 };
   const door = -0.15 * s.length;
@@ -20000,10 +20003,10 @@ function createHijack({ state, players, okada, vehicles, actors, population, emi
       if (!doorOpen(d)) { const other = d[0] + (d[1] === 'l' ? 'r' : 'l'); if (doorsOf(model).includes(other) && doorOpen(other)) d = other; }
       return d;
     };
-    const pullAt = T.pull[0] + 0.3;
+    const pullAt = T.pull[0] + C.pulled;
     if (driverSideIn) outs.push({ at: pullAt, i: at.person, door: 'fl', who: 'driver', fall: true });
-    else if (front) { outs.push({ at: pullAt, i: front.i, door: 'fr', who: 'front', fall: true }); outs.push({ at: pullAt + 0.75, i: at.person, door: 'fr', who: 'driver', fall: false }); }
-    else outs.push({ at: pullAt, i: at.person, door: 'fr', who: 'driver', fall: false });
+    else if (front) { outs.push({ at: pullAt, i: front.i, door: 'fr', who: 'front', fall: true }); outs.push({ at: pullAt + 0.55, i: at.person, door: 'fr', who: 'driver', fall: false }); }
+    else outs.push({ at: T.pull[0] + 0.3, i: at.person, door: 'fr', who: 'driver', fall: false });
     const byDoor = new Map();
     for (const r of riders) { if (!driverSideIn && r === front) continue; const d = doorFor(r.seat); if (!byDoor.has(d)) byDoor.set(d, []); byDoor.get(d).push(r); }
     let k = 0;
@@ -20052,18 +20055,25 @@ function createHijack({ state, players, okada, vehicles, actors, population, emi
     const base = doorOut(h.model, o.door);
     let spot = toWorld(h.car, { along: base.along - 0.6 * k, across: base.across + Math.sign(base.across) * 0.35 * k });
     if (k && !zoneWalkable(spot.x, spot.z, [], 0.3, h.car.y)) spot = toWorld(h.car, base);
+    let landed = null;
+    if (o.fall) {
+      const seat = seatPlace(h.model, o.who === 'front' ? 'front' : 'driver');
+      const side = Math.sign(seat.across) || 1;
+      const to = toWorld(h.car, { along: seat.along - PULLED_TO.back, across: seat.across + side * PULLED_TO.out });
+      if (zoneWalkable(to.x, to.z, [], 0.3, h.car.y)) { spot = to; landed = h.car.h + side * PULLED_TO.turn; }
+    }
     const at = { x: spot.x, z: spot.z, y: h.car.y };
     if (o.who !== 'driver') traffic.riderOut(h.id, o.i);
     if (actors.has(o.i)) actors.drop(o.i);
     const m = actors.take(o.i, state.t, at);
     if (!m) return;
-    m.h = Math.atan2(spot.x - h.car.x, spot.z - h.car.z);
+    m.h = landed !== null ? landed : Math.atan2(spot.x - h.car.x, spot.z - h.car.z);
     if (o.who === 'driver') {
       const crime = hub.justice.offence(p, 'vehicle_theft', { victim: { kind: 'npc', id: o.i, name: people[o.i].name }, x: h.car.x, z: h.car.z, vehicle: `car:${h.id}` });
       h.crime = crime && crime.id;
       if (hub.voices) hub.voices.event('fight', spot.x, spot.z);
     }
-    if (o.fall && hub.impact && hub.impact.felled(o.i, { from: { x: p.x, z: p.z }, harm: 0, lie: 1.3, blood: false })) return;
+    if (o.fall && hub.impact && hub.impact.felled(o.i, { from: landed !== null ? null : { x: p.x, z: p.z }, harm: 0, lie: 1.3, blood: false, down: landed !== null })) return;
     actors.flee(o.i, h.car.x, h.car.z, PACE.run, o.who === 'driver' ? 'Robbed of the car' : 'Running from the car', 20);
     m.after = real() + 9;
     if (hub.reactions) hub.reactions.react(o.i, 'flee', { seconds: 5, loop: true });
@@ -20172,7 +20182,7 @@ function createHijack({ state, players, okada, vehicles, actors, population, emi
   return api;
 }
 
-return { HIJACK, CAR_TAKING, carRule, driverSide, createHijack };
+return { HIJACK, CAR_TAKING, PULLED_TO, carRule, driverSide, createHijack };
 })();
 
 __modules["sim/market.js"] = (function () {
@@ -28876,7 +28886,7 @@ function makeAnimatedRig(id, labelText, shadow = false, police = null, size = 1)
       try { rig.police = dressPolice({ model, root, mesh, bones: rig.bones, k: police, shadow }); } catch (error) { rig.policeFailed = String(error && error.message || error); }
     }
     if (spec.rig === 'mixamo') for (const [ue, mx] of Object.entries(MIXAMO)) { const b = rig.bones.get(boneName(`mixamorig:${mx}`)); if (b && !rig.bones.has(ue)) rig.bones.set(ue, b); }
-    rig.mesh = mesh; rig.triangles = model.triangles; rig.labels = labels;
+    rig.mesh = mesh; rig.root = root; rig.triangles = model.triangles; rig.labels = labels;
     standing(group);
     rig.mixer = new THREE.AnimationMixer(root);
     const hips = spec.rig === 'mixamo' ? boneName('mixamorig:Hips') : 'pelvis';
@@ -31863,12 +31873,371 @@ function bodyOn(st, lifts, wheels, dt) {
   }
   return st;
 }
-function kickBody(st, pitch = 0, roll = 0) {
+function kickBody(st, pitch = 0, roll = 0, rise = 0) {
   if (!st.v) Object.assign(st, { rise: 0, pitch: 0, roll: 0, v: { rise: 0, pitch: 0, roll: 0 } });
-  st.v.pitch += pitch; st.v.roll += roll;
+  st.v.pitch += pitch; st.v.roll += roll; st.v.rise += rise;
 }
 
 return { BUMP, bodyBars, wheelLifts, bodyOn, kickBody };
+})();
+
+__modules["client/car-moves.js"] = (function () {
+
+const CAR_MOVE_BONES = Object.freeze([
+  'pelvis', 'spine_01', 'spine_02', 'spine_03', 'neck_01', 'head',
+  'clavicle_l', 'upperarm_l', 'lowerarm_l', 'hand_l', 'clavicle_r', 'upperarm_r', 'lowerarm_r', 'hand_r',
+  'thigh_l', 'calf_l', 'foot_l', 'ball_l', 'thigh_r', 'calf_r', 'foot_r', 'ball_r',
+]);
+const NEXT = {
+  pelvis: 'spine_01', spine_01: 'spine_02', spine_02: 'spine_03', spine_03: 'neck_01', neck_01: 'head',
+  clavicle_l: 'upperarm_l', upperarm_l: 'lowerarm_l', lowerarm_l: 'hand_l', hand_l: 'middle_01_l',
+  clavicle_r: 'upperarm_r', upperarm_r: 'lowerarm_r', lowerarm_r: 'hand_r', hand_r: 'middle_01_r',
+  thigh_l: 'calf_l', calf_l: 'foot_l', foot_l: 'ball_l', thigh_r: 'calf_r', calf_r: 'foot_r', foot_r: 'ball_r',
+};
+const OTHER = CAR_MOVE_BONES.map((n) => CAR_MOVE_BONES.indexOf(n.endsWith('_l') ? `${n.slice(0, -2)}_r` : n.endsWith('_r') ? `${n.slice(0, -2)}_l` : n));
+const MOVES_HIPS = 1.034;
+
+let file = null, loading = null;
+function loadCarMoves(fetchFile = (path) => fetch(path)) {
+  if (file) return Promise.resolve(file);
+  if (loading) return loading;
+  loading = (async () => {
+    const res = await fetchFile('figures/car-moves.json');
+    if (!res.ok) throw new Error(`car moves: ${res.status}`);
+    const json = await res.json();
+    if (JSON.stringify(json.bones) !== JSON.stringify(CAR_MOVE_BONES)) throw new Error('car moves: not the bones expected');
+    const bytes = (b64) => { const raw = atob(b64); const out = new Uint8Array(raw.length); for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i); return out; };
+    const width = 4 + (CAR_MOVE_BONES.length - 1) * 3;
+    const moves = {};
+    for (const [name, m] of Object.entries(json.moves)) {
+      const ints = new Int16Array(bytes(m.data).buffer);
+      const hips = new Int32Array(bytes(m.hips).buffer);
+      const frames = [];
+      for (let f = 0; f < m.frames; f += 1) frames.push(Float32Array.from(ints.subarray(f * width, (f + 1) * width), (v) => v / 32767));
+      moves[name] = { fps: m.fps, duration: m.duration, frames, hips: Float32Array.from(hips, (v) => v / 10000) };
+    }
+    file = { moves, mirrored: {} };
+    return file;
+  })();
+  loading.catch(() => { loading = null; });
+  return loading;
+}
+const carMovesLoaded = () => !!file;
+
+function mirroredMove(name) {
+  if (file.mirrored[name]) return file.mirrored[name];
+  const m = file.moves[name];
+  const width = 4 + (CAR_MOVE_BONES.length - 1) * 3;
+  const frames = m.frames.map((fr) => {
+    const out = new Float32Array(width);
+    out[0] = fr[0]; out[1] = -fr[1]; out[2] = -fr[2]; out[3] = fr[3];
+    for (let k = 1; k < CAR_MOVE_BONES.length; k += 1) {
+      const from = 4 + (OTHER[k] - 1) * 3, to = 4 + (k - 1) * 3;
+      out[to] = -fr[from]; out[to + 1] = fr[from + 1]; out[to + 2] = fr[from + 2];
+    }
+    return out;
+  });
+  const hips = Float32Array.from(m.hips, (v, i) => (i % 3 === 0 ? -v : v));
+  return (file.mirrored[name] = { fps: m.fps, duration: m.duration, frames, hips });
+}
+
+function bindOf(rig) {
+  if (rig.carBind) return rig.carBind;
+  const skeleton = rig.skeleton || (rig.mesh && rig.mesh.skeleton);
+  if (!skeleton || !rig.bones || !rig.root) return null;
+  const bindWorld = new Map(), bindLocal = new Map();
+  skeleton.bones.forEach((b, i) => { const q = new THREE.Quaternion(); skeleton.boneInverses[i].clone().invert().decompose(new THREE.Vector3(), q, new THREE.Vector3()); bindWorld.set(b, q); });
+  for (const n of CAR_MOVE_BONES) {
+    const b = rig.bones.get(n);
+    if (!b || !bindWorld.has(b)) continue;
+    const parentQ = b.parent && bindWorld.has(b.parent) ? bindWorld.get(b.parent).clone() : new THREE.Quaternion();
+    bindLocal.set(n, parentQ.invert().multiply(bindWorld.get(b)));
+  }
+  const pelvis = rig.bones.get('pelvis');
+  return (rig.carBind = { bindLocal, pelvisBind: pelvis && bindWorld.has(pelvis) ? bindWorld.get(pelvis) : new THREE.Quaternion() });
+}
+
+let T = null;
+function carMove(rig, name, mirrored = false) {
+  if (!file || !rig || !rig.bones || !rig.root || !file.moves[name]) return null;
+  if (!T) T = { rootQ: new THREE.Quaternion(), w: new THREE.Quaternion(), pq: new THREE.Quaternion(), turn: new THREE.Quaternion(), a: new THREE.Vector3(), c: new THREE.Vector3(), want: new THREE.Vector3(), inv: new THREE.Matrix4() };
+  const key = mirrored ? `${name}~` : name;
+  rig.carMoves = rig.carMoves || {};
+  if (rig.carMoves[key]) return rig.carMoves[key];
+  const bind = bindOf(rig);
+  if (!bind) return null;
+  const src = mirrored ? mirroredMove(name) : file.moves[name];
+  const root = rig.root, bones = rig.bones;
+  const was = new Map(CAR_MOVE_BONES.map((n) => { const b = bones.get(n); return [n, b ? b.quaternion.clone() : null]; }));
+  const one = (frame) => {
+    for (const n of CAR_MOVE_BONES) { const b = bones.get(n); if (b && bind.bindLocal.has(n)) b.quaternion.copy(bind.bindLocal.get(n)); }
+    root.updateMatrixWorld(true);
+    T.inv.copy(root.matrixWorld).invert();
+    root.getWorldQuaternion(T.rootQ); const rootInv = T.rootQ.clone().invert();
+    const out = new Float32Array(CAR_MOVE_BONES.length * 4);
+    CAR_MOVE_BONES.forEach((n, k) => {
+      const d = bones.get(n);
+      if (!d || !d.parent) return;
+      if (k === 0) {
+        T.w.set(frame[0], frame[1], frame[2], frame[3]).normalize().multiply(bind.pelvisBind);
+      } else {
+        const at = 4 + (k - 1) * 3, next = bones.get(NEXT[n]);
+        T.want.set(frame[at], frame[at + 1], frame[at + 2]);
+        d.getWorldQuaternion(T.w); T.w.premultiply(rootInv);
+        if (next && T.want.lengthSq() > 0.25) {
+          T.a.setFromMatrixPosition(d.matrixWorld).applyMatrix4(T.inv); T.c.setFromMatrixPosition(next.matrixWorld).applyMatrix4(T.inv);
+          T.turn.setFromUnitVectors(T.c.sub(T.a).normalize(), T.want.normalize());
+          T.w.premultiply(T.turn);
+        }
+      }
+      d.parent.getWorldQuaternion(T.pq); T.pq.premultiply(rootInv);
+      d.quaternion.copy(T.pq.invert().multiply(T.w));
+      d.updateMatrixWorld(true);
+      d.quaternion.toArray(out, k * 4);
+    });
+    return out;
+  };
+  const carried = { name, mirrored, fps: src.fps, duration: src.duration, frames: src.frames.map(one), hips: src.hips };
+  for (const n of CAR_MOVE_BONES) { const b = bones.get(n); if (b && was.get(n)) b.quaternion.copy(was.get(n)); }
+  root.updateMatrixWorld(true);
+  rig.carMoves[key] = carried;
+  return carried;
+}
+
+let qa = null, qb = null;
+function poseCarMove(rig, move, t, { loop = false, out = [0, 0, 0] } = {}) {
+  if (!rig || !rig.bones || !move) return null;
+  if (!qa) { qa = new THREE.Quaternion(); qb = new THREE.Quaternion(); }
+  const n = move.frames.length;
+  let f = Math.max(0, t) * move.fps;
+  if (loop) f %= n - 1; else f = Math.min(f, n - 1);
+  const i = Math.floor(f), j = Math.min(n - 1, i + 1), e = f - i;
+  const A = move.frames[i], B = move.frames[j];
+  CAR_MOVE_BONES.forEach((name, k) => {
+    const b = rig.bones.get(name);
+    if (!b) return;
+    qa.fromArray(A, k * 4); qb.fromArray(B, k * 4);
+    if (qa.lengthSq() < 0.5) return;
+    b.quaternion.copy(qa.slerp(qb, e));
+  });
+  const h = move.hips;
+  out[0] = h[i * 3] + (h[j * 3] - h[i * 3]) * e; out[1] = h[i * 3 + 1] + (h[j * 3 + 1] - h[i * 3 + 1]) * e; out[2] = h[i * 3 + 2] + (h[j * 3 + 2] - h[i * 3 + 2]) * e;
+  return out;
+}
+
+return { CAR_MOVE_BONES, MOVES_HIPS, loadCarMoves, carMovesLoaded, carMove, poseCarMove };
+})();
+
+__modules["client/car-seating.js"] = (function () {
+const { reach } = __modules["client/animated.js"];
+const { bonesOf } = __modules["client/own-bike-view.js"];
+const { poseCarMove } = __modules["client/car-moves.js"];
+
+const SEATING = Object.freeze({ mostRecline: 0.62, sink: 0.08, slide: 0.14, back: 0.16, headRoom: 0.04, wheelTurn: 1.4, wheelMost: 0.6, look: 0.35 });
+
+function seatHip(car, seat) {
+  const d = car.driver;
+  if (!d) return null;
+  const [x, y, z] = d.hip;
+  if (seat === 'driver') return [x, y, z];
+  if (seat === 'front') return [-x, y, z];
+  const m = car.cabinMeasures;
+  const rz = m ? (m.rearZ - 0.01) / car.scale : z - 0.19 * car.spec.length;
+  const ry = m ? (m.seatTop + 0.08) / car.scale : y + 0.004 * car.spec.length;
+  if (seat === 'rl') return [x, ry, rz];
+  if (seat === 'rr') return [-x, ry, rz];
+  return [0, ry + 0.01 / car.scale, rz];
+}
+
+const V = () => new THREE.Vector3();
+let W = null;
+const scratch = () => W || (W = { a: V(), b: V(), c: V(), d: V(), hip: V(), up: V(), axis: V(), centre: V(), x: V(), u: V(), grip: V(), q: new THREE.Quaternion(), r: new THREE.Quaternion(), out: [0, 0, 0] });
+
+function seatFigure(me, car, seat = 'driver', { steer = 0, move = null, t = 0, look = 0, across = 0 } = {}) {
+  const w = scratch();
+  const spec = car && car.driver;
+  if (!spec || !me || !me.bones) return false;
+  const bones = bonesOf(me);
+  const pelvis = bones.get('pelvis'), spine = bones.get('spine_02') || bones.get('spine_01'), head = bones.get('head');
+  if (!pelvis || !spine) return false;
+  const driving = seat === 'driver' && across < 0.05;
+  if (move) poseCarMove(me, move, t, { loop: true, out: w.out });
+  car.group.updateMatrixWorld(true);
+  const cabin = car.cabin;
+  const at = (p, out) => cabin.localToWorld(out.set(p[0], p[1], p[2]));
+  cabin.getWorldQuaternion(w.q);
+  const carQ = w.q.clone();
+  me.group.quaternion.copy(carQ);
+  me.group.position.set(0, 0, 0);
+  me.group.updateMatrixWorld(true);
+  const hips = me.group.worldToLocal(pelvis.getWorldPosition(w.a)).clone();
+  let hipAt = seatHip(car, seat);
+  if (across > 0 && (seat === 'driver' || seat === 'front')) { const other = seatHip(car, seat === 'driver' ? 'front' : 'driver'); hipAt = hipAt.map((v, k) => v + (other[k] - v) * Math.min(1, across)); }
+  at(hipAt, w.hip);
+  const hipWorld = w.hip.clone();
+  let sunk = 0, forward = 0;
+  const place = () => {
+    me.group.position.copy(hipWorld).sub(w.b.copy(hips).applyQuaternion(carQ));
+    if (sunk) me.group.position.addScaledVector(w.up.set(0, 1, 0).applyQuaternion(carQ), -sunk);
+    if (forward) me.group.position.addScaledVector(w.up.set(0, 0, 1).applyQuaternion(carQ), forward);
+    me.group.updateMatrixWorld(true);
+  };
+  place();
+  const dir = (x, y, z) => w.c.set(x, y, z).applyQuaternion(carQ).normalize().clone();
+  const H = (me.spec && me.spec.height) || 1.75 * (me.scale || 1);
+  const lean = (angle) => {
+    const parentQ = spine.parent.getWorldQuaternion(w.r);
+    const localAxis = w.axis.copy(dir(1, 0, 0)).applyQuaternion(parentQ.invert());
+    spine.quaternion.premultiply(w.r.setFromAxisAngle(localAxis, -angle));
+    spine.updateMatrixWorld(true);
+  };
+  const leant = () => { const p = pelvis.getWorldPosition(w.a), n = (head || spine).getWorldPosition(w.b); const v = n.sub(p); return Math.atan2(v.dot(dir(0, 0, -1)), v.dot(dir(0, 1, 0))); };
+  if (!move) lean(0.3 - leant());
+  const scale = car.scale;
+  if (driving && spec.feet) {
+    const thigh = bones.get('thigh_l'), calf = bones.get('calf_l'), foot = bones.get('foot_l');
+    if (thigh && calf && foot) {
+      const legs = thigh.getWorldPosition(w.a).distanceTo(calf.getWorldPosition(w.b)) + calf.getWorldPosition(w.a).distanceTo(foot.getWorldPosition(w.b));
+      const pedal = at(spec.feet[0], w.d).clone();
+      const gap = thigh.getWorldPosition(w.a).distanceTo(pedal);
+      if (legs * 0.96 > gap) { forward = -Math.min(SEATING.back, legs * 0.96 - gap); place(); }
+    }
+  }
+  const turn = Math.max(-SEATING.wheelMost, Math.min(SEATING.wheelMost, -steer * SEATING.wheelTurn));
+  const gripAt = (s, a0, out) => {
+    at(spec.wheel, w.centre);
+    w.x.copy(dir(1, 0, 0)); w.u.copy(dir(0, Math.cos(spec.tilt), -Math.sin(spec.tilt)));
+    const a = (s === 'l' ? 1 : -1) * (Math.PI / 3) + a0;
+    return out.copy(w.centre).addScaledVector(w.u, Math.cos(a) * spec.radius * scale).addScaledVector(w.x, Math.sin(a) * spec.radius * scale).addScaledVector(dir(0, Math.sin(spec.tilt), Math.cos(spec.tilt)), -0.035);
+  };
+  const arms = {};
+  for (const s of ['l', 'r']) {
+    const u = bones.get(`upperarm_${s}`), l = bones.get(`lowerarm_${s}`), h = bones.get(`hand_${s}`);
+    if (u && l && h) arms[s] = { u, l, h, length: u.getWorldPosition(w.a).distanceTo(l.getWorldPosition(w.b)) + l.getWorldPosition(w.a).distanceTo(h.getWorldPosition(w.b)) };
+  }
+  const short = () => (driving ? Math.max(0, ...Object.entries(arms).map(([s, a]) => a.u.getWorldPosition(w.a).distanceTo(gripAt(s, 0, w.grip)) - a.length * 0.97)) : 0);
+  for (let i = 0; i < 6 && short() > 0 && leant() > 0.12; i += 1) lean(-Math.min(0.05, leant() - 0.12));
+  const lining = car.cabinMeasures && Number.isFinite(car.cabinMeasures.overHead) ? car.cabinMeasures.overHead / scale + 0.03 / scale : Infinity;
+  const roofY = spec.roof !== null && spec.roof !== undefined ? Math.min(spec.roof, lining) : null;
+  if (roofY !== null && head) {
+    const roofAt = at([hipAt[0], roofY - (car.cabinMeasures ? 0.03 / scale : 0), hipAt[2]], w.d).clone();
+    const clear = () => { const top = head.getWorldPosition(w.a).addScaledVector(dir(0, 1, 0), 0.11 * H); return roofAt.clone().sub(top).dot(dir(0, 1, 0)) - SEATING.headRoom; };
+    let gap = clear();
+    for (let i = 0; i < 8 && gap < 0 && leant() < SEATING.mostRecline; i += 1) { lean(Math.min(0.06, SEATING.mostRecline - leant())); gap = clear(); }
+    if (gap < 0) { sunk = Math.min(SEATING.sink, -gap); place(); }
+  }
+  const still = short();
+  if (still > 0) { forward = Math.max(forward, 0) + Math.min(SEATING.slide, still * 1.1); place(); }
+  if (driving) for (const [s, a] of Object.entries(arms)) reach(a.u, a.l, a.h, gripAt(s, turn, w.grip), dir((s === 'l' ? 1 : -1) * 0.9, -0.7, -0.3));
+  const floorY = car.cabinMeasures ? car.cabinMeasures.floor / scale : (spec.feet ? spec.feet[0][1] : hipAt[1] - 0.25 / scale);
+  for (const s of ['l', 'r']) {
+    const thigh = bones.get(`thigh_${s}`), calf = bones.get(`calf_${s}`), foot = bones.get(`foot_${s}`);
+    if (!thigh || !calf || !foot) continue;
+    const side = s === 'l' ? 1 : -1;
+    let target;
+    if (driving && spec.feet) target = at(spec.feet[s === 'l' ? 0 : 1], w.d).clone();
+    else {
+      const ahead = seat === 'front' ? 0.5 : 0.42;
+      target = at([hipAt[0] + side * 0.09 / scale, floorY + 0.08 / scale, hipAt[2] + ahead / scale], w.d).clone();
+    }
+    reach(thigh, calf, foot, target, dir(side * 0.3, 0.6, 1));
+  }
+  const neck = bones.get('neck_01');
+  if (neck && head && driving) {
+    const put = (bone, axis, angle) => { const pq = bone.parent.getWorldQuaternion(w.r).invert(); bone.quaternion.premultiply(w.r.setFromAxisAngle(axis.clone().applyQuaternion(pq), angle)); bone.updateMatrixWorld(true); };
+    put(neck, dir(1, 0, 0), -Math.max(0, leant()) * 0.4);
+    put(neck, dir(0, 1, 0), turn * SEATING.look / SEATING.wheelTurn + look);
+  }
+  return true;
+}
+
+return { SEATING, seatHip, seatFigure };
+})();
+
+__modules["client/car-boarding.js"] = (function () {
+const { reach } = __modules["client/animated.js"];
+const { bonesOf } = __modules["client/own-bike-view.js"];
+const { carMove, poseCarMove, MOVES_HIPS } = __modules["client/car-moves.js"];
+const { seatHip } = __modules["client/car-seating.js"];
+
+const BOARDING = Object.freeze({
+  in: Object.freeze({ move: 'enter', from: 0.95, open: 1.15, shut: 4.45, to: 5.2, pace: 1.55, seat: 0.88, stand: 1.03 }),
+  out: Object.freeze({ move: 'exit', from: 0.0, open: 0.35, shut: 3.9, to: 4.55, pace: 1.5, seat: 0.88, stand: 1.03 }),
+  pulled: Object.freeze({ move: 'pulled', from: 1.6, open: 1.6, shut: 1.6, to: 3.4, pace: 1.0, seat: 0.61, stand: 0.61 }),
+});
+function boardTimes(kind) {
+  const b = BOARDING[kind];
+  return { length: (b.to - b.from) / b.pace, open: Math.max(0, (b.open - b.from) / b.pace), shut: (b.shut - b.from) / b.pace };
+}
+
+const V = () => new THREE.Vector3();
+let W = null;
+const scratch = () => W || (W = { a: V(), b: V(), c: V(), seat: V(), hips: V(), end: V(), q: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0), h0: [0, 0, 0], h1: [0, 0, 0], ht: [0, 0, 0] });
+
+function poseBoarding(me, car, { kind = 'in', door = 'fl', t = 0, from = null, groundY = () => 0 } = {}) {
+  const b = BOARDING[kind];
+  if (!b || !car || !car.driver || !me || !me.bones) return false;
+  const w = scratch();
+  const left = door[1] === 'l';
+  const mirrored = kind === 'pulled' ? left : !left;
+  const move = carMove(me, b.move, mirrored);
+  if (!move) return false;
+  const bones = bonesOf(me);
+  const pelvis = bones.get('pelvis');
+  if (!pelvis) return false;
+  const tm = Math.min(b.to, b.from + Math.max(0, t) * b.pace);
+  const anchorT = kind === 'in' ? b.to : b.from;
+  poseCarMove(me, move, anchorT, { out: w.h0 });
+  poseCarMove(me, move, tm, { out: w.ht });
+  car.group.updateMatrixWorld(true);
+  car.cabin.getWorldQuaternion(w.q);
+  const carYaw = Math.atan2(2 * (w.q.x * w.q.z + w.q.w * w.q.y), 1 - 2 * (w.q.x * w.q.x + w.q.y * w.q.y));
+  const yaw = kind === 'in' ? carYaw + (left ? -Math.PI / 2 : Math.PI / 2) : carYaw;
+  const seat = seatHip(car, door === 'fr' ? 'front' : 'driver');
+  car.cabin.localToWorld(w.seat.set(seat[0], seat[1], seat[2]));
+  const tall = (me.spec && me.spec.height) || 1.75;
+  const S = tall / 1.8;
+  const standHips = MOVES_HIPS * S;
+  const sat = kind === 'pulled' ? Math.max(0, Math.min(1, (w.ht[1] - 0.07) / (b.seat - 0.07))) : Math.max(0, Math.min(1, (b.stand - w.ht[1]) / Math.max(0.05, b.stand - b.seat)));
+  const sin = Math.sin(yaw), cos = Math.cos(yaw);
+  const dx = (w.ht[0] - w.h0[0]) * S, dz = (w.ht[2] - w.h0[2]) * S;
+  let px = w.seat.x + cos * dx + sin * dz, pz = w.seat.z - sin * dx + cos * dz;
+  if (kind === 'in' && from) {
+    poseCarMove(me, move, b.from, { out: w.h1 });
+    const sx = w.seat.x + cos * (w.h1[0] - w.h0[0]) * S + sin * (w.h1[2] - w.h0[2]) * S, sz = w.seat.z - sin * (w.h1[0] - w.h0[0]) * S + cos * (w.h1[2] - w.h0[2]) * S;
+    const k = Math.max(0, 1 - (tm - b.from) / Math.max(0.1, (b.to - b.from) * 0.55));
+    const e = k * k * (3 - 2 * k);
+    px += (from.x - sx) * e; pz += (from.z - sz) * e;
+  }
+  const ground = groundY(px, pz);
+  const yGround = ground + w.ht[1] * S, ySeat = w.seat.y + (w.ht[1] - b.seat) * S;
+  const py = yGround + (ySeat - yGround) * sat;
+  void standHips;
+  poseCarMove(me, move, tm, { out: w.ht });
+  me.group.position.set(0, 0, 0);
+  me.group.rotation.set(0, yaw, 0);
+  me.group.updateMatrixWorld(true);
+  const rel = pelvis.getWorldPosition(w.a);
+  me.group.position.set(px - rel.x, py - rel.y, pz - rel.z);
+  me.group.updateMatrixWorld(true);
+  const floorY = car.cabinMeasures ? car.cabinMeasures.floor / car.scale : car.driver.feet ? car.driver.feet[0][1] : 0;
+  const floorWorld = car.cabin.localToWorld(w.b.set(seat[0], floorY, seat[2])).y;
+  for (const s of ['l', 'r']) {
+    const thigh = bones.get(`thigh_${s}`), calf = bones.get(`calf_${s}`), foot = bones.get(`foot_${s}`);
+    if (!thigh || !calf || !foot) continue;
+    const f = foot.getWorldPosition(w.c);
+    const local = car.cabin.worldToLocal(w.end.copy(f));
+    const inside = Math.abs(local.x * car.scale) < car.size.width / 2 - 0.1 && Math.abs(local.z * car.scale) < car.size.length / 2 - 0.4;
+    const under = (inside ? floorWorld : groundY(f.x, f.z)) + 0.08 * S;
+    if (f.y < under) {
+      const target = w.end.set(f.x, under, f.z).clone();
+      reach(thigh, calf, foot, target, w.a.set(Math.sin(yaw), 0.6, Math.cos(yaw)).normalize().clone());
+    }
+  }
+  return true;
+}
+
+return { BOARDING, boardTimes, poseBoarding };
 })();
 
 __modules["client/render-crowd.js"] = (function () {
@@ -31889,6 +32258,9 @@ const { ANIMATED, figureHere } = __modules["client/animated.js"];
 const { createCrowdFigures } = __modules["client/crowd-figures.js"];
 const { bonesOf } = __modules["client/own-bike-view.js"];
 const { bodyBars } = __modules["client/wheel-bumps.js"];
+const { seatFigure } = __modules["client/car-seating.js"];
+const { poseBoarding } = __modules["client/car-boarding.js"];
+const { carMove } = __modules["client/car-moves.js"];
 
 const KEKE_SEAT = vehicleMeta('keke').seats.driver;    // where a keke's driver sits, in its own frame
 const SEATED = 0.845;                                  // a seated figure's seat above its feet, for a figure of height 1
@@ -31992,6 +32364,7 @@ function createCrowd(scene) {
   const mounted = new Map();       // full figures of people on motorcycles near the player, by their number
   const peerOkadas = new Map();    // the okadas other players ride (each copy of the town has its own), by player
   const rigs = new Set();
+  const inCar = new Map();         // the town's people seen sitting in its cars near the player (5 November 2026), by number
   let lastRows = null;
   let lastOkadas = null;
   let stamp = 0;
@@ -32128,6 +32501,7 @@ function createCrowd(scene) {
       g.position.set(actor.x, groundOf(actor.x, actor.z, actor.y), actor.z);
       const age = down[1] + (fallsClock - fallsAt);
       rig.downState = { kind: 'knock', age, lie: down[2], rise: down[3], push: down[4] + Math.PI, facing: down[4], hard: false, from: null };
+      if (down[5]) rig.downState.age += fallTime(rig.downState);
       g.rotation.y = down[4];
       animateCharacter(rig, dt, 0, false);
       rig.blob.visible = false;
@@ -32340,6 +32714,34 @@ function createCrowd(scene) {
       if (stats.made !== before) building = pause;
     }
 
+    const inCarNow = new Set();
+    for (const s of frame.inCars || []) {
+      const info = known.get(s.i);
+      const car = frame.carOf ? frame.carOf(s.key) : null;
+      if (!info || !car || !car.glazed) continue;
+      let e = inCar.get(s.i);
+      if (!e) {
+        if (building > 0 || rigs.size + inCar.size >= (frame.maxRigs || 0)) continue;
+        const before = stats.made;
+        e = { rig: dress(s.i, info, s.d < RIG.close ? 1 : 2, false) };
+        scene.add(e.rig.group);
+        inCar.set(s.i, e);
+        if (stats.made !== before) building = pause;
+      }
+      inCarNow.add(s.i);
+      const rig = e.rig;
+      if (rig.animated) animateCharacter(rig, dt, 0, false);
+      const moveName = s.seat === 'driver' ? 'drive' : (s.i % 3 === 0 ? 'talk' : 'sit');
+      const move = carMove(rig, moveName);
+      const seated = s.pulled ? poseBoarding(rig, car, { kind: 'pulled', door: s.pulled.door, t: s.pulled.t, groundY: (x, z) => groundOf(x, z, car.group.position.y) })
+        : !!move && seatFigure(rig, car, s.seat, { steer: s.steer || 0, move, t: clockNow + (s.i % 17) * 0.37 });
+      rig.group.visible = seated;
+      if (rig.blob) rig.blob.visible = false;
+      if (rig.label) rig.label.visible = false;
+    }
+    for (const [i, e] of inCar) if (!inCarNow.has(i)) { e.rig.group.visible = true; if (e.rig.blob) e.rig.blob.visible = true; undress(e.rig); inCar.delete(i); }
+    stats.inCar = inCar.size;
+
     const okadas = frame.okadas;
     if (okadas !== lastOkadas) {
       lastOkadas = okadas;
@@ -32534,6 +32936,8 @@ function createCrowd(scene) {
     bikes: () => bikes.values(),
     peerOkadas: () => peerOkadas.size,
     figureAt: (i) => actors.get(i) || null,
+    inCarRig: (i) => (inCar.has(i) ? inCar.get(i).rig : null),
+    inCarCount: () => inCar.size,
     rigOf: (key) => { if (key.startsWith('n:')) { const a = actors.get(Number(key.slice(2))); return a && a.rig ? a.rig : null; } const o = others.get(key.slice(2)); return o ? o.rig : null; },
     setGuards(set) { for (const actor of actors.values()) actor.guard = set.has(actor.i); },
     setTalking(list) { talkers.clear(); for (const [who, fx, fz, speaking] of list || []) if (typeof who === 'string' && who.startsWith('n:')) talkers.set(Number(who.slice(2)), [fx, fz, speaking]); },
@@ -32882,7 +33286,7 @@ function createAmbientOcclusion(renderer, scene, camera) {
   const quadScene = new THREE.Scene();
   quadScene.add(quad);
 
-  const solid = (m) => m && m.visible !== false && !m.transparent && !(m.alphaTest > 0) && !m.alphaMap && m.depthWrite !== false && m.colorWrite !== false;
+  const solid = (m) => m && m.visible !== false && !m.transparent && !(m.alphaTest > 0) && (!m.alphaMap || !!(m.userData && m.userData.windowsCut)) && m.depthWrite !== false && m.colorWrite !== false;
   function sort() {
     casters = 0;
     scene.traverse((o) => {
@@ -35176,12 +35580,24 @@ function createAudio() {
     } };
   }
 
+  const MUFFLED = Object.freeze({ ambient: 1, voice: 1, effects: 1, vehicles: 0.5 });
   function group(name, master) {
     const input = ctx.createGain(), duck = ctx.createGain(), user = ctx.createGain(), meter = ctx.createAnalyser();
     input.gain.value = TRIM[name]; duck.gain.value = 1; user.gain.value = volumes[name];
     meter.fftSize = 1024;
-    input.connect(duck); duck.connect(user); user.connect(master); user.connect(meter);
-    return { input, duck, user, meter };
+    let muffle = null;
+    if (MUFFLED[name]) { muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 20000; muffle.Q.value = 0.5; }
+    input.connect(duck);
+    if (muffle) { duck.connect(muffle); muffle.connect(user); } else duck.connect(user);
+    user.connect(master); user.connect(meter);
+    return { input, duck, user, meter, muffle, share: MUFFLED[name] || 0 };
+  }
+  let muffledNow = 0;
+  function muffle(amount = 0) {
+    const a = Math.max(0, Math.min(1, Number(amount) || 0));
+    if (!ctx || !nodes || Math.abs(a - muffledNow) < 0.01) return;
+    muffledNow = a;
+    for (const g of Object.values(nodes.groups)) if (g.muffle) g.muffle.frequency.setTargetAtTime(20000 * Math.pow(650 / 20000, a * g.share), ctx.currentTime, 0.08);
   }
 
   function start() {
@@ -35939,7 +36355,7 @@ function createAudio() {
   return {
     supported: !!Ctx,
     voiceLine, decode, voiceStats: () => ({ ...voiceStats }), playerVoice, micPipe,
-    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, shipHorn, surfBreak, previewBike, stopPreview, previewing: () => !!preview, blow, streetLamp, carDoor, whistle, shout, door, chime, shutter, choose, focus, level,
+    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, shipHorn, surfBreak, previewBike, stopPreview, previewing: () => !!preview, blow, streetLamp, carDoor, whistle, shout, door, chime, shutter, choose, focus, level, muffle, get muffled() { return muffledNow; },
     player,
     gunLoad: (gun) => { const v = guns(); return v ? v.load(gun) : Promise.resolve(); },
     gunShot: (gun, at, opts) => (gunReady() ? guns().shot(gun, at, opts) : false),
@@ -40318,6 +40734,5471 @@ const CAR_PARTS = Object.freeze({
 return { CAR_PARTS };
 })();
 
+__modules["client/car-windows.js"] = (function () {
+const CAR_WINDOWS = Object.freeze({
+ "black-luxury-suv": {
+  "masks": {
+   "1k": "black-luxury-suv-windows-1k.png",
+   "512": "black-luxury-suv-windows-512.png"
+  },
+  "tris": "black-luxury-suv-glass.bin",
+  "count": 6069,
+  "belt": 0.2804,
+  "privacy": true,
+  "fit": {
+   "z": [
+    -0.4702,
+    -0.4408,
+    -0.4114,
+    -0.382,
+    -0.3526,
+    -0.3232,
+    -0.2939,
+    -0.2645,
+    -0.2351,
+    -0.2057,
+    -0.1763,
+    -0.1469,
+    -0.1175,
+    -0.0882,
+    -0.0588,
+    -0.0294,
+    0.0,
+    0.0294,
+    0.0588,
+    0.0882,
+    0.1175,
+    0.1469,
+    0.1763,
+    0.2057,
+    0.2351,
+    0.2645,
+    0.2939,
+    0.3232,
+    0.3526,
+    0.382,
+    0.4114,
+    0.4408,
+    0.4702
+   ],
+   "y": [
+    0.0409,
+    0.0614,
+    0.0818,
+    0.1023,
+    0.1228,
+    0.1432,
+    0.1637,
+    0.1841,
+    0.2046,
+    0.2251,
+    0.2455,
+    0.266,
+    0.2864,
+    0.3069,
+    0.3274,
+    0.3437,
+    0.3478,
+    0.3519,
+    0.356,
+    0.3601,
+    0.3642,
+    0.3683,
+    0.3724,
+    0.3765,
+    0.3806,
+    0.3846,
+    0.3887,
+    0.3928,
+    0.3969,
+    0.401,
+    0.4051,
+    0.4092
+   ],
+   "half": [
+    [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     null,
+     0.1932,
+     0.1944,
+     0.1976,
+     0.198,
+     0.197,
+     0.197,
+     0.1965,
+     0.1958,
+     0.1919,
+     0.182,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1893,
+     0.2004,
+     0.1991,
+     0.2019,
+     0.2021,
+     0.2025,
+     0.2031,
+     0.2023,
+     0.2,
+     0.1966,
+     0.1861,
+     0.179,
+     0.1722,
+     0.1655,
+     0.1636,
+     0.1614,
+     0.1592,
+     0.1571,
+     0.1552,
+     0.1534,
+     0.1514,
+     0.1491,
+     0.1464,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1956,
+     0.202,
+     0.2058,
+     0.2078,
+     0.2078,
+     0.2076,
+     0.2078,
+     0.2067,
+     0.2033,
+     0.1993,
+     0.1885,
+     0.1815,
+     0.1742,
+     0.1679,
+     0.1661,
+     0.1644,
+     0.1625,
+     0.1606,
+     0.1587,
+     0.1569,
+     0.1551,
+     0.153,
+     0.1502,
+     0.146,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.2004,
+     0.2066,
+     0.2117,
+     0.2147,
+     0.2157,
+     0.2147,
+     0.2128,
+     0.2102,
+     0.2062,
+     0.2012,
+     0.1905,
+     0.1836,
+     0.1765,
+     0.1701,
+     0.1684,
+     0.1667,
+     0.1649,
+     0.163,
+     0.1612,
+     0.1593,
+     0.1574,
+     0.1554,
+     0.1526,
+     0.1489,
+     null,
+     0.1321,
+     0.012,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1435,
+     0.1438,
+     0.1439,
+     0.144,
+     0.1456,
+     0.2179,
+     0.2176,
+     0.2138,
+     0.2084,
+     0.2029,
+     0.1923,
+     0.1854,
+     0.1783,
+     0.1719,
+     0.1703,
+     0.1685,
+     0.1667,
+     0.1649,
+     0.1631,
+     0.1612,
+     0.1594,
+     0.1573,
+     0.1551,
+     0.1514,
+     null,
+     0.1328,
+     0.1326,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1204,
+     0.144,
+     0.1442,
+     0.1442,
+     0.1443,
+     0.1444,
+     null,
+     0.219,
+     0.2164,
+     0.2103,
+     0.2043,
+     0.1941,
+     0.1873,
+     0.1802,
+     0.1737,
+     0.172,
+     0.1703,
+     0.1685,
+     0.1667,
+     0.1649,
+     0.163,
+     0.1612,
+     0.1592,
+     0.1569,
+     0.1536,
+     null,
+     0.1343,
+     0.1339,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1444,
+     0.1446,
+     0.1446,
+     0.1445,
+     0.1446,
+     0.1475,
+     0.22,
+     0.2181,
+     0.2117,
+     0.2056,
+     0.1971,
+     0.1895,
+     0.182,
+     0.1756,
+     0.1739,
+     0.1721,
+     0.1703,
+     0.1684,
+     0.1666,
+     0.1648,
+     0.1632,
+     0.1612,
+     0.159,
+     0.1559,
+     null,
+     0.1362,
+     0.1347,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1449,
+     0.145,
+     0.1449,
+     0.1448,
+     0.1449,
+     0.1509,
+     0.2218,
+     0.2189,
+     0.2124,
+     0.2066,
+     0.1961,
+     0.1884,
+     0.1818,
+     0.1764,
+     0.1749,
+     0.1733,
+     0.1716,
+     0.1698,
+     0.1681,
+     0.1664,
+     0.1646,
+     0.1626,
+     0.1605,
+     0.1573,
+     0.1534,
+     0.139,
+     0.1365,
+     0.1361,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1454,
+     0.1454,
+     0.1452,
+     0.1451,
+     0.1453,
+     0.222,
+     0.2218,
+     0.2182,
+     0.2137,
+     0.2063,
+     0.1913,
+     0.184,
+     0.1762,
+     0.1711,
+     0.1709,
+     0.1704,
+     0.169,
+     0.1683,
+     0.1676,
+     0.1664,
+     0.165,
+     0.1632,
+     0.1614,
+     0.1594,
+     0.1548,
+     0.1409,
+     0.1379,
+     0.137,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     null,
+     0.1568,
+     0.2173,
+     0.2201,
+     0.2214,
+     0.2222,
+     0.2214,
+     0.2184,
+     0.216,
+     0.2062,
+     0.1912,
+     0.1855,
+     0.1787,
+     0.1728,
+     0.1711,
+     0.1695,
+     0.168,
+     0.1667,
+     0.1654,
+     0.1652,
+     0.1649,
+     0.1635,
+     0.1585,
+     0.1566,
+     0.1566,
+     0.144,
+     0.1403,
+     0.1384,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1921,
+     0.1954,
+     0.211,
+     0.2166,
+     0.2207,
+     0.2202,
+     0.2205,
+     0.2207,
+     0.2188,
+     0.2139,
+     0.2064,
+     0.1911,
+     0.1859,
+     0.1791,
+     0.1727,
+     0.171,
+     0.1694,
+     0.1676,
+     0.1659,
+     0.1641,
+     0.1625,
+     0.1637,
+     0.1652,
+     0.1634,
+     null,
+     0.1524,
+     null,
+     0.1412,
+     0.1402,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1937,
+     0.1945,
+     0.2124,
+     0.2168,
+     0.222,
+     0.2203,
+     0.22,
+     0.2207,
+     0.2194,
+     0.2145,
+     0.2064,
+     0.1915,
+     0.1864,
+     0.1798,
+     0.1735,
+     0.1718,
+     0.1701,
+     0.1684,
+     0.1666,
+     0.1648,
+     0.1635,
+     0.1648,
+     0.1663,
+     0.1643,
+     null,
+     0.1533,
+     null,
+     0.1422,
+     0.1413,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1949,
+     0.1955,
+     0.2126,
+     0.2183,
+     0.2226,
+     0.221,
+     0.2206,
+     0.2214,
+     0.2199,
+     0.2149,
+     0.2067,
+     0.1927,
+     0.1879,
+     0.1814,
+     0.175,
+     0.1734,
+     0.1716,
+     0.1699,
+     0.1682,
+     0.1665,
+     0.1651,
+     0.1664,
+     0.1673,
+     0.1647,
+     null,
+     0.1542,
+     null,
+     0.1432,
+     0.1431,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1957,
+     0.1954,
+     0.2117,
+     0.2195,
+     0.2235,
+     0.2216,
+     0.2213,
+     0.222,
+     0.2205,
+     0.2152,
+     0.2064,
+     0.1919,
+     0.187,
+     0.1809,
+     0.1748,
+     0.1731,
+     0.1714,
+     0.1696,
+     0.1679,
+     0.1661,
+     0.1652,
+     0.1668,
+     0.1676,
+     0.1651,
+     0.1585,
+     0.1585,
+     null,
+     0.1449,
+     0.143,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1963,
+     0.1964,
+     0.2103,
+     0.2207,
+     0.2232,
+     0.2221,
+     0.2221,
+     0.2221,
+     0.2206,
+     0.2159,
+     0.2063,
+     0.1967,
+     0.1924,
+     0.1873,
+     0.1817,
+     0.1802,
+     0.1786,
+     0.177,
+     0.1754,
+     0.1736,
+     0.1717,
+     0.1697,
+     0.1678,
+     0.1651,
+     0.1623,
+     0.1587,
+     0.1493,
+     0.1457,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1968,
+     0.1966,
+     0.2099,
+     0.2203,
+     0.2239,
+     0.2222,
+     0.2219,
+     0.2222,
+     0.2203,
+     0.2155,
+     0.2064,
+     0.1994,
+     0.1947,
+     0.1886,
+     0.1826,
+     0.1808,
+     0.1789,
+     0.1771,
+     0.1752,
+     0.1733,
+     0.1715,
+     0.1696,
+     0.1676,
+     null,
+     0.1622,
+     0.1586,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1969,
+     0.1966,
+     0.2106,
+     0.2192,
+     0.2238,
+     0.222,
+     0.2219,
+     0.2223,
+     0.2201,
+     0.2153,
+     0.2048,
+     0.1921,
+     0.1873,
+     0.1811,
+     0.1752,
+     0.1736,
+     0.1719,
+     0.1703,
+     0.1685,
+     0.1669,
+     0.168,
+     0.1693,
+     0.1675,
+     0.1646,
+     0.1621,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1973,
+     0.1969,
+     0.2109,
+     0.2184,
+     0.2232,
+     0.2219,
+     0.2219,
+     0.2223,
+     0.2201,
+     0.2155,
+     0.2049,
+     0.1975,
+     0.1871,
+     0.1807,
+     0.1749,
+     0.1733,
+     0.1717,
+     0.1701,
+     0.1686,
+     0.1673,
+     0.1701,
+     0.1689,
+     0.1657,
+     0.1632,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1975,
+     0.1973,
+     null,
+     0.2173,
+     0.2227,
+     0.2217,
+     0.222,
+     0.2223,
+     0.2198,
+     0.2152,
+     0.2037,
+     0.1921,
+     0.1865,
+     0.1799,
+     0.1739,
+     0.1724,
+     0.1709,
+     0.1701,
+     0.1731,
+     0.1717,
+     0.1692,
+     0.1668,
+     0.1636,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1978,
+     0.1977,
+     0.2117,
+     0.217,
+     0.2222,
+     0.2217,
+     0.2222,
+     0.2223,
+     0.2194,
+     0.2148,
+     0.2033,
+     0.1913,
+     0.1859,
+     0.1792,
+     0.1794,
+     0.1778,
+     0.1754,
+     null,
+     0.1683,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1977,
+     0.1976,
+     0.208,
+     0.2166,
+     0.2217,
+     0.2217,
+     0.2224,
+     0.2223,
+     0.2189,
+     0.2143,
+     0.2029,
+     0.1918,
+     0.1858,
+     0.1837,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1968,
+     0.1972,
+     0.211,
+     0.2172,
+     0.2211,
+     0.2217,
+     0.2226,
+     0.222,
+     0.2182,
+     0.2135,
+     0.204,
+     0.1981,
+     0.1884,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1958,
+     0.2018,
+     0.2136,
+     0.2194,
+     0.2228,
+     0.2243,
+     0.2232,
+     0.2207,
+     0.2142,
+     0.2115,
+     0.2004,
+     0.1929,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     null,
+     null,
+     null,
+     0.1412,
+     0.2229,
+     0.2244,
+     0.2221,
+     0.2158,
+     0.2102,
+     0.1998,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1394,
+     0.1398,
+     0.1398,
+     0.1399,
+     0.14,
+     0.1403,
+     0.2229,
+     0.2225,
+     0.2144,
+     0.208,
+     0.1968,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.139,
+     0.1395,
+     0.1396,
+     0.1396,
+     0.1398,
+     0.1399,
+     null,
+     0.2215,
+     0.2125,
+     0.206,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1389,
+     0.1392,
+     0.1393,
+     0.1395,
+     0.1396,
+     0.1397,
+     0.219,
+     0.219,
+     0.2097,
+     0.2031,
+     0.1777,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     0.1396,
+     0.2172,
+     0.2154,
+     0.206,
+     0.2002,
+     0.1679,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     null,
+     null,
+     null,
+     0.2146,
+     0.2147,
+     0.2129,
+     0.2079,
+     0.2016,
+     0.196,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1992,
+     0.204,
+     0.2057,
+     0.2063,
+     0.2035,
+     0.2006,
+     0.1979,
+     0.1954,
+     0.188,
+     0.1869,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1869,
+     null,
+     0.1689,
+     0.1714,
+     0.1727,
+     0.1727,
+     null,
+     0.1537,
+     0.1462,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     0.0344,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ]
+   ],
+   "top": [
+    0.2955,
+    0.3877,
+    0.3921,
+    0.3951,
+    0.4,
+    0.3959,
+    0.3967,
+    0.3971,
+    0.3971,
+    0.3962,
+    0.3943,
+    0.3937,
+    0.3942,
+    0.3948,
+    0.3954,
+    0.3955,
+    0.3951,
+    0.3943,
+    0.3918,
+    0.3867,
+    0.3782,
+    0.3613,
+    0.3408,
+    0.3169,
+    0.2894,
+    0.2765,
+    0.2816,
+    0.2792,
+    0.2762,
+    0.2725,
+    0.2672,
+    0.2604,
+    0.2391
+   ],
+   "low": [
+    0.2542,
+    0.3836,
+    0.3887,
+    0.3904,
+    0.3925,
+    0.3936,
+    0.3946,
+    0.3955,
+    0.3959,
+    0.3947,
+    0.3926,
+    0.3918,
+    0.3912,
+    0.391,
+    0.3905,
+    0.3908,
+    0.3908,
+    0.3897,
+    0.3874,
+    0.3836,
+    0.3735,
+    0.3551,
+    0.3338,
+    0.3094,
+    0.2836,
+    0.2735,
+    0.2793,
+    0.2768,
+    0.2737,
+    0.2697,
+    0.264,
+    0.2568,
+    0.1528
+   ],
+   "roof": [
+    [
+     0.2793,
+     0.2697,
+     0.2643,
+     0.2574,
+     0.1493,
+     0.1491,
+     0.1679,
+     null,
+     null
+    ],
+    [
+     0.3877,
+     0.3876,
+     0.3866,
+     0.384,
+     0.323,
+     0.3137,
+     0.3014,
+     null,
+     null
+    ],
+    [
+     0.3921,
+     0.3918,
+     0.3907,
+     0.389,
+     0.3877,
+     0.3838,
+     0.3266,
+     0.229,
+     null
+    ],
+    [
+     0.3951,
+     0.3936,
+     0.3927,
+     0.3909,
+     0.3896,
+     0.3852,
+     0.3257,
+     0.2583,
+     null
+    ],
+    [
+     0.3972,
+     0.3946,
+     0.3937,
+     0.3926,
+     0.3916,
+     0.3874,
+     0.3358,
+     0.2645,
+     null
+    ],
+    [
+     0.3959,
+     0.3956,
+     0.3949,
+     0.3939,
+     0.3927,
+     0.3893,
+     0.338,
+     0.2657,
+     null
+    ],
+    [
+     0.3967,
+     0.3964,
+     0.3958,
+     0.3949,
+     0.3937,
+     0.3903,
+     0.3462,
+     0.27,
+     null
+    ],
+    [
+     0.3971,
+     0.3969,
+     0.3963,
+     0.3957,
+     0.3945,
+     0.3916,
+     0.3483,
+     0.2701,
+     null
+    ],
+    [
+     0.3971,
+     0.3968,
+     0.3964,
+     0.3961,
+     0.3952,
+     0.3925,
+     0.3539,
+     0.2721,
+     null
+    ],
+    [
+     0.395,
+     0.3947,
+     0.3951,
+     0.3959,
+     0.3956,
+     0.3927,
+     0.3311,
+     0.2707,
+     null
+    ],
+    [
+     0.3929,
+     0.3926,
+     0.3933,
+     0.395,
+     0.3956,
+     0.3933,
+     0.3385,
+     0.271,
+     null
+    ],
+    [
+     0.3926,
+     0.3919,
+     0.3922,
+     0.3941,
+     0.3953,
+     0.3934,
+     0.3447,
+     0.2712,
+     null
+    ],
+    [
+     0.3927,
+     0.3915,
+     0.3913,
+     0.3928,
+     0.395,
+     0.3949,
+     0.3427,
+     0.2724,
+     null
+    ],
+    [
+     0.393,
+     0.3915,
+     0.3908,
+     0.3917,
+     0.3943,
+     0.4015,
+     0.3499,
+     0.2726,
+     null
+    ],
+    [
+     0.3937,
+     0.3919,
+     0.3908,
+     0.3908,
+     0.3933,
+     0.4005,
+     0.346,
+     0.2706,
+     null
+    ],
+    [
+     0.394,
+     0.3925,
+     0.3911,
+     0.3905,
+     0.3928,
+     0.3997,
+     0.3629,
+     0.2701,
+     null
+    ],
+    [
+     0.394,
+     0.3926,
+     0.3915,
+     0.3907,
+     0.3919,
+     0.3963,
+     0.3596,
+     0.2754,
+     null
+    ],
+    [
+     0.3933,
+     0.392,
+     0.3909,
+     0.3898,
+     0.3902,
+     0.3902,
+     0.3502,
+     0.2657,
+     null
+    ],
+    [
+     0.391,
+     0.3898,
+     0.3886,
+     0.3875,
+     0.3891,
+     0.3867,
+     0.3491,
+     0.2689,
+     null
+    ],
+    [
+     0.3864,
+     0.3858,
+     0.3849,
+     0.3838,
+     0.3838,
+     0.3805,
+     0.3623,
+     0.2668,
+     null
+    ],
+    [
+     0.3782,
+     0.3777,
+     0.3767,
+     0.3742,
+     0.3707,
+     0.3647,
+     0.354,
+     0.2654,
+     null
+    ],
+    [
+     0.3612,
+     0.3608,
+     0.359,
+     0.3557,
+     0.3516,
+     0.3461,
+     0.3395,
+     0.2671,
+     0.305
+    ],
+    [
+     0.3408,
+     0.3403,
+     0.3383,
+     0.3345,
+     0.3306,
+     0.3233,
+     0.3176,
+     0.2873,
+     0.2981
+    ],
+    [
+     0.3168,
+     0.3162,
+     0.314,
+     0.3104,
+     0.3055,
+     0.2978,
+     0.2928,
+     0.2635,
+     null
+    ],
+    [
+     0.2894,
+     0.2886,
+     0.2868,
+     0.2845,
+     0.2795,
+     0.2738,
+     0.2826,
+     0.2616,
+     null
+    ],
+    [
+     0.2737,
+     0.2736,
+     0.2741,
+     0.2773,
+     0.2842,
+     0.2787,
+     0.2793,
+     0.2564,
+     null
+    ],
+    [
+     0.2816,
+     0.2809,
+     0.2799,
+     0.2791,
+     0.2803,
+     0.2767,
+     0.2755,
+     0.2533,
+     null
+    ],
+    [
+     0.2792,
+     0.2783,
+     0.2772,
+     0.2766,
+     0.2781,
+     0.2746,
+     0.2686,
+     0.2473,
+     null
+    ],
+    [
+     0.2762,
+     0.2752,
+     0.2739,
+     0.2735,
+     0.2735,
+     0.2715,
+     0.2628,
+     0.2424,
+     null
+    ],
+    [
+     0.2723,
+     0.2711,
+     0.27,
+     0.2693,
+     0.2698,
+     0.2673,
+     0.2581,
+     0.2217,
+     null
+    ],
+    [
+     0.2671,
+     0.2658,
+     0.2646,
+     0.2638,
+     0.2639,
+     0.2616,
+     0.2523,
+     0.1519,
+     null
+    ],
+    [
+     0.2604,
+     0.2593,
+     0.2582,
+     0.2571,
+     0.2553,
+     0.2481,
+     0.1811,
+     null,
+     null
+    ],
+    [
+     0.2391,
+     0.2348,
+     0.1805,
+     0.1534,
+     0.1453,
+     null,
+     null,
+     null,
+     null
+    ]
+   ],
+   "roofX": [
+    0.0,
+    0.0295,
+    0.059,
+    0.0885,
+    0.1179,
+    0.1474,
+    0.1769,
+    0.2064,
+    0.2359
+   ]
+  }
+ },
+ "grey-saloon": {
+  "masks": {
+   "1k": "grey-saloon-windows-1k.png",
+   "512": "grey-saloon-windows-512.png"
+  },
+  "tris": "grey-saloon-glass.bin",
+  "count": 367,
+  "belt": 0.2254,
+  "privacy": false,
+  "fit": {
+   "z": [
+    -0.4798,
+    -0.4498,
+    -0.4198,
+    -0.3898,
+    -0.3598,
+    -0.3298,
+    -0.2999,
+    -0.2699,
+    -0.2399,
+    -0.2099,
+    -0.1799,
+    -0.1499,
+    -0.1199,
+    -0.09,
+    -0.06,
+    -0.03,
+    0.0,
+    0.03,
+    0.06,
+    0.09,
+    0.1199,
+    0.1499,
+    0.1799,
+    0.2099,
+    0.2399,
+    0.2699,
+    0.2999,
+    0.3298,
+    0.3598,
+    0.3898,
+    0.4198,
+    0.4498,
+    0.4798
+   ],
+   "y": [
+    0.0328,
+    0.0491,
+    0.0655,
+    0.0819,
+    0.0983,
+    0.1147,
+    0.131,
+    0.1474,
+    0.1638,
+    0.1802,
+    0.1966,
+    0.2129,
+    0.2293,
+    0.2457,
+    0.2621,
+    0.2752,
+    0.2785,
+    0.2817,
+    0.285,
+    0.2883,
+    0.2916,
+    0.2948,
+    0.2981,
+    0.3014,
+    0.3047,
+    0.3079,
+    0.3112,
+    0.3145,
+    0.3178,
+    0.321,
+    0.3243,
+    0.3276
+   ],
+   "half": [
+    [
+     null,
+     null,
+     null,
+     0.1428,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     null,
+     0.1499,
+     0.173,
+     0.174,
+     0.1754,
+     0.1734,
+     0.1636,
+     0.1596,
+     0.1556,
+     0.157,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     null,
+     0.1854,
+     0.1861,
+     0.187,
+     0.188,
+     0.1873,
+     0.1826,
+     0.1797,
+     0.1767,
+     0.1699,
+     0.1496,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1911,
+     0.1928,
+     0.1935,
+     0.1941,
+     0.1947,
+     0.1941,
+     0.1921,
+     0.1912,
+     0.1872,
+     0.177,
+     0.1559,
+     0.1375,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1977,
+     0.2003,
+     0.2023,
+     0.2037,
+     0.2041,
+     0.2028,
+     0.2008,
+     0.1975,
+     0.1942,
+     0.1839,
+     0.1609,
+     0.1476,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.2094,
+     0.2071,
+     0.2038,
+     0.2,
+     0.1899,
+     0.1651,
+     0.1539,
+     0.1417,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.2105,
+     0.2079,
+     0.204,
+     0.1954,
+     0.169,
+     0.1582,
+     0.15,
+     0.1394,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.2096,
+     0.2055,
+     0.1974,
+     0.172,
+     0.1595,
+     0.1514,
+     0.1473,
+     0.1446,
+     0.1418,
+     0.1388,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.2103,
+     0.2085,
+     0.2052,
+     0.1976,
+     0.174,
+     0.162,
+     0.1543,
+     0.1482,
+     0.1466,
+     0.1477,
+     0.1457,
+     0.1433,
+     0.14,
+     0.1368,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.2093,
+     0.2081,
+     0.2065,
+     0.2045,
+     0.1972,
+     0.1747,
+     0.1668,
+     0.1592,
+     0.1526,
+     0.1511,
+     0.1483,
+     0.1454,
+     0.1438,
+     0.1456,
+     0.1432,
+     0.1404,
+     0.1375,
+     0.1344,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.2035,
+     0.2033,
+     0.205,
+     0.2058,
+     0.2066,
+     0.2081,
+     0.2075,
+     0.206,
+     0.2045,
+     0.2029,
+     0.1954,
+     0.1745,
+     0.1642,
+     0.1572,
+     0.1513,
+     0.1498,
+     0.1483,
+     0.1468,
+     0.1454,
+     0.144,
+     0.1431,
+     0.1438,
+     0.1416,
+     0.1392,
+     0.1363,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.2039,
+     0.1994,
+     0.2024,
+     0.204,
+     0.2046,
+     0.2074,
+     0.2074,
+     0.206,
+     0.2044,
+     0.2029,
+     0.1938,
+     0.1745,
+     0.1643,
+     0.1575,
+     0.1521,
+     0.1507,
+     0.1493,
+     0.148,
+     0.1466,
+     0.1452,
+     0.1439,
+     0.1425,
+     null,
+     0.1428,
+     0.1398,
+     0.1367,
+     0.1335,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.2041,
+     0.1998,
+     0.2024,
+     0.2024,
+     0.2032,
+     0.2066,
+     0.2069,
+     0.206,
+     0.2044,
+     0.2029,
+     0.1921,
+     0.1745,
+     0.1645,
+     0.1577,
+     0.1523,
+     0.151,
+     0.1497,
+     0.1484,
+     0.1472,
+     0.1459,
+     0.1446,
+     0.1434,
+     0.1421,
+     null,
+     0.1424,
+     0.1395,
+     0.1358,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.2002,
+     0.2028,
+     0.2015,
+     0.2028,
+     0.2052,
+     0.2065,
+     0.2057,
+     0.2044,
+     0.2028,
+     0.1904,
+     0.1745,
+     0.1647,
+     0.1581,
+     0.1531,
+     0.1518,
+     0.1505,
+     0.1493,
+     0.148,
+     0.1467,
+     0.1455,
+     0.1442,
+     0.1429,
+     0.1417,
+     0.1431,
+     0.1422,
+     0.1386,
+     0.134,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.2005,
+     0.2034,
+     0.2007,
+     0.2024,
+     0.2041,
+     0.206,
+     0.2052,
+     0.2044,
+     0.2009,
+     0.1887,
+     0.1717,
+     0.1653,
+     0.159,
+     0.1539,
+     0.1527,
+     0.1514,
+     0.1501,
+     null,
+     0.1476,
+     0.1491,
+     0.1479,
+     0.1466,
+     0.1425,
+     null,
+     0.1432,
+     0.1402,
+     0.1359,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.2023,
+     0.2009,
+     0.2039,
+     0.2002,
+     0.2019,
+     0.2037,
+     0.2055,
+     0.2048,
+     0.204,
+     0.1995,
+     0.187,
+     0.1719,
+     0.166,
+     0.1601,
+     0.1551,
+     0.1539,
+     0.1526,
+     0.1513,
+     0.1501,
+     0.1488,
+     0.1476,
+     0.1463,
+     0.145,
+     0.1438,
+     0.1453,
+     0.1444,
+     0.1414,
+     0.1363,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.2021,
+     0.2014,
+     0.2042,
+     0.2,
+     0.2018,
+     0.2035,
+     0.2048,
+     0.204,
+     0.2034,
+     0.1983,
+     0.1861,
+     0.172,
+     0.1661,
+     0.1602,
+     0.1555,
+     0.1543,
+     0.1531,
+     0.1519,
+     0.1507,
+     0.1496,
+     0.1484,
+     0.1472,
+     0.146,
+     0.1449,
+     0.1462,
+     null,
+     0.1408,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.2026,
+     0.2015,
+     0.2041,
+     0.2001,
+     0.2015,
+     0.2028,
+     0.2039,
+     0.2034,
+     0.2034,
+     0.1975,
+     0.1858,
+     0.172,
+     0.1661,
+     0.1602,
+     0.1555,
+     0.1543,
+     0.1532,
+     0.152,
+     0.1508,
+     0.1496,
+     0.1492,
+     0.1484,
+     0.1474,
+     null,
+     0.1467,
+     0.1424,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.2028,
+     0.2019,
+     0.2042,
+     0.1999,
+     0.2011,
+     0.2023,
+     0.2031,
+     0.2031,
+     0.2032,
+     0.1968,
+     0.1857,
+     0.1721,
+     0.1662,
+     0.1603,
+     0.1556,
+     0.1544,
+     0.1539,
+     0.1535,
+     0.1529,
+     0.1519,
+     null,
+     0.153,
+     0.1501,
+     0.1455,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.2029,
+     0.2024,
+     0.2043,
+     0.2,
+     0.2012,
+     0.202,
+     0.2021,
+     0.2021,
+     0.2023,
+     0.1961,
+     0.1856,
+     0.1722,
+     0.1663,
+     0.1604,
+     0.1578,
+     0.1572,
+     0.1565,
+     0.1581,
+     0.1576,
+     0.154,
+     0.1501,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.203,
+     0.2029,
+     0.2043,
+     0.2,
+     0.2008,
+     0.201,
+     0.2011,
+     0.2011,
+     0.2023,
+     0.1957,
+     0.1855,
+     0.1723,
+     0.1664,
+     0.1625,
+     0.1627,
+     0.1595,
+     0.1563,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.2032,
+     0.203,
+     0.2041,
+     0.1996,
+     0.1999,
+     0.2,
+     0.2,
+     0.2002,
+     0.2028,
+     0.1953,
+     0.1852,
+     0.1724,
+     0.1676,
+     0.1658,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.2028,
+     0.2031,
+     0.2039,
+     0.2042,
+     0.2045,
+     0.201,
+     0.1991,
+     0.1994,
+     0.2034,
+     0.1949,
+     0.1847,
+     0.1726,
+     0.1702,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.2022,
+     0.2032,
+     0.2035,
+     0.2039,
+     0.2043,
+     0.2046,
+     0.2046,
+     0.2041,
+     0.2027,
+     0.1943,
+     0.1845,
+     0.1744,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.2013,
+     0.2036,
+     0.2051,
+     0.2058,
+     0.2063,
+     0.2062,
+     0.2047,
+     0.2042,
+     0.2026,
+     0.1944,
+     0.1829,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.2102,
+     0.2089,
+     0.2043,
+     0.194,
+     0.18,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.2118,
+     0.2065,
+     0.1915,
+     0.1769,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.2074,
+     0.1892,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.2033,
+     0.1824,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.1555,
+     0.2166,
+     0.2087,
+     null,
+     0.1668,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2077,
+     0.2116,
+     0.2094,
+     0.2117,
+     0.2129,
+     0.2128,
+     0.2107,
+     0.2043,
+     0.1866,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1619,
+     null,
+     null,
+     null,
+     null,
+     0.1757,
+     null,
+     0.1513,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     null,
+     null,
+     0.1053,
+     0.114,
+     0.1209,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ]
+   ],
+   "top": [
+    0.2378,
+    0.2412,
+    0.2486,
+    0.2595,
+    0.2712,
+    0.2819,
+    0.292,
+    0.3021,
+    0.3089,
+    0.3158,
+    0.3201,
+    0.3236,
+    0.326,
+    0.3272,
+    0.3273,
+    0.3262,
+    0.3237,
+    0.3199,
+    0.3142,
+    0.3062,
+    0.294,
+    0.2797,
+    0.2636,
+    0.2463,
+    0.2291,
+    0.2259,
+    0.221,
+    0.2158,
+    0.2107,
+    0.2052,
+    0.1966,
+    0.1847,
+    0.1685
+   ],
+   "low": [
+    0.2348,
+    0.2374,
+    0.2459,
+    0.2541,
+    0.2653,
+    0.2761,
+    0.2861,
+    0.2958,
+    0.3037,
+    0.3104,
+    0.3154,
+    0.3194,
+    0.322,
+    0.3235,
+    0.3241,
+    0.323,
+    0.3208,
+    0.3168,
+    0.3108,
+    0.3025,
+    0.2898,
+    0.2749,
+    0.2584,
+    0.2409,
+    0.2246,
+    0.2246,
+    0.219,
+    0.2141,
+    0.2089,
+    0.2027,
+    0.193,
+    0.1804,
+    0.1591
+   ],
+   "roof": [
+    [
+     0.2378,
+     0.2377,
+     0.2368,
+     0.2352,
+     0.1488,
+     0.1406,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2412,
+     0.2405,
+     0.2391,
+     0.2378,
+     0.2361,
+     0.2311,
+     0.188,
+     null,
+     null
+    ],
+    [
+     0.2482,
+     0.2486,
+     0.2493,
+     0.2468,
+     0.2434,
+     0.2364,
+     0.2204,
+     0.1504,
+     null
+    ],
+    [
+     0.2595,
+     0.2586,
+     0.2574,
+     0.2547,
+     0.2516,
+     0.2467,
+     0.2252,
+     0.2063,
+     null
+    ],
+    [
+     0.2712,
+     0.2701,
+     0.269,
+     0.2659,
+     0.263,
+     0.2574,
+     0.2277,
+     0.2094,
+     null
+    ],
+    [
+     0.2819,
+     0.2808,
+     0.28,
+     0.2767,
+     0.2742,
+     0.2684,
+     0.2351,
+     0.2135,
+     null
+    ],
+    [
+     0.292,
+     0.2907,
+     0.2897,
+     0.2864,
+     0.2836,
+     0.2797,
+     0.2448,
+     0.2165,
+     null
+    ],
+    [
+     0.3021,
+     0.3008,
+     0.2995,
+     0.2964,
+     0.2933,
+     0.2881,
+     0.2406,
+     0.2209,
+     null
+    ],
+    [
+     0.3089,
+     0.3078,
+     0.3069,
+     0.3043,
+     0.3015,
+     0.2968,
+     0.2449,
+     0.2193,
+     null
+    ],
+    [
+     0.3158,
+     0.3146,
+     0.3135,
+     0.311,
+     0.3082,
+     0.3052,
+     0.2556,
+     0.2197,
+     null
+    ],
+    [
+     0.3201,
+     0.3191,
+     0.3181,
+     0.3159,
+     0.3133,
+     0.3111,
+     0.2579,
+     0.2189,
+     null
+    ],
+    [
+     0.3236,
+     0.3227,
+     0.3219,
+     0.3198,
+     0.3174,
+     0.315,
+     0.2503,
+     0.2184,
+     null
+    ],
+    [
+     0.326,
+     0.3252,
+     0.3243,
+     0.3224,
+     0.3203,
+     0.3177,
+     0.2508,
+     0.2198,
+     null
+    ],
+    [
+     0.3272,
+     0.3263,
+     0.3256,
+     0.3239,
+     0.3218,
+     0.3189,
+     0.252,
+     0.2141,
+     null
+    ],
+    [
+     0.3273,
+     0.3266,
+     0.326,
+     0.3246,
+     0.3224,
+     0.3197,
+     0.2532,
+     0.212,
+     null
+    ],
+    [
+     0.3262,
+     0.3255,
+     0.3248,
+     0.3234,
+     0.3215,
+     0.3192,
+     0.2651,
+     0.2099,
+     null
+    ],
+    [
+     0.3237,
+     0.3232,
+     0.3226,
+     0.3212,
+     0.3193,
+     0.3187,
+     0.2559,
+     0.2087,
+     null
+    ],
+    [
+     0.3199,
+     0.3193,
+     0.3187,
+     0.3172,
+     0.3154,
+     0.3148,
+     0.2561,
+     0.2077,
+     null
+    ],
+    [
+     0.3142,
+     0.3135,
+     0.3127,
+     0.3113,
+     0.3091,
+     0.3075,
+     0.2563,
+     0.2076,
+     null
+    ],
+    [
+     0.3062,
+     0.3053,
+     0.3045,
+     0.303,
+     0.3003,
+     0.2973,
+     0.2877,
+     0.2075,
+     null
+    ],
+    [
+     0.294,
+     0.293,
+     0.2921,
+     0.2904,
+     0.2875,
+     0.2841,
+     0.2773,
+     0.2104,
+     null
+    ],
+    [
+     0.2797,
+     0.2785,
+     0.2774,
+     0.2756,
+     0.2722,
+     0.2688,
+     0.2673,
+     0.2061,
+     null
+    ],
+    [
+     0.2636,
+     0.2623,
+     0.261,
+     0.2592,
+     0.2551,
+     0.2511,
+     0.252,
+     0.2434,
+     0.2385
+    ],
+    [
+     0.2463,
+     0.2448,
+     0.2434,
+     0.2421,
+     0.2373,
+     0.2329,
+     0.2329,
+     0.2086,
+     null
+    ],
+    [
+     0.2291,
+     0.2278,
+     0.2265,
+     0.2253,
+     0.2221,
+     0.2178,
+     0.2227,
+     0.2032,
+     null
+    ],
+    [
+     0.2248,
+     0.2257,
+     0.2254,
+     0.2247,
+     0.2238,
+     0.2204,
+     0.2164,
+     0.2053,
+     null
+    ],
+    [
+     0.221,
+     0.2203,
+     0.2196,
+     0.2189,
+     0.2199,
+     0.2149,
+     0.2123,
+     0.1987,
+     null
+    ],
+    [
+     0.2158,
+     0.2151,
+     0.2144,
+     0.2141,
+     0.213,
+     0.2095,
+     0.2089,
+     0.1963,
+     0.174
+    ],
+    [
+     0.2107,
+     0.2099,
+     0.2092,
+     0.2089,
+     0.2065,
+     0.2027,
+     0.2044,
+     0.1909,
+     0.17
+    ],
+    [
+     0.2052,
+     0.2043,
+     0.2033,
+     0.2026,
+     0.1989,
+     0.197,
+     0.1975,
+     0.1796,
+     0.1549
+    ],
+    [
+     0.1966,
+     0.1957,
+     0.1946,
+     0.1935,
+     0.1897,
+     0.1868,
+     0.1839,
+     0.164,
+     0.119
+    ],
+    [
+     0.1847,
+     0.1834,
+     0.1819,
+     0.1805,
+     0.1761,
+     0.1715,
+     0.1494,
+     0.0465,
+     null
+    ],
+    [
+     0.1685,
+     0.164,
+     0.1622,
+     0.1605,
+     0.1366,
+     0.0479,
+     null,
+     null,
+     null
+    ]
+   ],
+   "roofX": [
+    0.0,
+    0.0271,
+    0.0541,
+    0.0812,
+    0.1083,
+    0.1353,
+    0.1624,
+    0.1895,
+    0.2165
+   ]
+  }
+ },
+ "mint-sports-coupe": {
+  "masks": {
+   "1k": "mint-sports-coupe-windows-1k.png",
+   "512": "mint-sports-coupe-windows-512.png"
+  },
+  "tris": "mint-sports-coupe-glass.bin",
+  "count": 615,
+  "belt": 0.1853,
+  "privacy": false,
+  "fit": {
+   "z": [
+    -0.4798,
+    -0.4498,
+    -0.4198,
+    -0.3898,
+    -0.3598,
+    -0.3298,
+    -0.2999,
+    -0.2699,
+    -0.2399,
+    -0.2099,
+    -0.1799,
+    -0.1499,
+    -0.1199,
+    -0.09,
+    -0.06,
+    -0.03,
+    0.0,
+    0.03,
+    0.06,
+    0.09,
+    0.1199,
+    0.1499,
+    0.1799,
+    0.2099,
+    0.2399,
+    0.2699,
+    0.2999,
+    0.3298,
+    0.3598,
+    0.3898,
+    0.4198,
+    0.4498,
+    0.4798
+   ],
+   "y": [
+    0.0275,
+    0.0412,
+    0.055,
+    0.0687,
+    0.0825,
+    0.0962,
+    0.11,
+    0.1237,
+    0.1374,
+    0.1512,
+    0.1649,
+    0.1787,
+    0.1924,
+    0.2062,
+    0.2199,
+    0.2309,
+    0.2337,
+    0.2364,
+    0.2392,
+    0.2419,
+    0.2447,
+    0.2474,
+    0.2502,
+    0.2529,
+    0.2557,
+    0.2584,
+    0.2612,
+    0.2639,
+    0.2667,
+    0.2694,
+    0.2722,
+    0.2749
+   ],
+   "half": [
+    [
+     null,
+     0.0647,
+     0.0648,
+     0.0669,
+     0.0775,
+     0.0843,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     0.0774,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.065,
+     0.0652,
+     0.0964,
+     0.1556,
+     0.1669,
+     0.1933,
+     0.1951,
+     0.1976,
+     0.1987,
+     0.1856,
+     0.1911,
+     0.0781,
+     0.0783,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1277,
+     0.2103,
+     0.2128,
+     0.2141,
+     0.2148,
+     0.2151,
+     0.2146,
+     0.2127,
+     0.2108,
+     0.2083,
+     0.2013,
+     0.2041,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1535,
+     0.1535,
+     0.1535,
+     0.1535,
+     0.1535,
+     0.1535,
+     0.2259,
+     0.2253,
+     0.2215,
+     0.216,
+     0.2082,
+     0.2037,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1534,
+     0.1534,
+     0.1534,
+     0.1535,
+     0.1535,
+     0.1535,
+     0.1535,
+     0.1535,
+     0.1532,
+     0.2242,
+     0.2147,
+     0.2009,
+     0.1253,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1534,
+     0.1534,
+     0.1534,
+     0.1534,
+     0.1534,
+     0.1534,
+     0.1534,
+     0.1534,
+     0.1531,
+     0.1531,
+     0.2196,
+     0.207,
+     null,
+     0.1276,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1533,
+     0.1533,
+     0.1533,
+     0.1533,
+     0.1533,
+     0.1533,
+     0.1533,
+     0.1533,
+     0.1531,
+     0.1531,
+     0.2211,
+     0.2103,
+     null,
+     0.1382,
+     null,
+     0.1094,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.1532,
+     0.1532,
+     0.1532,
+     0.1532,
+     0.1532,
+     0.1532,
+     0.1532,
+     0.1532,
+     0.1531,
+     0.2263,
+     0.2176,
+     0.2079,
+     null,
+     null,
+     0.1352,
+     0.1325,
+     0.1297,
+     null,
+     0.1085,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.1531,
+     0.1531,
+     0.1531,
+     0.1531,
+     0.1531,
+     0.1531,
+     0.1531,
+     0.1531,
+     0.2264,
+     0.2227,
+     0.2165,
+     0.2097,
+     0.2037,
+     0.1893,
+     0.1651,
+     0.1415,
+     0.1388,
+     0.1362,
+     0.1335,
+     0.1309,
+     0.1282,
+     null,
+     0.1072,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2303,
+     0.2289,
+     0.2285,
+     0.2285,
+     0.2223,
+     0.2245,
+     0.2227,
+     0.2197,
+     0.2153,
+     0.2109,
+     0.2064,
+     0.185,
+     0.1549,
+     0.1558,
+     0.1695,
+     0.1545,
+     null,
+     null,
+     0.1389,
+     0.1363,
+     0.1337,
+     0.1311,
+     0.1286,
+     null,
+     0.1059,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2269,
+     0.2256,
+     0.2257,
+     0.2195,
+     0.2198,
+     0.2173,
+     0.2147,
+     0.2117,
+     0.2085,
+     0.2051,
+     0.1988,
+     0.1847,
+     0.1611,
+     0.1545,
+     0.1476,
+     0.1436,
+     0.1525,
+     0.1515,
+     null,
+     null,
+     0.1383,
+     0.1357,
+     0.1332,
+     0.1306,
+     null,
+     null,
+     0.1035,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2231,
+     0.2219,
+     0.2179,
+     0.2171,
+     0.2141,
+     0.2113,
+     0.2085,
+     0.2038,
+     0.2048,
+     0.2032,
+     0.1965,
+     0.1844,
+     0.1637,
+     0.1571,
+     0.1505,
+     0.1442,
+     null,
+     0.1446,
+     0.1438,
+     0.143,
+     0.1411,
+     0.1391,
+     0.1368,
+     0.1341,
+     0.1314,
+     0.1287,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2197,
+     0.2154,
+     0.2155,
+     0.2123,
+     0.2091,
+     0.2056,
+     0.203,
+     0.2027,
+     0.2036,
+     0.2014,
+     0.1956,
+     0.1843,
+     0.1668,
+     0.16,
+     0.1531,
+     0.1476,
+     0.1461,
+     0.1446,
+     0.143,
+     0.1414,
+     0.1399,
+     0.1409,
+     0.139,
+     0.1371,
+     0.1345,
+     0.1315,
+     0.1284,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2153,
+     0.2144,
+     0.2113,
+     0.2084,
+     0.2047,
+     0.2024,
+     0.2016,
+     0.2016,
+     0.2021,
+     0.2,
+     0.195,
+     0.1841,
+     0.1682,
+     0.1613,
+     0.1541,
+     0.1479,
+     0.1463,
+     0.1448,
+     0.1433,
+     0.1418,
+     0.1403,
+     0.139,
+     0.1405,
+     0.1386,
+     0.1368,
+     0.1339,
+     0.1308,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2124,
+     0.2119,
+     0.2085,
+     0.2048,
+     0.2021,
+     0.201,
+     0.2005,
+     0.2005,
+     0.2005,
+     0.1989,
+     0.1944,
+     0.184,
+     0.1695,
+     0.1621,
+     0.1546,
+     0.1487,
+     0.1472,
+     0.1457,
+     0.1442,
+     0.1427,
+     0.1412,
+     0.1397,
+     0.1408,
+     0.1396,
+     0.1377,
+     0.1352,
+     0.1318,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2121,
+     0.2098,
+     0.2061,
+     0.2022,
+     0.2007,
+     0.1994,
+     0.1993,
+     0.1993,
+     0.199,
+     0.1978,
+     0.1937,
+     0.1839,
+     0.1702,
+     0.1627,
+     0.1552,
+     0.1492,
+     0.1477,
+     0.1462,
+     0.1447,
+     0.1432,
+     0.1417,
+     0.1415,
+     0.1416,
+     0.1398,
+     0.1379,
+     0.1347,
+     0.1317,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2111,
+     0.2082,
+     0.204,
+     0.1994,
+     0.1982,
+     0.1979,
+     0.1979,
+     0.1982,
+     0.198,
+     0.1972,
+     0.193,
+     0.1841,
+     0.1687,
+     0.1621,
+     0.1547,
+     0.1487,
+     0.1472,
+     0.1457,
+     0.1471,
+     0.1462,
+     0.1445,
+     0.1422,
+     0.1383,
+     0.1346,
+     0.1309,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2101,
+     0.2067,
+     0.2008,
+     0.1969,
+     0.1963,
+     0.1965,
+     0.1966,
+     0.197,
+     0.1972,
+     0.1965,
+     0.1928,
+     0.1844,
+     0.1671,
+     0.1602,
+     0.1537,
+     0.1512,
+     0.1482,
+     0.1447,
+     0.1412,
+     0.1374,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2088,
+     0.2035,
+     0.1975,
+     0.1948,
+     0.1949,
+     0.1951,
+     0.1955,
+     0.1959,
+     0.1965,
+     0.1959,
+     0.1926,
+     0.1847,
+     0.169,
+     0.1618,
+     0.1514,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2071,
+     0.2011,
+     0.1947,
+     0.1927,
+     0.1927,
+     0.1929,
+     0.1934,
+     0.1932,
+     0.1938,
+     0.196,
+     0.1928,
+     0.1848,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2053,
+     0.1988,
+     0.1919,
+     0.1904,
+     0.1902,
+     0.1902,
+     0.19,
+     0.1898,
+     0.195,
+     0.1963,
+     0.1925,
+     0.1852,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2035,
+     0.1964,
+     0.1889,
+     0.1871,
+     0.1867,
+     0.1863,
+     0.1859,
+     0.1891,
+     0.1985,
+     0.1966,
+     0.1927,
+     0.1854,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2013,
+     0.1929,
+     0.1915,
+     0.1904,
+     0.1893,
+     0.1884,
+     0.1886,
+     0.1903,
+     0.1988,
+     0.1972,
+     0.1927,
+     0.1856,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.1986,
+     0.2058,
+     0.2065,
+     0.2068,
+     0.2068,
+     0.2065,
+     0.2057,
+     0.2047,
+     0.2033,
+     0.201,
+     0.1965,
+     0.1867,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.1481,
+     0.1481,
+     0.1481,
+     0.1481,
+     0.1481,
+     0.1482,
+     0.1483,
+     0.1483,
+     0.1481,
+     0.2054,
+     0.1978,
+     0.1885,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.1474,
+     0.1474,
+     0.1474,
+     0.1474,
+     0.1474,
+     0.1476,
+     0.1477,
+     0.1477,
+     0.1477,
+     0.1479,
+     0.2051,
+     0.1906,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.1467,
+     0.1467,
+     0.1468,
+     0.1468,
+     0.1468,
+     0.147,
+     0.1471,
+     0.1472,
+     0.1472,
+     0.1474,
+     0.1476,
+     0.1891,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.146,
+     0.1461,
+     0.1461,
+     0.1461,
+     0.1461,
+     0.1463,
+     0.1465,
+     0.1466,
+     0.1467,
+     0.1469,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.1453,
+     0.1454,
+     0.1454,
+     0.1454,
+     0.1455,
+     0.1457,
+     0.146,
+     0.1461,
+     0.1461,
+     0.1985,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2034,
+     0.2003,
+     null,
+     null,
+     0.2013,
+     0.2017,
+     0.2005,
+     0.1983,
+     0.1588,
+     0.1697,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     0.1883,
+     0.1831,
+     0.1638,
+     0.1641,
+     0.1644,
+     0.1647,
+     0.1674,
+     0.1739,
+     0.1445,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.123,
+     0.1218,
+     0.123,
+     0.1244,
+     0.1208,
+     0.1256,
+     0.1146,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ],
+    [
+     null,
+     0.0843,
+     0.0743,
+     0.0911,
+     0.0867,
+     0.0851,
+     0.0859,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ]
+   ],
+   "top": [
+    0.2133,
+    0.2109,
+    0.2069,
+    0.2122,
+    0.2034,
+    0.2285,
+    0.2369,
+    0.2447,
+    0.2531,
+    0.2596,
+    0.266,
+    0.2703,
+    0.2727,
+    0.2742,
+    0.2749,
+    0.2732,
+    0.2694,
+    0.2605,
+    0.2458,
+    0.2279,
+    0.2097,
+    0.1915,
+    0.1843,
+    0.1885,
+    0.1861,
+    0.1833,
+    0.1795,
+    0.1745,
+    0.1678,
+    0.1593,
+    0.1495,
+    0.1375,
+    0.1233
+   ],
+   "low": [
+    0.2131,
+    0.2095,
+    0.2015,
+    0.2079,
+    0.2016,
+    0.2236,
+    0.2321,
+    0.2398,
+    0.2477,
+    0.2542,
+    0.2607,
+    0.2664,
+    0.2689,
+    0.2708,
+    0.2709,
+    0.2689,
+    0.2643,
+    0.253,
+    0.2378,
+    0.2201,
+    0.2026,
+    0.1846,
+    0.1796,
+    0.1852,
+    0.1831,
+    0.1805,
+    0.1765,
+    0.1714,
+    0.1658,
+    0.1569,
+    0.1438,
+    0.1293,
+    0.0661
+   ],
+   "roof": [
+    [
+     0.2133,
+     0.2132,
+     0.2131,
+     0.2132,
+     0.2132,
+     0.0934,
+     null,
+     null,
+     null
+    ],
+    [
+     0.2109,
+     0.2107,
+     0.2104,
+     0.2097,
+     0.2091,
+     0.2087,
+     0.2048,
+     null,
+     null
+    ],
+    [
+     0.2069,
+     0.2064,
+     0.2052,
+     0.2018,
+     0.1974,
+     0.1913,
+     0.2032,
+     0.1934,
+     null
+    ],
+    [
+     0.2118,
+     0.2122,
+     0.2111,
+     0.2085,
+     0.204,
+     0.1951,
+     0.1922,
+     0.1806,
+     null
+    ],
+    [
+     0.2034,
+     0.2025,
+     0.2013,
+     0.2025,
+     0.2149,
+     0.2003,
+     0.1965,
+     0.1871,
+     null
+    ],
+    [
+     0.2285,
+     0.2277,
+     0.227,
+     0.2244,
+     0.2251,
+     0.2089,
+     0.2006,
+     0.1909,
+     null
+    ],
+    [
+     0.2369,
+     0.2361,
+     0.2354,
+     0.2328,
+     0.234,
+     0.2146,
+     0.2049,
+     0.195,
+     null
+    ],
+    [
+     0.2447,
+     0.244,
+     0.2433,
+     0.2406,
+     0.2421,
+     0.2213,
+     0.2088,
+     0.1958,
+     null
+    ],
+    [
+     0.2531,
+     0.2522,
+     0.2513,
+     0.2484,
+     0.2489,
+     0.2285,
+     0.2146,
+     0.1809,
+     null
+    ],
+    [
+     0.2596,
+     0.2589,
+     0.2583,
+     0.2549,
+     0.255,
+     0.2343,
+     0.1841,
+     0.1689,
+     null
+    ],
+    [
+     0.266,
+     0.2653,
+     0.2646,
+     0.2599,
+     0.2599,
+     0.2384,
+     0.1842,
+     0.1525,
+     null
+    ],
+    [
+     0.2703,
+     0.2699,
+     0.2692,
+     0.2669,
+     0.2634,
+     0.2357,
+     0.1828,
+     0.1452,
+     null
+    ],
+    [
+     0.2727,
+     0.2726,
+     0.2718,
+     0.2694,
+     0.2658,
+     0.2322,
+     0.1825,
+     0.0946,
+     null
+    ],
+    [
+     0.2742,
+     0.2741,
+     0.2734,
+     0.271,
+     0.2673,
+     0.2355,
+     0.1837,
+     0.0801,
+     null
+    ],
+    [
+     0.2749,
+     0.2744,
+     0.2736,
+     0.2714,
+     0.2673,
+     0.2341,
+     0.1821,
+     0.0664,
+     null
+    ],
+    [
+     0.2732,
+     0.2727,
+     0.2719,
+     0.2696,
+     0.2654,
+     0.2311,
+     0.1845,
+     0.0452,
+     null
+    ],
+    [
+     0.2694,
+     0.2689,
+     0.2676,
+     0.2651,
+     0.2603,
+     0.2418,
+     0.1844,
+     0.0524,
+     null
+    ],
+    [
+     0.2605,
+     0.2598,
+     0.2577,
+     0.2547,
+     0.2471,
+     0.2329,
+     0.1842,
+     0.1907,
+     0.191
+    ],
+    [
+     0.2458,
+     0.2451,
+     0.2429,
+     0.2391,
+     0.2331,
+     0.2241,
+     0.1839,
+     0.0318,
+     null
+    ],
+    [
+     0.2279,
+     0.2271,
+     0.2249,
+     0.2223,
+     0.2149,
+     0.2054,
+     0.1835,
+     0.0267,
+     null
+    ],
+    [
+     0.2097,
+     0.2089,
+     0.207,
+     0.2041,
+     0.1973,
+     0.1882,
+     0.1831,
+     0.0264,
+     null
+    ],
+    [
+     0.1915,
+     0.1907,
+     0.1884,
+     0.1848,
+     0.1771,
+     0.1839,
+     0.1829,
+     0.0264,
+     null
+    ],
+    [
+     0.1796,
+     0.1855,
+     0.1882,
+     0.1869,
+     0.185,
+     0.1835,
+     0.1827,
+     0.0207,
+     null
+    ],
+    [
+     0.1885,
+     0.1879,
+     0.1871,
+     0.1855,
+     0.1846,
+     0.1829,
+     0.1839,
+     0.1255,
+     null
+    ],
+    [
+     0.1861,
+     0.1857,
+     0.1849,
+     0.1834,
+     0.1831,
+     0.1819,
+     0.1852,
+     0.1561,
+     null
+    ],
+    [
+     0.1833,
+     0.183,
+     0.1822,
+     0.1808,
+     0.181,
+     0.1809,
+     0.186,
+     0.1634,
+     null
+    ],
+    [
+     0.1795,
+     0.1792,
+     0.1783,
+     0.1768,
+     0.1752,
+     0.1786,
+     0.1837,
+     0.1688,
+     null
+    ],
+    [
+     0.1745,
+     0.1742,
+     0.1731,
+     0.1718,
+     0.1695,
+     0.1748,
+     0.178,
+     0.1638,
+     null
+    ],
+    [
+     0.1678,
+     0.1675,
+     0.1663,
+     0.165,
+     0.1624,
+     0.1682,
+     0.165,
+     0.1474,
+     null
+    ],
+    [
+     0.1593,
+     0.1589,
+     0.1576,
+     0.1569,
+     0.1528,
+     0.1578,
+     0.1477,
+     null,
+     null
+    ],
+    [
+     0.1495,
+     0.149,
+     0.1475,
+     0.1467,
+     0.1442,
+     0.1421,
+     0.1213,
+     null,
+     null
+    ],
+    [
+     0.1375,
+     0.1372,
+     0.1358,
+     0.1306,
+     0.1279,
+     0.0311,
+     0.0225,
+     null,
+     null
+    ],
+    [
+     0.123,
+     0.1213,
+     0.1192,
+     0.1103,
+     0.0229,
+     null,
+     null,
+     null,
+     null
+    ]
+   ],
+   "roofX": [
+    0.0,
+    0.0298,
+    0.0596,
+    0.0895,
+    0.1193,
+    0.1491,
+    0.1789,
+    0.2087,
+    0.2386
+   ]
+  }
+ }
+});
+
+return { CAR_WINDOWS };
+})();
+
+__modules["client/car-glass.js"] = (function () {
+
+const weather = { uWet: { value: 0 }, uTime: { value: 0 }, uDay: { value: 1 } };
+const live = new Set();
+
+const GLASS = Object.freeze({
+  tint: 0x2f3a36, clear: 0.2, privacy: 0.55, slant: 0.82, roughness: 0.04, dust: 0.22, edge: 0.012,
+  inside: 0x1c1c1e,
+});
+
+let dropsPicture = null;
+function drops() {
+  if (dropsPicture) return dropsPicture;
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, 128, 128);
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  for (let i = 0; i < 90; i += 1) {
+    const x = rnd() * 128, y = rnd() * 128, r = 0.8 + rnd() * 2.2;
+    const grad = g.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r);
+    grad.addColorStop(0, 'rgba(255,255,255,0.95)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    if (rnd() < 0.25) { g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(x - 0.4, y, 0.8, 6 + rnd() * 14); }
+  }
+  dropsPicture = new THREE.CanvasTexture(c);
+  dropsPicture.wrapS = dropsPicture.wrapT = THREE.RepeatWrapping;
+  return dropsPicture;
+}
+
+function windowsPicture(image) {
+  const t = new THREE.Texture(image);
+  t.flipY = false;
+  t.format = THREE.RedFormat;
+  t.internalFormat = 'R8';
+  t.generateMipmaps = true;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.anisotropy = 4;
+  t.needsUpdate = true;
+  t.name = 'car-windows';
+  return t;
+}
+
+function carGlass(spec, picture, { lite = false, privacy = false, belt = null, behind = 0, inside = GLASS.inside, envMap = null } = {}) {
+  const env = typeof THREE.MeshPhysicalMaterial === 'function' && !lite;
+  const uniforms = {
+    uSlant: { value: GLASS.slant }, uBelt: { value: belt === null ? -1 : belt }, uDust: { value: GLASS.dust }, uEdge: { value: GLASS.edge * spec.length },
+    uClear: { value: GLASS.clear }, uPrivate: { value: privacy ? GLASS.privacy : GLASS.clear }, uBehind: { value: behind },
+    uDrops: { value: drops() }, ...weather,
+  };
+  const options = {
+    color: GLASS.tint, transparent: true, opacity: 1, depthWrite: false, side: THREE.DoubleSide,
+    roughness: GLASS.roughness, metalness: 0, alphaMap: picture, ...(envMap ? { envMap, envMapIntensity: 1.1 * weather.uDay.value } : {}),
+  };
+  const material = env ? new THREE.MeshPhysicalMaterial({ ...options, clearcoat: 0, ior: 1.5, specularIntensity: 1 }) : new THREE.MeshStandardMaterial(options);
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGlassAt;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlassAt = position;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vGlassAt;
+uniform float uSlant; uniform float uBelt; uniform float uDust; uniform float uEdge; uniform float uWet; uniform float uTime; uniform float uDay;
+uniform float uClear; uniform float uPrivate; uniform float uBehind;
+uniform sampler2D uDrops;`)
+      .replace('#include <alphamap_fragment>', `float glassMask = texture2D( alphaMap, vAlphaMapUv ).r;
+if ( glassMask < 0.45 ) discard;`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+float glassDust = uBelt >= 0.0 ? (1.0 - smoothstep(uBelt, uBelt + uEdge, vGlassAt.y)) * uDust : 0.0;
+roughnessFactor = mix(roughnessFactor, 0.6, glassDust);`)
+      .replace('#include <opaque_fragment>', `outgoingLight = vec3(0.045, 0.058, 0.052) * (0.3 + 0.7 * uDay) + totalSpecular;
+float glassFace = abs(dot(normalize(normal), normalize(vViewPosition)));
+float glassSlant = pow(1.0 - glassFace, 3.0) * uSlant;
+vec2 dropAt = vec2(vGlassAt.x * 14.0 + vGlassAt.y * 3.0, vGlassAt.z * 14.0 + uTime * 0.6);
+float glassDrops = uWet * texture2D(uDrops, dropAt).a;
+float glassBase = vGlassAt.z < uBehind ? uPrivate : uClear;
+outgoingLight = mix(outgoingLight, vec3(0.62, 0.64, 0.62) * (0.35 + 0.65 * uDay), glassDust * 0.5);
+outgoingLight += glassDrops * vec3(0.55) * (0.3 + 0.7 * uDay);
+diffuseColor.a = clamp(max(glassBase, glassSlant) + glassDust * 0.35 + glassDrops * 0.25, 0.0, 0.97) * smoothstep(0.45, 0.6, glassMask);
+#include <opaque_fragment>`);
+  };
+  material.customProgramCacheKey = () => `pcw-car-glass-${env ? 'p' : 's'}`;
+  material.userData.glass = true;
+  live.add(material);
+  const insideColour = new THREE.Color(inside);
+  return {
+    material,
+    body(m) {
+      m.alphaMap = picture;
+      m.alphaTest = 0;
+      m.side = THREE.DoubleSide;
+      m.userData.windowsCut = true;
+      const was = m.onBeforeCompile;
+      const inner = { uInside: { value: insideColour } };
+      m.onBeforeCompile = (shader, renderer) => {
+        if (was) was(shader, renderer);
+        Object.assign(shader.uniforms, inner);
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', '#include <common>\nuniform vec3 uInside;')
+          .replace('#include <alphamap_fragment>', `#ifdef USE_ALPHAMAP
+	if ( texture2D( alphaMap, vAlphaMapUv ).r > 0.5 ) discard;
+#endif`)
+          .replace('#include <map_fragment>', '#include <map_fragment>\nif ( ! gl_FrontFacing ) diffuseColor.rgb = uInside;')
+          .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nif ( ! gl_FrontFacing ) roughnessFactor = 0.92;')
+          .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nif ( ! gl_FrontFacing ) metalnessFactor = 0.0;')
+          .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
+#ifdef USE_CLEARCOAT
+	if ( ! gl_FrontFacing ) material.clearcoat = 0.0;
+#endif`);
+      };
+      const key = m.customProgramCacheKey ? m.customProgramCacheKey.bind(m) : () => '';
+      m.customProgramCacheKey = () => `${key()}|pcw-glass-cut`;
+      m.needsUpdate = true;
+      return m;
+    },
+    pane(geometry) {
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = 'car-glass'; mesh.castShadow = false; mesh.receiveShadow = false;
+      mesh.renderOrder = 3;
+      return mesh;
+    },
+    dispose() { live.delete(material); material.dispose(); },
+  };
+}
+
+function setGlassWeather({ wet = 0, daylight = 1, t = 0 } = {}) {
+  weather.uWet.value = wet;
+  weather.uDay.value = Math.max(0.05, Math.min(1, daylight));
+  weather.uTime.value = t % 1000;
+  for (const m of live) m.envMapIntensity = 1.1 * weather.uDay.value;
+}
+
+return { GLASS, windowsPicture, carGlass, setGlassWeather };
+})();
+
+__modules["client/car-cabin.js"] = (function () {
+
+const { Batch } = __modules["client/render-kit.js"];
+const { TWO_DOORS } = __modules["sim/car-doors.js"];
+
+const TRIMS = Object.freeze({
+  'state-limousine': { seat: 0xd9ccb0, stitch: 0x8a6a40, dash: 0x2c2420, wood: 0x6b3a1f, carpet: 0x3a3028, roof: 0xe2d8c4, metal: 0xb8b2a6, leather: true },
+  'black-luxury-suv': { seat: 0x161515, bolster: 0x8a5a32, stitch: 0x8a5a32, dash: 0x141414, wood: 0x3a2a1e, carpet: 0x1c1b1a, roof: 0x2a2826, metal: 0x9a9a9a, leather: true },
+  'camo-expedition': { seat: 0x4b5232, stitch: 0x2a2e1e, dash: 0x23251e, carpet: 0x1e1f1b, roof: 0x55574a, metal: 0x6a6c64, fabric: true, mats: 0x111111 },
+  'mint-sports-coupe': { seat: 0x111214, stitch: 0x8fd3c5, dash: 0x121314, carpet: 0x151617, roof: 0x1c1d1f, metal: 0xa9b0b4, leather: true },
+  'black-pickup': { seat: 0x4a4c4e, stitch: 0x2e2f30, dash: 0x2a2b2c, carpet: 0x232425, roof: 0x6a6b6c, metal: 0x7a7c7e, fabric: true, mats: 0x141414 },
+  'blue-off-roader': { seat: 0x45484b, stitch: 0x2a2c2e, dash: 0x26282a, carpet: 0x222324, roof: 0x5f6164, metal: 0x7a7c80, fabric: true, mats: 0x151515 },
+  'black-square-suv': { seat: 0x3d3e40, stitch: 0x262728, dash: 0x1f2021, carpet: 0x1d1e1f, roof: 0x55575a, metal: 0x8a8c8e, fabric: true },
+  'grey-grand-tourer': { seat: 0x6b2a24, stitch: 0x2a1512, dash: 0x1a1a1b, wood: 0x2e2a28, carpet: 0x1c1c1d, roof: 0x3a3a3b, metal: 0xb0b0b4, leather: true },
+  'grey-saloon': { seat: 0x3a3c40, stitch: 0x24262a, dash: 0x1d1e20, carpet: 0x1e1f21, roof: 0x8c8c88, metal: 0x9a9ca0, fabric: true },
+  'midnight-saloon': { seat: 0x1c1f2a, stitch: 0x5a6a8a, dash: 0x16171b, carpet: 0x18191d, roof: 0x34353a, metal: 0xa0a4ac, leather: true },
+});
+const PLAIN = Object.freeze({ seat: 0x3a3b3e, stitch: 0x26272a, dash: 0x1e1f21, carpet: 0x1e1f21, roof: 0x7a7a78, metal: 0x909296, fabric: true });
+
+let grain = null;
+function grainPicture() {
+  if (grain) return grain;
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const img = g.createImageData(128, 128);
+  let seed = 11;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  for (let i = 0; i < 128 * 128; i += 1) {
+    const v = 200 + Math.floor(rnd() * 40);
+    img.data[i * 4] = v; img.data[i * 4 + 1] = v; img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  g.strokeStyle = 'rgba(120,120,120,0.55)'; g.lineWidth = 1.2;
+  for (const y of [32, 96]) { g.beginPath(); g.moveTo(0, y); g.lineTo(128, y); g.stroke(); }
+  g.strokeStyle = 'rgba(255,255,255,0.35)'; g.setLineDash([3, 3]);
+  for (const y of [29, 35, 93, 99]) { g.beginPath(); g.moveTo(0, y); g.lineTo(128, y); g.stroke(); }
+  grain = new THREE.CanvasTexture(c);
+  grain.wrapS = grain.wrapT = THREE.RepeatWrapping;
+  grain.colorSpace = THREE.SRGBColorSpace;
+  return grain;
+}
+
+let faces = null;
+function facesPicture() {
+  if (faces) return faces;
+  const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#050607'; g.fillRect(0, 0, 256, 128);
+  for (const cx of [44, 128]) {
+    g.strokeStyle = '#d8f4ff'; g.lineWidth = 3; g.beginPath(); g.arc(cx, 56, 36, Math.PI * 0.75, Math.PI * 2.25); g.stroke();
+    for (let k = 0; k <= 10; k += 1) { const a = Math.PI * 0.75 + (k / 10) * Math.PI * 1.5; g.beginPath(); g.moveTo(cx + Math.cos(a) * 30, 56 + Math.sin(a) * 30); g.lineTo(cx + Math.cos(a) * 36, 56 + Math.sin(a) * 36); g.stroke(); }
+    g.strokeStyle = '#ff6a3a'; g.lineWidth = 3; g.beginPath(); g.moveTo(cx, 56); g.lineTo(cx + Math.cos(Math.PI * 1.1) * 30, 56 + Math.sin(Math.PI * 1.1) * 30); g.stroke();
+  }
+  g.fillStyle = '#0f1a20'; g.fillRect(184, 14, 66, 100);
+  g.strokeStyle = '#4f7d8c'; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(190, 100); g.lineTo(230, 40); g.lineTo(246, 30); g.stroke();
+  g.beginPath(); g.moveTo(196, 60); g.lineTo(246, 76); g.stroke();
+  g.fillStyle = '#ffd36a'; g.beginPath(); g.arc(214, 70, 4, 0, Math.PI * 2); g.fill();
+  faces = new THREE.CanvasTexture(c);
+  faces.colorSpace = THREE.SRGBColorSpace;
+  return faces;
+}
+
+const slabs = new Map();
+function slab(w, h, d, r) {
+  const key = `${w.toFixed(3)}|${h.toFixed(3)}|${d.toFixed(3)}|${r.toFixed(3)}`;
+  if (slabs.has(key)) return slabs.get(key);
+  const rr = Math.min(r, w / 2 - 0.001, h / 2 - 0.001);
+  const s = new THREE.Shape();
+  const x0 = -w / 2 + rr, x1 = w / 2 - rr, y0 = -h / 2 + rr, y1 = h / 2 - rr;
+  s.moveTo(x0, -h / 2); s.lineTo(x1, -h / 2); s.quadraticCurveTo(w / 2, -h / 2, w / 2, y0); s.lineTo(w / 2, y1);
+  s.quadraticCurveTo(w / 2, h / 2, x1, h / 2); s.lineTo(x0, h / 2); s.quadraticCurveTo(-w / 2, h / 2, -w / 2, y1);
+  s.lineTo(-w / 2, y0); s.quadraticCurveTo(-w / 2, -h / 2, x0, -h / 2);
+  const bevel = Math.min(rr * 0.8, d / 3);
+  const g = new THREE.ExtrudeGeometry(s, { depth: Math.max(0.001, d - 2 * bevel), bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel * 0.8, bevelSegments: 2, curveSegments: 4 });
+  g.translate(0, 0, -(d - 2 * bevel) / 2);
+  slabs.set(key, g);
+  return g;
+}
+
+
+function shellRoom(fit, scale) {
+  if (!fit) return { room: () => null, topAt: () => null, lowAt: () => null, roofAt: () => null };
+  const zs = fit.z, ys = fit.y;
+  const find = (list, v) => { if (v <= list[0]) return [0, 0, 0]; const n = list.length - 1; if (v >= list[n]) return [n, n, 0]; let i = 0; while (list[i + 1] < v) i += 1; return [i, i + 1, (v - list[i]) / (list[i + 1] - list[i])]; };
+  const room = (z, y) => {
+    const [z0, z1, fz] = find(zs, z / scale), [y0, y1, fy] = find(ys, y / scale);
+    const at = (a, b) => fit.half[a][b];
+    const vals = [[at(z0, y0), (1 - fz) * (1 - fy)], [at(z1, y0), fz * (1 - fy)], [at(z0, y1), (1 - fz) * fy], [at(z1, y1), fz * fy]].filter(([v]) => v !== null);
+    if (!vals.length) return null;
+    const w = vals.reduce((s, [, k]) => s + k, 0);
+    const mean = w > 0 ? vals.reduce((s, [v, k]) => s + v * k, 0) / w : vals[0][0];
+    return Math.min(mean, ...vals.filter(([, k]) => k > 0.25).map(([v]) => v)) * scale;
+  };
+  const along = (list) => (z) => {
+    const [z0, z1, fz] = find(zs, z / scale);
+    const a = list[z0], b = list[z1];
+    if (a === null && b === null) return null;
+    return (a === null ? b : b === null ? a : Math.min(a + (b - a) * fz, Math.max(a, b))) * scale;
+  };
+  const topAt = along(fit.top);
+  const roofAt = (z, x) => {
+    if (!fit.roof || !fit.roofX) return topAt(z);
+    const [z0, z1] = find(zs, z / scale), [x0, x1] = find(fit.roofX, Math.abs(x) / scale);
+    const v = [fit.roof[z0][x0], fit.roof[z0][x1], fit.roof[z1][x0], fit.roof[z1][x1]].filter((q) => q !== null);
+    return v.length ? Math.min(...v) * scale : topAt(z);
+  };
+  return { room, topAt, lowAt: fit.low ? along(fit.low) : topAt, roofAt };
+}
+
+const made = new Map();
+function makeCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = {}) {
+  if (!spec.driver) return null;
+  const key = `${id}|${scale.toFixed(5)}|${doors.map((q) => q.key).join('')}`;
+  let shared = made.get(key);
+  if (!shared) { shared = { ...buildCabin(id, spec, { scale, lite, fit, doors }), users: 0 }; made.set(key, shared); }
+  shared.users += 1;
+  const mesh = new THREE.Mesh(shared.whole, shared.material); mesh.name = 'car-cabin';
+  const restMesh = new THREE.Mesh(shared.rest, shared.material); restMesh.name = 'car-cabin'; restMesh.visible = false;
+  const doorMeshes = new Map();
+  for (const [k, g] of shared.doors) { const dm = new THREE.Mesh(g, shared.material); dm.name = 'car-cabin-door'; doorMeshes.set(k, dm); }
+  const steering = new THREE.Group();
+  steering.position.fromArray(shared.wheelAt);
+  steering.rotation.order = 'YXZ'; steering.rotation.x = -shared.tilt;
+  const wheelMesh = new THREE.Mesh(shared.wheel, shared.wheelMaterial); wheelMesh.name = 'car-steering';
+  steering.add(wheelMesh);
+  const glowMaterial = new THREE.MeshBasicMaterial({ map: facesPicture(), color: 0x2a2a2a, toneMapped: false });
+  const glow = new THREE.Mesh(shared.glow, glowMaterial); glow.name = 'car-dials';
+  const lamp = new THREE.Mesh(shared.lampShape, new THREE.MeshBasicMaterial({ color: 0xfff1d0, toneMapped: false }));
+  lamp.rotation.x = Math.PI / 2; lamp.position.fromArray(shared.lampAt); lamp.visible = false;
+  for (const o of [mesh, restMesh, wheelMesh, glow, lamp, ...doorMeshes.values()]) { o.castShadow = false; o.receiveShadow = false; }
+  const group = new THREE.Group();
+  group.name = 'car-inside';
+  group.add(mesh, restMesh, steering, glow, lamp);
+  group.scale.setScalar(1 / scale);
+  let detail = 2, open = false;
+  const show = () => { mesh.visible = detail > 0 && !open; restMesh.visible = detail > 0 && open; for (const dm of doorMeshes.values()) dm.visible = detail > 0 && open; steering.visible = detail > 1; glow.visible = detail > 1; };
+  let gone = false;
+  return {
+    group, doors: doorMeshes, measures: shared.measures,
+    open(any) { open = any; show(); },
+    detail(level) { if (level === detail) return; detail = level; show(); },
+    steer(angle) { steering.rotation.z = Math.max(-1.6, Math.min(1.6, -angle * 1.4)); },
+    light({ night = 0, on = false, door = false } = {}) {
+      const k = on ? 0.25 + 0.75 * night : 0.08;
+      glowMaterial.color.setScalar(k);
+      lamp.visible = door && night > 0.3 && detail > 0;
+    },
+    dispose() {
+      if (gone) return; gone = true;
+      glowMaterial.dispose(); lamp.material.dispose();
+      shared.users -= 1;
+      if (shared.users <= 0 && made.get(key) === shared) { made.delete(key); for (const g of [shared.whole, shared.rest, ...shared.doors.values(), shared.wheel, shared.glow, shared.lampShape]) g.dispose(); shared.material.dispose(); shared.wheelMaterial.dispose(); }
+    },
+  };
+}
+
+function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = {}) {
+  const d = spec.driver;
+  const T = { ...PLAIN, ...(TRIMS[id] || {}) };
+  const m = (v) => v * scale;                         // the model's units to metres
+  const hip = d.hip.map(m), wheel = d.wheel.map(m), feet = d.feet.map((f) => f.map(m));
+  const roof = d.roof ? m(d.roof) : m(spec.height) * 0.94;
+  const half = m(spec.body) / 2;
+  const four = !TWO_DOORS.has(id);
+  const shell = shellRoom(fit, scale);
+  const EDGE = 0.045;
+  const inside = (z, y) => { const r = shell.room(z, y); return r === null ? half * 0.84 : Math.max(0.2, r - EDGE); };
+  const insideOver = (z0, z1, y0, y1) => { let w = Infinity; for (let i = 0; i <= 4; i += 1) for (let j = 0; j <= 2; j += 1) w = Math.min(w, inside(z0 + (z1 - z0) * i / 4, y0 + (y1 - y0) * j / 2)); return w; };
+  const under = (z0, z1, gap = 0.02, across = false) => { let t = Infinity; for (let i = 0; i <= 6; i += 1) { const v = (across ? shell.lowAt : shell.topAt)(z0 + (z1 - z0) * i / 6); if (v !== null) t = Math.min(t, v); } return Number.isFinite(t) ? t - gap : roof; };
+  const floor = Math.min(feet[0][1], feet[1][1]) - 0.05;
+  const belt = hip[1] + (roof - hip[1]) * 0.4;
+  const backZ = hip[2] - 0.17;
+  const dashZ = wheel[2] + 0.12;
+  const rearZ = hip[2] - (four ? 0.86 : 0.62);
+  const B = new Batch({ uv: 'keep' });
+  const at = (x, y, z, rx = 0, ry = 0, rz = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), new THREE.Vector3(1, 1, 1));
+  const box = (w, h, dd, x, y, z, hex, rx = 0, ry = 0, rz = 0) => B.box(w, h, dd, at(x, y, z, rx, ry, rz), hex);
+  const soft = (w, h, dd, r, x, y, z, hex, rx = 0, ry = 0, rz = 0) => B.round(slab(w, h, dd, r), at(x, y, z, rx, ry, rz), hex);
+
+  const seatTop = hip[1] - 0.06;                              // the cushion's top, a little under the hips
+  const seat = (x, z, wideAsked = 0.5, high = true) => {
+    const top = seatTop;
+    const back = 0.32;                                        // radians the backrest leans back
+    const room = insideOver(z - 0.35, z + 0.35, top - 0.1, top + 0.5);
+    const wide = Math.max(0.36, Math.min(wideAsked, 2 * (room - Math.abs(x)) - 0.02, 2 * Math.abs(x) - 0.06));
+    soft(wide, 0.13, 0.5, 0.05, x, top - 0.065, z + 0.1, T.seat, -0.08);
+    for (const s of [-1, 1]) soft(0.08, 0.1, 0.46, 0.035, x + s * (wide / 2 - 0.03), top - 0.02, z + 0.1, T.bolster || T.seat, -0.08);
+    const bh = Math.max(0.3, Math.min(0.62, under(z - 0.35, z) - top - 0.18));
+    const by = top + bh / 2 * Math.cos(back), bz = z - 0.18 - bh / 2 * Math.sin(back);
+    soft(wide, bh, 0.12, 0.05, x, by, bz, T.seat, -back);
+    for (const s of [-1, 1]) soft(0.08, bh * 0.85, 0.16, 0.035, x + s * (wide / 2 - 0.03), by - bh * 0.04, bz + 0.03, T.bolster || T.seat, -back);
+    box(0.006, 0.004, 0.42, x, top + 0.001, z + 0.1, T.stitch, -0.08);
+    if (high) {
+      const hy = Math.min(top + bh * Math.cos(back) + 0.13, under(z - 0.45, z - 0.2) - 0.11), hz = z - 0.18 - bh * Math.sin(back) - 0.03;
+      soft(0.26, 0.19, 0.1, 0.05, x, hy, hz, T.seat, -back * 0.6);
+      for (const s of [-1, 1]) box(0.012, 0.09, 0.012, x + s * 0.08, hy - 0.12, hz + 0.01, T.metal, -back);
+    }
+    box(wide * 0.8, Math.max(0.02, top - 0.13 - floor), 0.42, x, (top - 0.13 + floor) / 2, z + 0.08, 0x111112);
+  };
+  seat(hip[0], hip[2]);
+  seat(-hip[0], hip[2]);
+  if (four) {
+    const top = hip[1] - 0.04;
+    const w = 2 * insideOver(rearZ - 0.3, rearZ + 0.35, top - 0.1, top + 0.45) - 0.04;
+    const bh = Math.max(0.3, Math.min(0.58, under(rearZ - 0.4, rearZ) - top - 0.2));
+    soft(w, 0.13, 0.48, 0.05, 0, top - 0.065, rearZ + 0.1, T.seat, -0.06);
+    soft(w, bh, 0.14, 0.05, 0, top + bh / 2 - 0.02, rearZ - 0.2, T.seat, -0.3);
+    const hy = Math.min(top + bh + 0.04, under(rearZ - 0.45, rearZ - 0.2) - 0.11);
+    for (const s of [-1, 1]) soft(0.26, 0.18, 0.1, 0.05, s * Math.min(hip[0], w / 2 - 0.16), hy, rearZ - 0.31, T.seat, -0.2);
+    box(w - 0.1, 0.004, 0.004, 0, top + 0.001, rearZ + 0.1, T.stitch);
+    box(w, Math.max(0.02, top - 0.13 - floor), 0.44, 0, (top - 0.13 + floor) / 2, rearZ + 0.08, 0x111112);
+  } else if (rearZ - 0.3 > -m(spec.length) / 2 + 0.6) {
+    const w = 2 * insideOver(rearZ - 0.2, rearZ + 0.25, hip[1] - 0.15, hip[1] + 0.3) - 0.04;
+    for (const s of [-1, 1]) soft(Math.min(0.42, w / 2 - 0.02), 0.1, 0.36, 0.04, s * Math.min(hip[0], w / 4), hip[1] - 0.09, rearZ + 0.08, T.seat, -0.06);
+    soft(w - 0.06, Math.max(0.2, Math.min(0.42, under(rearZ - 0.3, rearZ) - hip[1] - 0.12)), 0.1, 0.04, 0, hip[1] + 0.12, rearZ - 0.12, T.seat, -0.35);
+  }
+
+  const dashLow = wheel[1] - 0.26;
+  let dashDeep = 0.42;
+  let dashTop = Math.min(belt + 0.04, wheel[1] + 0.16);
+  for (let k = 0; k < 8 && dashDeep > 0.16 && under(dashZ, dashZ + dashDeep, 0.03, true) < dashTop; k += 1) dashDeep -= 0.04;
+  dashTop = Math.min(dashTop, under(dashZ, dashZ + dashDeep, 0.03, true));
+  const dashWide = 2 * insideOver(dashZ, dashZ + dashDeep, dashLow, dashTop);
+  soft(dashWide, dashTop - dashLow, dashDeep, 0.06, 0, (dashTop + dashLow) / 2, dashZ + dashDeep / 2, T.dash);
+  soft(dashWide - 0.04, 0.05, Math.max(0.12, dashDeep * 0.9), 0.025, 0, dashTop - 0.02, dashZ + dashDeep * 0.5, T.dash, 0.12);
+  box(dashWide - 0.12, 0.035, 0.01, 0, dashLow + (dashTop - dashLow) * 0.45, dashZ - 0.012, T.wood || T.metal);
+  soft(0.36, 0.09, 0.2, 0.04, hip[0], Math.min(dashTop + 0.02, under(dashZ, dashZ + 0.2, 0.06, true)), dashZ + 0.06, T.dash, 0.25);
+  box(0.3, 0.2, 0.03, 0, dashLow + (dashTop - dashLow) * 0.7, dashZ - 0.01, 0x0b0b0c, -0.12);
+  for (const x of [-0.11, 0.11, -dashWide / 2 + 0.12, dashWide / 2 - 0.12]) {
+    box(0.13, 0.05, 0.02, x, dashLow + (dashTop - dashLow) * 0.42, dashZ - 0.012, 0x101011);
+    for (let k = 0; k < 3; k += 1) box(0.12, 0.004, 0.01, x, dashLow + (dashTop - dashLow) * 0.42 - 0.016 + k * 0.016, dashZ - 0.02, T.metal);
+  }
+  box(0.42, 0.004, 0.006, -hip[0], dashLow + (dashTop - dashLow) * 0.32, dashZ - 0.012, 0x0c0c0d);
+  box(0.005, 0.16, 0.006, -hip[0] - 0.21, dashLow + (dashTop - dashLow) * 0.24, dashZ - 0.012, 0x0c0c0d);
+  box(0.06, 0.012, 0.012, -hip[0] + 0.12, dashLow + (dashTop - dashLow) * 0.3, dashZ - 0.02, T.metal);
+  const fireZ = dashZ + dashDeep;
+  const fireTop = Math.min(dashTop, under(fireZ - 0.02, fireZ + 0.04, 0.005, true));
+  const fireWide = 2 * insideOver(fireZ - 0.05, fireZ + 0.05, floor, fireTop);
+  box(fireWide, Math.max(0.05, fireTop - floor), 0.04, 0, (fireTop + floor) / 2, fireZ, 0x141415);
+  let deckEnd = fireZ;
+  for (let z = fireZ; z < fireZ + 0.8; z += 0.025) { const low = shell.lowAt(z); if (low === null || low < dashTop + 0.02) break; deckEnd = z; }
+  if (deckEnd > fireZ + 0.02) {
+    const deckWide = 2 * insideOver(fireZ, deckEnd, dashTop - 0.04, dashTop);
+    box(deckWide, 0.03, deckEnd - fireZ + 0.02, 0, dashTop - 0.015, (fireZ + deckEnd) / 2, T.dash);
+  }
+
+  const cy = hip[1] - 0.06;
+  soft(0.2, Math.max(0.05, cy - floor), dashZ - backZ, 0.03, 0, (cy + floor) / 2, (dashZ + backZ) / 2, T.dash);
+  soft(0.19, 0.06, 0.32, 0.025, 0, cy + 0.04, backZ + 0.2, T.seat);
+  B.round(new THREE.CylinderGeometry(0.008, 0.012, 0.13, 8), at(0, cy + 0.06, hip[2] + 0.32, -0.2), T.metal);
+  B.round(new THREE.SphereGeometry(0.025, 10, 8), at(0, cy + 0.13, hip[2] + 0.31), 0x0d0d0e);
+  box(0.035, 0.03, 0.2, 0.05, cy + 0.02, hip[2] + 0.05, 0x101011, 0.18);
+
+  for (const f of feet) box(0.07, 0.11, 0.015, f[0], f[1] + 0.03, f[2] + 0.04, T.metal, -0.5);
+  box(0.06, 0.1, 0.015, hip[0] + 0.12, feet[0][1] + 0.05, feet[0][2], 0x111112, -0.6);
+  const floorBack = rearZ - 0.35;
+  const floorWide = 2 * insideOver(floorBack, fireZ, floor, floor + 0.1);
+  box(floorWide, 0.02, fireZ - floorBack, 0, floor - 0.01, (fireZ + floorBack) / 2, T.carpet);
+  if (T.mats) for (const z of [hip[2] + 0.38, ...(four ? [rearZ + 0.42] : [])]) for (const s of [-1, 1]) box(0.42, 0.006, 0.5, s * hip[0], floor + 0.004, z, T.mats);
+  const shelfZ = rearZ - 0.38;
+  const shelfY = Math.min(belt + 0.08, under(shelfZ - 0.36, shelfZ, 0.03));
+  const panelWide = 2 * insideOver(shelfZ - 0.02, shelfZ + 0.02, floor, shelfY);
+  box(panelWide, Math.max(0.1, shelfY - floor), 0.03, 0, (shelfY + floor) / 2, shelfZ, T.carpet);
+  box(2 * insideOver(shelfZ - 0.36, shelfZ, shelfY - 0.02, shelfY + 0.02), 0.015, 0.36, 0, shelfY, shelfZ - 0.18, T.dash);
+
+  const liningZ0 = rearZ - 0.4, liningZ1 = dashZ - 0.05;
+  const liningY = under(liningZ0 + 0.1, liningZ1 - 0.1, 0.012) ;
+  const roofIn = Math.min(roof, liningY);
+  const liningHalf = insideOver(liningZ0, liningZ1, roofIn - 0.08, roofIn);
+  const roofOver = (x, z0, z1, gap) => { let t = roofIn; for (let i = 0; i <= 8; i += 1) { const r = shell.roofAt(z0 + (z1 - z0) * i / 8, x); if (r !== null) t = Math.min(t, r - gap); } return t; };
+  const STRIPS = 8, LENGTHS = 5, pieces = [];
+  for (let j = 0; j < LENGTHS; j += 1) {
+    const z0 = liningZ0 + (liningZ1 - liningZ0) * j / LENGTHS, z1 = liningZ0 + (liningZ1 - liningZ0) * (j + 1) / LENGTHS;
+    const edges = [];
+    for (let k = 0; k <= STRIPS; k += 1) { const x = liningHalf * k / STRIPS; edges.push({ x, t: roofOver(x, z0, z1, 0.012) }); }
+    pieces.push({ z0, z1, edges });
+    for (let k = 0; k < STRIPS; k += 1) {
+      const a = edges[k], b = edges[k + 1], dx = b.x - a.x, dt = b.t - a.t, wide = Math.hypot(dx, dt) + 0.004, tilt = Math.atan2(dt, dx);
+      const mx = (a.x + b.x) / 2 + 0.01 * Math.sin(tilt), my = (a.t + b.t) / 2 - 0.01 * Math.cos(tilt);
+      for (const s of [-1, 1]) box(wide, 0.02, z1 - z0 + 0.004, s * mx, my, (z0 + z1) / 2, T.roof, 0, 0, s * tilt);
+    }
+  }
+  const liningAt = (x, z) => {
+    const p = pieces.find((q) => z >= q.z0 && z <= q.z1) || (z < liningZ0 ? pieces[0] : pieces[LENGTHS - 1]);
+    const e = p.edges, ax = Math.abs(x);
+    for (let k = 0; k < STRIPS; k += 1) if (ax <= e[k + 1].x) { const f = (ax - e[k].x) / Math.max(1e-6, e[k + 1].x - e[k].x); return e[k].t + (e[k + 1].t - e[k].t) * f; }
+    return e[STRIPS].t;
+  };
+  const visorOut = Math.min(hip[0] + 0.16, liningHalf - 0.03, insideOver(dashZ - 0.2, dashZ - 0.04, roofIn - 0.06, roofIn - 0.02) + 0.02);
+  const visorWide = Math.max(0.16, Math.min(0.32, visorOut - 0.06));
+  const visorY = Math.min(roofIn - 0.035, roofOver(visorOut, dashZ - 0.2, dashZ - 0.04, 0.035));
+  for (const s of [-1, 1]) box(visorWide, 0.012, 0.15, s * (visorOut - visorWide / 2), visorY, dashZ - 0.12, T.roof, 0.15);
+  box(0.024, 0.05, 0.02, 0, roofIn - 0.045, dashZ - 0.05, 0x101010);
+  box(0.24, 0.06, 0.015, 0, roofIn - 0.095, dashZ - 0.06, 0x18181a);
+  const pillar = (w, dd, zLow, zHigh, rx) => {
+    const n = 4, h = (roofIn - 0.05 - belt) / n;
+    for (let k = 0; k < n; k += 1) {
+      const y0 = belt + k * h, z = zLow + (zHigh - zLow) * (k + 0.5) / n;
+      const x = insideOver(z - dd / 2, z + dd / 2, y0, Math.min(roofIn, y0 + h + 0.06)) - w / 2;
+      for (const s of [-1, 1]) box(w, h + 0.012, dd, s * x, y0 + h / 2, z, T.roof, rx);
+    }
+  };
+  pillar(0.04, 0.05, dashZ - 0.02 + 0.5 * (roofIn - belt) * Math.sin(0.45), dashZ - 0.02 - 0.5 * (roofIn - belt) * Math.sin(0.45), -0.45);
+  if (four) pillar(0.05, 0.08, (hip[2] + rearZ) / 2 - 0.06, (hip[2] + rearZ) / 2 - 0.06, 0);
+  for (const s of [-1, 1]) {
+    const x0 = s * (inside(hip[2] - 0.1, belt + 0.25) - 0.03), y0 = Math.min(roofIn - 0.12, belt + 0.3), z0 = hip[2] - 0.18;
+    box(0.045, 0.004, 0.25, x0 - s * 0.02, y0 - 0.12, z0, 0x161617, 0.9);
+  }
+
+  const ranges = new Map();
+  const startOf = () => B.positions.length / 3;
+  const restCount = startOf();
+  const doorList = doors.length ? doors.map((q) => ({ key: q.key, side: q.side, z0: m(q.rear), z1: m(q.front) }))
+    : [{ key: 'fl', side: 1, z0: hip[2] - 0.35, z1: dashZ - 0.05 }, { key: 'fr', side: -1, z0: hip[2] - 0.35, z1: dashZ - 0.05 }, ...(four ? [{ key: 'rl', side: 1, z0: rearZ - 0.3, z1: hip[2] - 0.38 }, { key: 'rr', side: -1, z0: rearZ - 0.3, z1: hip[2] - 0.38 }] : [])];
+  for (const q of doorList) {
+    const from = startOf();
+    const s = q.side, z0 = q.z0 + 0.03, z1 = q.z1 - 0.03, zc = (z0 + z1) / 2, len = Math.max(0.2, z1 - z0);
+    const x = s * (insideOver(z0, z1, floor + 0.05, belt) + 0.005);
+    box(0.03, Math.max(0.1, belt - floor), len, x, (belt + floor) / 2, zc, T.dash);
+    soft(0.07, 0.04, len * 0.45, 0.015, x - s * 0.04, hip[1] + 0.12, zc - len * 0.05, T.seat);
+    box(0.015, 0.02, 0.1, x - s * 0.025, hip[1] + 0.22, zc + len * 0.25, T.metal);
+    B.round(new THREE.CylinderGeometry(0.07, 0.07, 0.01, 18), at(x - s * 0.02, floor + 0.16, zc + len * 0.18, 0, 0, Math.PI / 2), 0x0d0d0e);
+    box(0.04, 0.01, 0.07, x - s * 0.05, hip[1] + 0.145, zc + len * 0.15, 0x0b0b0c);
+    ranges.set(q.key, { from, count: startOf() - from });
+  }
+
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, map: grainPicture(), roughness: T.leather ? 0.62 : 0.92, metalness: 0 });
+  material.color.setScalar(0.62);
+  const whole = B.build(material).geometry;
+  const part = (from, count) => { const q = new THREE.BufferGeometry(); for (const [name, a] of Object.entries(whole.attributes)) q.setAttribute(name, a); q.setDrawRange(from, count); q.boundingSphere = whole.boundingSphere.clone(); return q; };
+  const rest = part(0, restCount);
+  const doorShapes = new Map();
+  for (const [key, r] of ranges) doorShapes.set(key, part(r.from, r.count));
+
+  const W = new Batch({ uv: 'keep' });
+  const R = m(d.radius || 0.038);
+  W.round(new THREE.TorusGeometry(R, 0.017, 10, 36), new THREE.Matrix4(), 0x121213);
+  for (const a of [Math.PI / 2, Math.PI * 7 / 6, -Math.PI / 6]) W.box(R * 0.9, 0.022, 0.012, new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(a) * R * 0.45, Math.sin(a) * R * 0.45, 0), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), a), new THREE.Vector3(1, 1, 1)), 0x1a1a1b);
+  W.round(new THREE.CylinderGeometry(R * 0.32, R * 0.36, 0.04, 20), new THREE.Matrix4().makeRotationX(Math.PI / 2), 0x151516);
+  for (let k = 0; k < 7; k += 1) { const a = Math.PI * (0.1 + 0.8 * k / 6); W.box(0.004, R * 0.18, 0.004, new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(a) * R * 0.12, Math.sin(a) * R * 0.12 - R * 0.05, -0.022), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), a - Math.PI / 2), new THREE.Vector3(1, 1, 1)), 0xc9a227); }
+  W.round(new THREE.CylinderGeometry(0.03, 0.035, 0.32, 10), new THREE.Matrix4().compose(new THREE.Vector3(0, 0, 0.17), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2), new THREE.Vector3(1, 1, 1)), 0x101011);
+  const wheelMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.1 });
+  const wheelShape = W.build(wheelMaterial).geometry;
+
+  const G = new Batch({ uv: 'keep' });
+  const faceAt = (w, h, x, y, z, u0, u1) => {
+    const pg = new THREE.PlaneGeometry(w, h); pg.rotateY(Math.PI);
+    const uv = pg.attributes.uv;
+    for (let i = 0; i < uv.count; i += 1) uv.setX(i, u0 + (u1 - u0) * (1 - uv.getX(i)));
+    G.add(pg, at(x, y, z), 0xffffff);
+  };
+  faceAt(0.26, 0.11, hip[0], Math.min(dashTop - 0.04, under(dashZ, dashZ + 0.1, 0.1, true)), dashZ + 0.04, 0, 0.68);
+  faceAt(0.25, 0.17, 0, dashLow + (dashTop - dashLow) * 0.7, dashZ - 0.028, 0.7, 1);
+  const glowShape = G.build(new THREE.MeshBasicMaterial()).geometry;
+
+  const headZ = hip[2] - 0.12;
+  const overHead = Math.min(liningAt(hip[0] - 0.08, headZ), liningAt(hip[0] + 0.08, headZ), liningAt(hip[0], headZ - 0.12), liningAt(hip[0], headZ + 0.1)) - 0.02;
+  const measures = { seatTop, floor, roof: roofIn, overHead, belt, dashZ, dashTop, dashDeep, fireZ, shelfZ, shelfY, rearZ, hip, wheel };
+  return {
+    whole, rest, doors: doorShapes, material, wheel: wheelShape, wheelMaterial, wheelAt: [wheel[0], wheel[1], wheel[2]], tilt: d.tilt || 0.38,
+    glow: glowShape, lampShape: new THREE.PlaneGeometry(0.16, 0.08), lampAt: [0, roofIn - 0.025, (hip[2] + rearZ) / 2], measures,
+  };
+}
+
+return { TRIMS, PLAIN, makeCabin };
+})();
+
 __modules["client/car-model.js"] = (function () {
 const { softPatch } = __modules["client/soft-patch.js"];
 const { CAR_PARTS } = __modules["client/car-parts.js"];
@@ -40327,6 +46208,11 @@ const { vehicleEnvironment } = __modules["client/vehicle-models.js"];
 const { deviceKind, PICTURES } = __modules["client/budget.js"];
 const { TWO_DOORS, DOOR, DOORS_UP } = __modules["sim/car-doors.js"];
 const { standing } = __modules["client/marks.js"];
+const { CAR_WINDOWS } = __modules["client/car-windows.js"];
+const { carGlass, windowsPicture } = __modules["client/car-glass.js"];
+const { makeCabin, TRIMS, PLAIN } = __modules["client/car-cabin.js"];
+
+const carSeen = (id) => !!(CAR_PARTS[id] && CAR_PARTS[id].driver && (CAR_PARTS[id].driver.seen || CAR_WINDOWS[id]));
 
 const cache = new Map();          // one geometry set and material a car and set of pictures, however many are drawn (most recently used last)
 const users = new Map();          // how many of each are in the scene now
@@ -40352,7 +46238,10 @@ function letShapeGo(id) {
   shapes.delete(id);
   s.made.then((geometries) => { for (const g of geometries) g.dispose(); }, () => {});
 }
-async function buildShape(base, spec, priority, id = null) {
+async function buildShape(base, spec, priority, id = null, glassOf = id) {
+  const windows = glassOf ? CAR_WINDOWS[glassOf] : null;
+  const glassBits = windows ? fetchKept(base + windows.tris, priority ? { priority } : undefined).then((r) => { if (!r.ok) throw new Error(`${windows.tris}: ${r.status}`); return r.arrayBuffer(); }) : null;
+  if (glassBits) glassBits.catch(() => {});
   const response = await fetchKept(base + spec.files.mesh, priority ? { priority } : undefined);
   if (!response.ok) throw new Error(`${spec.files.mesh}: ${response.status}`);
   const buf = await response.arrayBuffer();
@@ -40363,13 +46252,15 @@ async function buildShape(base, spec, priority, id = null) {
   const uv = new Float32Array(buf, at, n * 2); at += n * 8;
   const index = new Uint32Array(buf, at, spec.triangles * 3);
   const attrs = { position: new THREE.BufferAttribute(position, 3), normal: new THREE.BufferAttribute(normal, 3, true), uv: new THREE.BufferAttribute(uv, 2) };
+  const bits = glassBits ? new Uint8Array(await glassBits) : null;
   const geometries = [];
-  let first = 0, doors = null;
+  let first = 0, doors = null, glass = null;
   for (const count of spec.parts) {
     const g = new THREE.BufferGeometry();
     for (const [name, a] of Object.entries(attrs)) g.setAttribute(name, a);
     const own = index.subarray(first * 3, (first + count) * 3);
     if (!geometries.length && id) doors = sortDoors(id, spec, position, own);
+    if (!geometries.length && bits) glass = sortGlass(bits, own, doors);
     const indexAttr = new THREE.BufferAttribute(own, 1);
     g.setIndex(indexAttr);
     bound(g, own, position);
@@ -40382,6 +46273,14 @@ async function buildShape(base, spec, priority, id = null) {
     first += count;
   }
   if (doors) { geometries.doors = doors; geometries.push(doors.rest, ...doors.list.map((d) => d.geometry)); }
+  if (glass && glass.count) {
+    const glassIndex = new THREE.BufferAttribute(glass.list, 1);
+    const part = (from, count) => { const q = new THREE.BufferGeometry(); for (const [name, a] of Object.entries(attrs)) q.setAttribute(name, a); q.setIndex(glassIndex); q.setDrawRange(from * 3, count * 3); bound(q, glass.list.subarray(from * 3, (from + count) * 3), position); return q; };
+    const set = { whole: part(0, glass.count), rest: doors ? part(glass.rest.from, glass.rest.count) : null, doors: new Map(), pillar: doors ? doors.pillar : null };
+    for (const d of glass.doors) if (d.count) set.doors.set(d.key, part(d.from, d.count));
+    geometries.glass = set;
+    geometries.push(set.whole, ...(set.rest ? [set.rest] : []), ...set.doors.values());
+  }
   return geometries;
 }
 
@@ -40409,9 +46308,13 @@ function sortDoors(id, spec, position, index) {
     let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
     const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
     if (Math.abs(ny) > 0.78) continue;
+    const zLo = Math.min(position[a + 2], position[b + 2], position[c + 2]), zHi = Math.max(position[a + 2], position[b + 2], position[c + 2]);
+    const yLo = Math.min(position[a + 1], position[b + 1], position[c + 1]), yHi = Math.max(position[a + 1], position[b + 1], position[c + 1]);
+    const slack = 0.012 * spec.length;
+    if (yLo < sill - slack || yHi > top + slack) continue;
     for (let k = 0; k < regions.length; k += 1) {
       const [, side, z0, z1] = regions[k];
-      if (cz < z0 || cz > z1) continue;
+      if (cz < z0 || cz > z1 || zLo < z0 - slack || zHi > z1 + slack) continue;
       const out = side * cx;
       if (!((out > half * 0.55 && side * nx > 0.2) || (out > half * 0.74 && side * nx < -0.2))) continue;
       tag[t] = k; counts[k] += 1;
@@ -40422,18 +46325,36 @@ function sortDoors(id, spec, position, index) {
   for (let k = 0; k < regions.length; k += 1) if (counts[k] < 40) { for (let t = 0; t < tris; t += 1) if (tag[t] === k) tag[t] = -1; counts[k] = 0; }
   if (!counts.some((c) => c > 0)) return null;
   const copy = index.slice();
+  const order = new Int32Array(tris);
   let w = 0;
-  for (let t = 0; t < tris; t += 1) if (tag[t] < 0) { index[w * 3] = copy[t * 3]; index[w * 3 + 1] = copy[t * 3 + 1]; index[w * 3 + 2] = copy[t * 3 + 2]; w += 1; }
+  for (let t = 0; t < tris; t += 1) if (tag[t] < 0) { index[w * 3] = copy[t * 3]; index[w * 3 + 1] = copy[t * 3 + 1]; index[w * 3 + 2] = copy[t * 3 + 2]; order[w] = t; w += 1; }
   const restCount = w;
   const list = [];
   for (let k = 0; k < regions.length; k += 1) {
     if (!counts[k]) continue;
     const from = w;
-    for (let t = 0; t < tris; t += 1) if (tag[t] === k) { index[w * 3] = copy[t * 3]; index[w * 3 + 1] = copy[t * 3 + 1]; index[w * 3 + 2] = copy[t * 3 + 2]; w += 1; }
+    for (let t = 0; t < tris; t += 1) if (tag[t] === k) { index[w * 3] = copy[t * 3]; index[w * 3 + 1] = copy[t * 3 + 1]; index[w * 3 + 2] = copy[t * 3 + 2]; order[w] = t; w += 1; }
     const [key, side, z0, z1] = regions[k];
     list.push({ key, side, from, count: counts[k], hinge: [side * outer[k], z1], rear: z0 });
   }
-  return { restCount, list };
+  return { restCount, list, order, pillar };
+}
+function sortGlass(bits, index, doors) {
+  const tris = index.length / 3;
+  const isGlass = (w) => { const t = doors ? doors.order[w] : w; return (bits[t >> 3] >> (t & 7)) & 1; };
+  let n = 0;
+  for (let w = 0; w < tris; w += 1) if (isGlass(w)) n += 1;
+  const list = new Uint32Array(n * 3);
+  const parts = [];
+  let at = 0;
+  const take = (from, count) => {
+    const start = at;
+    for (let w = from; w < from + count; w += 1) if (isGlass(w)) { list[at * 3] = index[w * 3]; list[at * 3 + 1] = index[w * 3 + 1]; list[at * 3 + 2] = index[w * 3 + 2]; at += 1; }
+    return { from: start, count: at - start };
+  };
+  const rest = take(0, doors ? doors.restCount : tris);
+  if (doors) for (const d of doors.list) parts.push({ key: d.key, ...take(d.from, d.count) });
+  return { list, rest, doors: parts, count: n };
 }
 function bound(g, index, position) {
   const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
@@ -40450,11 +46371,12 @@ function bound(g, index, position) {
 }
 const letPicturesGo = (maps) => { for (const t of maps) if (t) { t.dispose(); if (t.image && typeof t.image.close === 'function') t.image.close(); } };
 
-function free({ id, geometries, material, shared }) {
+function free({ id, geometries, material, shared, glass, mask }) {
   if (shared) letShapeGo(id); else for (const g of geometries) g.dispose();
-  letPicturesGo([material.map, material.normalMap, material.roughnessMap]);
+  letPicturesGo([material.map, material.normalMap, material.roughnessMap, mask]);
   live.delete(material);
   material.dispose();
+  if (glass) glass.dispose();
 }
 function trim(keep = KEEP) {
   let n = 0;
@@ -40496,6 +46418,12 @@ function picture(url, colour, own, priority) {
     .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, (size) => fetchKept(url).then((r) => r.blob()).then((blob) => decodeAtMost(blob, size))); return map; });
   return { map, ready };
 }
+function maskPicture(url, own, priority) {
+  const ready = fetchKept(url, priority ? { priority } : undefined).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
+    .then((blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob).catch(() => null) : null).then((bmp) => bmp || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(`${url} could not be read`)); img.src = URL.createObjectURL(blob); })))
+    .then((image) => { const map = windowsPicture(image); if (!own) letGoOnceDrawn(map, (size) => fetchKept(url).then((r) => r.blob()).then((blob) => decodeAtMost(blob, size))); return map; });
+  return { ready };
+}
 const SETS = Object.freeze({ '512': ['512', '512', '512'], '1k': ['1k', '1k', '1k'], '2k': ['2k', '2k', '2k'], '4k': ['4k', '2k', '2k'] });
 const LARGER = ['512', '1k', '2k', '4k'];
 const tierOf = (lite, tier) => tier || PICTURES[lite ? 'lite' : 'full'].vehicle;
@@ -40525,12 +46453,21 @@ async function partsOf(id, { base, lite, tier, own = false, priority }) {
     const f = spec.files, sizes = SETS[tier] || SETS['2k'];
     const file = (name, size) => { for (const k of LARGER.slice(LARGER.indexOf(size))) if (f[`${name}${k}`]) return f[`${name}${k}`]; return null; };
     const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => ((k === 0 || !isLite()) && file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own, priority) : null));
+    const win = CAR_WINDOWS[id];
+    if (win) textures.push(maskPicture(base + win.masks[lite || isLite() ? '512' : '1k'], own, priority));
     let geometries;
-    try { geometries = own ? await buildShape(base, spec, priority) : await shapeOf(id, base, spec, priority); } catch (error) { textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {})); throw error; }
+    try { geometries = own ? await buildShape(base, spec, priority, null, id) : await shapeOf(id, base, spec, priority); } catch (error) { textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {})); throw error; }
     try {
-      const [color, normalMap, rm] = await Promise.all(textures.map((t) => (t ? t.ready : null)));
+      const [color, normalMap, rm, mask] = await Promise.all(textures.map((t) => (t ? t.ready : null)));
       const material = finish(spec, { color, normalMap, rm, lite });
-      return { id, spec, geometries, material, shared: !own };
+      let glass = null;
+      if (win && mask && geometries.glass) {
+        const trim = { ...PLAIN, ...(TRIMS[id] || {}) };
+        const behind = Number.isFinite(geometries.glass.pillar) ? geometries.glass.pillar : (spec.driver ? spec.driver.hip[2] - 0.12 * spec.length : 0);
+        glass = carGlass(spec, mask, { lite: lite || isLite(), privacy: !!win.privacy, belt: win.belt, behind, inside: new THREE.Color(trim.roof).multiplyScalar(0.28), envMap: lite || isLite() ? null : vehicleEnvironment() });
+        glass.body(material);
+      }
+      return { id, spec, geometries, material, shared: !own, glass, mask: glass ? mask : null };
     } catch (error) {
       if (own) for (const g of geometries) g.dispose(); else letShapeGo(id);
       textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {}));
@@ -40585,7 +46522,7 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
   if (!own) users.set(key, (users.get(key) || 0) + 1);
   let parts;
   try { parts = await partsOf(id, { base, lite, tier: set, own, priority }); } catch (error) { if (!own) { users.set(key, users.get(key) - 1); trim(); } throw error; }
-  const { spec, geometries, material } = parts;
+  const { spec, geometries, material, glass } = parts;
   if (!own && cache.has(key)) { const made = cache.get(key); cache.delete(key); cache.set(key, made); }
   let held = true;
   const scale = length / spec.length;
@@ -40600,16 +46537,25 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
   const doorSet = geometries.doors || null;
   const doorParts = new Map();
   let rest = null, liner = null, inner = null, opened = false;
+  const glassSet = glass ? geometries.glass : null;
+  const panes = { whole: null, rest: null };
+  if (glassSet) {
+    panes.whole = glass.pane(glassSet.whole); panes.whole.position.copy(body.position); springs.add(panes.whole);
+    if (glassSet.rest) { panes.rest = glass.pane(glassSet.rest); panes.rest.position.copy(body.position); panes.rest.visible = false; springs.add(panes.rest); }
+  }
+  const fitted = glassSet && spec.driver ? makeCabin(id, spec, { scale, lite: lite || isLite(), fit: CAR_WINDOWS[id].fit, doors: doorSet ? doorSet.list.map((d) => ({ key: d.key, side: d.side, front: d.hinge[1], rear: d.rear })) : [] }) : null;
   if (doorSet) {
     rest = mesh(doorSet.rest); rest.position.copy(body.position); rest.visible = false; springs.add(rest);
-    inner = new THREE.MeshStandardMaterial({ color: 0x1d1d1f, roughness: 0.85, metalness: 0, side: THREE.BackSide });
+    if (!glassSet) inner = new THREE.MeshStandardMaterial({ color: 0x1d1d1f, roughness: 0.85, metalness: 0, side: THREE.BackSide });
     for (const d of doorSet.list) {
       const hinge = new THREE.Group(); hinge.position.set(d.hinge[0], -spec.height * 0.35, d.hinge[1]); hinge.visible = false; springs.add(hinge);
       const skin = mesh(d.geometry); skin.position.set(-d.hinge[0], 0, -d.hinge[1]); hinge.add(skin);
-      const back = new THREE.Mesh(d.geometry, inner); back.position.copy(skin.position); hinge.add(back);
+      if (inner) { const back = new THREE.Mesh(d.geometry, inner); back.position.copy(skin.position); hinge.add(back); }
+      if (glassSet && glassSet.doors.has(d.key)) { const pane = glass.pane(glassSet.doors.get(d.key)); pane.position.copy(skin.position); hinge.add(pane); }
+      if (fitted && fitted.doors.has(d.key)) { const panel = fitted.doors.get(d.key); const holder = new THREE.Group(); holder.position.copy(skin.position); holder.scale.setScalar(1 / scale); holder.add(panel); hinge.add(holder); }
       doorParts.set(d.key, { hinge, side: d.side, angle: 0 });
     }
-    if (!(spec.driver && spec.driver.seen)) {
+    if (!(spec.driver && spec.driver.seen) && !glassSet) {
       liner = new THREE.Mesh(doorSet.rest, new THREE.MeshBasicMaterial({ color: 0x0e0e10, side: THREE.BackSide }));
       liner.position.copy(body.position); liner.visible = false; springs.add(liner);
     }
@@ -40627,6 +46573,8 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
       opened = any;
       body.visible = !any; rest.visible = any;
       if (liner) liner.visible = any;
+      if (panes.whole) { panes.whole.visible = !any; if (panes.rest) panes.rest.visible = any; }
+      if (fitted) fitted.open(any);
     }
     for (const part of doorParts.values()) part.hinge.visible = any;
   };
@@ -40646,14 +46594,16 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
   const fx = lampsOf(spec, lampFrame);
   const toBody = (v) => v;           // (the lamps are on the body: they pitch and roll with it)
   const cabin = new THREE.Group(); cabin.position.set(0, -spec.height * 0.35, 0); springs.add(cabin);
+  if (fitted) cabin.add(fitted.group);
   standing(group);
   return {
     id, group, scale, spec, frame, toBody, cabin,
-    driver: spec.driver || null,
+    driver: spec.driver ? (glassSet && !spec.driver.seen ? { ...spec.driver, seen: true } : spec.driver) : null,
     size: { length, width: spec.body * scale, height: spec.height * scale },
     wheels: wheels.map((w) => ({ x: w.x, z: w.z, r: w.r, front: w.front })),
     pose({ travelled = 0, steerAngle = 0, pitch = 0, roll = 0, lifts = null, rise = 0, doors = null } = {}) {
       setDoors(doors);
+      if (fitted) fitted.steer(steerAngle);
       wheels.forEach((w, k) => {
         w.spin.rotation.x = travelled / w.r;
         if (w.front) w.steer.rotation.y = steerAngle;
@@ -40663,6 +46613,10 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
       springs.position.y = springsY + rise / scale;
     },
     lamps(state) { fx.set(state); },
+    cabinLight(state) { if (fitted) fitted.light(state); },
+    cabinDetail(level) { if (fitted) fitted.detail(level); },
+    glazed: !!glassSet,
+    cabinMeasures: fitted ? fitted.measures : null,
     tyreBottom(k, out = new THREE.Vector3()) {
       const w = wheels[k]; if (!w) return null;
       w.at.getWorldPosition(out);
@@ -40672,14 +46626,14 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
     headlampAt: (out = new THREE.Vector3()) => fx.head.getWorldPosition(out),
     doors: () => (doorSet ? Object.fromEntries([...doorParts].map(([k, part]) => [k, part.angle])) : null),
     whole: () => (!doorSet ? body.visible : opened ? rest.visible && !body.visible && [...doorParts.values()].every((part) => part.hinge.visible) : body.visible && !rest.visible),
-    dispose() { fx.dispose(); if (inner) inner.dispose(); if (liner) liner.material.dispose(); if (group.parent) group.parent.remove(group); if (held) { held = false; if (own) free(parts); else { users.set(key, users.get(key) - 1); trim(); } } },
+    dispose() { fx.dispose(); if (inner) inner.dispose(); if (liner) liner.material.dispose(); if (fitted) fitted.dispose(); if (group.parent) group.parent.remove(group); if (held) { held = false; if (own) free(parts); else { users.set(key, users.get(key) - 1); trim(); } } },
   };
 }
 
 const carLoaded = (id, tier) => cache.has(`${id}:${tier}`);
 const carsHeld = () => ({ kept: [...cache.keys()], users: Object.fromEntries(users), shapes: Object.fromEntries([...shapes].map(([id, s]) => [id, s.holders])) });
 
-return { trimCars, setCarDaylight, loadCar, carLoaded, carsHeld };
+return { carSeen, trimCars, setCarDaylight, loadCar, carLoaded, carsHeld };
 })();
 
 __modules["client/sports-parts.js"] = (function () {
@@ -49934,12 +55888,16 @@ const { reach } = __modules["client/animated.js"];
 const { bonesOf } = __modules["client/own-bike-view.js"];
 const { POWER_CARS } = __modules["sim/power-cars.js"];
 const { wheelLifts, bodyOn, kickBody } = __modules["client/wheel-bumps.js"];
+const { seatFigure } = __modules["client/car-seating.js"];
+const { loadCarMoves, carMove } = __modules["client/car-moves.js"];
+const { fetchKept } = __modules["client/glb.js"];
 
 const SIGHT = 120;                  // metres within which a parked car is drawn
 const PEER_SIGHT = 220, PEER_MOST = 4;     // another player's car being driven: drawn within this, the nearest few
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
 const TRAFFIC_DRAWN = Object.freeze({ lite: Object.freeze({ most: 2, sight: 45, tier: '512' }), full: Object.freeze({ most: 5, sight: 90, tier: '1k' }) });
 const SPRINGS = Object.freeze({ pitch: 0.012, most: 0.05, roll: 0.0045 });
+const CABIN_SEEN = Object.freeze({ lite: Object.freeze({ near: 15, far: 45 }), full: Object.freeze({ near: 30, far: 90 }) });
 const DRIVE = Object.freeze({ recline: 0.38, mostRecline: 0.62, sink: 0.08, slide: 0.14, headRoom: 0.04, wheelTurn: 1.4, wheelMost: 0.6, look: 0.35 });
 const SETTLE = Object.freeze({ most: 0.25, step: 0.5, travel: 0.12 });
 const fit = { g: [], x: [], z: [] };
@@ -49991,6 +55949,7 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
       loadCar(id, { base, lite, length: spec ? spec.length : 4.6, priority: later ? 'low' : undefined, tier }).then((car) => {
         if (shown.get(key) !== e) { car.dispose(); return; }
         e.car = car; e.loading = false; scene.add(car.group);
+        if (car.glazed) loadCarMoves((path) => fetchKept(path)).catch(() => {});
       }, (error) => { e.loading = false; e.failed = true; onError(error); });
     }
     return e;
@@ -50039,9 +55998,15 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
     e.car.pose({ travelled: e.travelled, steerAngle: -(d.steer || 0), pitch: fx.pitch + b.pitch, roll: fx.roll + b.roll, lifts: on.all, rise: b.rise, doors: d.doors || null });
     e.state = { head: night > 0.25 || d.lamps ? 1 : 0, tail: night > 0.25 || d.lamps ? 1 : 0, brake: (d.brake && (d.speed || 0) > 0.2) || d.held ? 1 : 0, reverse: (d.speed || 0) < -0.2 ? 1 : 0 };
     e.car.lamps(e.state);
+    e.car.cabinLight({ night, on: true, door: !!(d.doors && Object.values(d.doors).some((a) => a > 0.05)) });
+    e.car.cabinDetail(cabinLevel(d));
   };
+  const C = CABIN_SEEN[lite ? 'lite' : 'full'];
+  let fromNow = { x: 0, z: 0 };
+  const cabinLevel = (d) => { const far = Math.hypot(d.x - fromNow.x, d.z - fromNow.z); return far <= C.near ? 2 : far <= C.far ? 1 : 0; };
 
   function update(dt, { driven = null, drives = [], parked = [], parkedMost = 4, traffic = [], groundY = () => 0, from = { x: 0, z: 0 }, night = 0, bodies = [] }) {
+    fromNow = from;
     for (const f of frozen) f.freeze = false;
     frozen.clear();
     const wanted = new Set();
@@ -50078,6 +56043,8 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
       const on = sitOn(e, p, groundY);
       e.car.pose({ travelled: e.travelled, steerAngle: 0, pitch: 0, roll: 0, lifts: on.lifts, doors: p.doors || null });
       e.car.lamps({});
+      e.car.cabinLight({ night, on: false, door: !!(p.doors && Object.values(p.doors).some((a) => a > 0.05)) });
+      e.car.cabinDetail(cabinLevel(p));
     };
     for (const p of near) {
       const key = p.key || `park:${p.car}`;
@@ -50092,11 +56059,15 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
     for (const [key, e] of shown) if (!wanted.has(key)) { if (e.car) e.car.dispose(); shown.delete(key); }
   }
 
-  function seat(me, d, key = 'drive') {
+  function seat(me, d, key = 'drive', where = 'driver') {
     const e = shown.get(key);
     if (!e || !e.car || !me || !me.bones || !d) return false;
     const car = e.car, spec = car.driver;
     if (!spec || !spec.seen) return false;
+    if (car.glazed && me.animated) {
+      const move = carMove(me, where === 'driver' ? 'drive' : 'sit');
+      return seatFigure(me, car, where, { steer: d.steer || 0, move, t: Number.isFinite(d.t) ? d.t : performance.now() / 1000 });
+    }
     const bones = bonesOf(me);
     const pelvis = bones.get('pelvis'), spine = bones.get('spine_02') || bones.get('spine_01'), head = bones.get('head');
     if (!pelvis || !spine) return false;
@@ -50171,6 +56142,12 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
   return {
     update, seat,
     knock(key = 'drive', amount = 1) { const e = shown.get(key); if (e) kickBody(e.bump || (e.bump = {}), 0.35 * amount); },
+    rock(key = 'drive', { rise = 0, roll = 0, pitch = 0 } = {}) {
+      let e = shown.get(key);
+      if (e && !e.car && e.by) e = shown.get(e.by);
+      if (e) kickBody(e.bump || (e.bump = {}), pitch, roll, rise);
+      return !!e;
+    },
     bumpOf: (key = 'drive') => { const e = shown.get(key); return e && e.bump && e.bump.v ? { lifts: [...(e.lifts || [])], rise: e.bump.rise, pitch: e.bump.pitch, roll: e.bump.roll } : null; },
     bumpPeak: (key = 'drive') => { const e = shown.get(key); if (!e || !e.peak) return null; const pk = e.peak; e.peak = null; return { lifts: [...pk.lifts], pitchMin: pk.pitchMin, pitchMax: pk.pitchMax, roll: pk.roll }; },
     rules: DRIVE,
@@ -50184,7 +56161,7 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
   };
 }
 
-return { TRAFFIC_DRAWN, SPRINGS, DRIVE, SETTLE, createCarView };
+return { TRAFFIC_DRAWN, SPRINGS, CABIN_SEEN, DRIVE, SETTLE, createCarView };
 })();
 
 __modules["client/bike-impostors.js"] = (function () {
@@ -57800,7 +63777,12 @@ const { createSurfView } = __modules["client/surf-view.js"];
 const { SURF, inSurf, catchable, crestOf, surfHeight, wavesAt, waveAt } = __modules["sim/surf.js"];
 const { createCarView } = __modules["client/car-view.js"];
 const { createStandins } = __modules["client/vehicle-standins.js"];
-const { setCarDaylight, carsHeld, trimCars } = __modules["client/car-model.js"];
+const { setCarDaylight, carsHeld, trimCars, carSeen } = __modules["client/car-model.js"];
+const { setGlassWeather } = __modules["client/car-glass.js"];
+const { CAR_WINDOWS } = __modules["client/car-windows.js"];
+const { carMove, carMovesLoaded } = __modules["client/car-moves.js"];
+const { boardTimes, poseBoarding } = __modules["client/car-boarding.js"];
+const { seatFigure } = __modules["client/car-seating.js"];
 const { bikesHeld, trimBikes } = __modules["client/bike-model.js"];
 const { buildCarshow } = __modules["client/render-carshow.js"];
 const { buildSports } = __modules["client/render-sports.js"];
@@ -57839,6 +63821,7 @@ const HASH = typeof location !== 'undefined' ? location.hash : '';
 const TOUCH_FIRST = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 const LITE = !HASH.includes('full') && (TOUCH_FIRST || HASH.includes('lite'));
 const MAX_RIGS = LITE ? [14, 11, 8, 5] : [26, 18, 12, 6];
+const IN_CARS = LITE ? 15 : 30;
 const VEHICLE_BIAS = [1, 0.8, 0.6, 0.45];     // how much nearer a vehicle must be for each step of detail (quality.detail), as quality drops
 const DRIVER_SEAT = vehicleMeta('keke').seats.driver;   // where the keke's driver sits, in the keke's own frame
 const SEATED_HEIGHT = 0.845;                 // how far above its own feet a seated figure's seat is, for a figure of height 1
@@ -58345,6 +64328,24 @@ function start(carried) {
   const underLowRoof = (x, z) => { for (const r of lowRoofs) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) return true; return false; };
   const towerAt = POWERBIKE.footprint;
   let builtForCamera = [];
+  let lookHides = false;
+  let cameraCar = null;
+  const takesRocked = new Map();
+  function keepOutOfCar(eye) {
+    const c = cameraCar;
+    if (!c) return;
+    const r = toCar(c, eye.x, eye.z);
+    const side = r.across >= 0 ? 1 : -1, door = c.doorSide === side ? c.door : 0;
+    const halfL = c.half + 0.35, halfW = c.wide + 0.35 + door, top = c.top + 0.35;
+    if (Math.abs(r.along) >= halfL || Math.abs(r.across) >= halfW || eye.y >= top) return;
+    const outSide = halfW - Math.abs(r.across), outEnd = halfL - Math.abs(r.along), outTop = top - eye.y;
+    let along = r.along, across = r.across;
+    if (outTop <= outSide && outTop <= outEnd) eye.y = top;
+    else if (outSide <= outEnd) across = side * halfW;
+    else along = (r.along >= 0 ? 1 : -1) * halfL;
+    const sh = Math.sin(c.h), ch = Math.cos(c.h);
+    eye.x = c.x + sh * along + ch * across; eye.z = c.z + ch * along - sh * across;
+  }
   const builtAt = (x, z, y) => { if (y > 3.4) return false; for (const b of builtForCamera) if (x > b.x0 - 0.25 && x < b.x1 + 0.25 && z > b.z0 - 0.25 && z < b.z1 + 0.25) return true; return false; };
   const rig = createCameraRig(camera, {
     blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) || inSportsHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25, y - zoneGroundY(x, z))) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
@@ -59400,6 +65401,7 @@ function start(carried) {
     for (const o of zone.okadas) { want(o.person); want(o.passenger); }
     for (const q of zone.players || []) if (q.vehicle && typeof q.vehicle.driver === 'number') want(q.vehicle.driver);
     for (const r of zone.sportRiders || []) want(r.person);
+    for (const t of zone.traffic || []) for (const [i] of t.who || []) want(i);
     if (!unknown.length) return;
     const faces = playerId ? [] : host.game.faces(unknown);
     if (playerId) for (let from = 0; from < unknown.length; from += 60) { const r = server.send({ type: 'people.describe', ids: unknown.slice(from, from + 60) }); if (r.ok) faces.push(...r.people); }
@@ -60868,9 +66870,29 @@ function start(carried) {
     const left = kind === 'in' ? toCar(car, at.x, at.z).across >= -0.2 : toCar(car, at.x, at.z).across >= 0;
     const door = left ? 'fl' : 'fr';
     const slide = kind === 'out' && door === 'fr' ? 0.55 : 0;
-    const B = BOARD[kind];
-    boarding = { kind, key, model, car, at, door, start: clock + slide, slide, seen: !!(CAR_PARTS[model] && CAR_PARTS[model].driver && CAR_PARTS[model].driver.seen) };
+    const moves = carSeen(model) && CAR_WINDOWS[model] && carMovesLoaded();
+    const B = moves ? (() => { const t = boardTimes(kind); return { open: t.open, go: kind === 'in' ? [0.22 * t.length, 0.62 * t.length] : [0.2 * t.length, 0.72 * t.length], slam: t.shut - DOOR.shutting * 0.4, end: t.length + 0.1 }; })() : BOARD[kind];
+    boarding = { kind, key, model, car, at, door, start: clock + slide, slide, seen: carSeen(model), moves: !!moves, B };
     openDoor(key, door, clock + slide + B.open, clock + slide + B.slam);
+  }
+  function boardFigure(self, taking) {
+    const car = carView.driven('drive');
+    if (!car || !car.glazed || !me.animated) return false;
+    const ground = (x, z) => zoneSurfaceY(x, z, levelAt(predicted));
+    if (boarding && boarding.moves) {
+      const t = clock - boarding.start;
+      if (t < 0) return seatFigure(me, car, 'driver', { steer: 0, move: carMove(me, 'sit'), t: clock, across: Math.max(0, 1 + t / Math.max(0.01, boarding.slide)) });
+      return poseBoarding(me, car, { kind: boarding.kind, door: boarding.door, t, from: boarding.at, groundY: ground });
+    }
+    if (taking && taking.kind === 'car' && taking.times && CAR_WINDOWS[taking.model] && carMovesLoaded()) {
+      const since = taking.t + Math.max(0, clock - viewAt);
+      if ((taking.step === 'enter' || taking.step === 'shut') && taking.times.enter) {
+        const stand = toWorld(taking.car, doorStand(taking.model, taking.door));
+        return poseBoarding(me, car, { kind: 'in', door: taking.door, t: since - taking.times.enter[0], from: stand, groundY: ground });
+      }
+      if (taking.step === 'slide') return seatFigure(me, car, 'front', { steer: 0, move: carMove(me, 'sit'), t: clock, across: taking.progress });
+    }
+    return false;
   }
   function takingPlace(taking) {
     if (!taking || taking.kind !== 'car' || !taking.times || !['enter', 'shut', 'slide'].includes(taking.step)) return null;
@@ -60880,7 +66902,7 @@ function start(carried) {
     const front = toWorld(car, seatPlace(model, taking.door === 'fl' ? 'driver' : 'front'));
     const k = taking.step === 'enter' ? taking.progress : 1;
     const e = k * k * (3 - 2 * k);
-    const seen = !!(CAR_PARTS[model] && CAR_PARTS[model].driver && CAR_PARTS[model].driver.seen);
+    const seen = carSeen(model);
     let x = stand.x + (front.x - stand.x) * e, z = stand.z + (front.z - stand.z) * e;
     if (taking.step === 'slide') { const wheel = toWorld(car, seatPlace(model, 'driver')); x = front.x + (wheel.x - front.x) * taking.progress; z = front.z + (wheel.z - front.z) * taking.progress; }
     return { x, z, h: taking.step === 'enter' ? Math.atan2(front.x - stand.x, front.z - stand.z) * (1 - e) + car.h * e : car.h, shown: (taking.step === 'enter' && k < 0.8) || seen };
@@ -60888,7 +66910,7 @@ function start(carried) {
   function boardingPlace(self) {
     const b = boarding;
     if (!b) return null;
-    const B = BOARD[b.kind], t = clock - b.start;
+    const B = b.B || BOARD[b.kind], t = clock - b.start;
     const on = !!self && (!!self.driving || (self.riding !== null && self.riding !== undefined) || (self.astride !== null && self.astride !== undefined));
     const left = b.kind === 'in' ? !(self && self.incar) : !!(self && self.incar) || on;
     if (t > B.end || left || Math.hypot(predicted.x - b.car.x, predicted.z - b.car.z) > 8) { boarding = null; return null; }
@@ -60916,6 +66938,7 @@ function start(carried) {
       if (!e || Math.hypot(e.x - tx, e.z - tz) > 6) { e = { x: tx, z: tz, h: t.h }; trafficShown.set(t.n, e); }
       else { const k = Math.min(1, dt * 12); e.x += (tx - e.x) * k; e.z += (tz - e.z) * k; e.h += angleGap(t.h, e.h) * k; }
       e.n = t.n; e.model = t.model; e.speed = t.speed; e.steer = t.steer; e.brake = t.brake; e.held = t.held; e.mode = t.mode; e.mine = t.mine; e.hornAgo = t.hornAgo;
+      e.who = t.who || null;
       e.doorTimes = t.doors ? t.doors.map(([d, o, sh]) => ({ d, o: viewAt + o, s: viewAt + sh })) : null;
       e.y = Number.isFinite(t.y) ? t.y : undefined;
     }
@@ -61073,7 +67096,7 @@ function start(carried) {
   const PACE = { gather: 9, shed: 13, turn: 9.5 };      // metres a second each second; radians a second
   let takenWas = null;
   function movePlayer(dt) {
-    if (boarding && clock - boarding.start < BOARD[boarding.kind].end) { going.speed = 0; carState.speed = 0; return 0; }
+    if (boarding && clock - boarding.start < (boarding.B || BOARD[boarding.kind]).end) { going.speed = 0; carState.speed = 0; return 0; }
     const taken = view.self.incar && Number.isInteger(view.self.incar.taken) ? view.self.incar.taken : null;
     if (taken !== null && taken !== takenWas) { predicted.x = view.self.x; predicted.z = view.self.z; predicted.heading = view.self.heading; cam.yaw = view.self.heading; carState.speed = 0; carState.steer = 0; }
     takenWas = taken;
@@ -61418,7 +67441,7 @@ function start(carried) {
   }
 
   let last = performance.now();
-  let timeScale = 1;
+  let timeScale = 1, fixedDt = 0, frameBudget = Infinity, recording = null;
   let frameErrors = 0;
   let townWanted = false;
   const watch = watchPicture({ renderer, camera, canvas, lost: () => pictureGone, errors: () => frameErrors, tell: (trouble) => { if (trouble) loading.trouble('The picture stopped', 'Your game is saved where you are. Continue to carry on from there.', 'Continue', carryOnAfresh); else if (loading.kind === 'trouble' && !pictureGone) loading.hide(); } });
@@ -61436,7 +67459,9 @@ function start(carried) {
   }
   function drawFrame(now) {
     const elapsed = (now - last) / 1000;
-    const frameDt = Math.min(0.5, Math.max(0.001, elapsed)), dt = frameDt * timeScale;
+    const frameDt = Math.min(0.5, Math.max(0.001, elapsed));
+    const dt = fixedDt > 0 ? (frameBudget > 0 ? fixedDt : 1e-4) : frameDt * timeScale;
+    if (fixedDt > 0 && frameBudget > 0 && Number.isFinite(frameBudget)) frameBudget -= 1;
     last = now;
     clock += dt;
     if (!townBuilt) return;
@@ -61573,7 +67598,34 @@ function start(carried) {
       const trafficDrawn = trafficCars.filter((e) => !(exiting && exiting.key === `traffic:${e.n}`)).map((e) => ({ key: e.n, id: e.model, x: e.x, z: e.z, y: e.y, h: e.h, speed: e.speed, steer: e.steer, brake: e.brake, held: e.held, doors: doorsNow(`traffic:${e.n}`, e.doorTimes, e.x, e.z) }));
       const bodies = ownDrive || peerCars.length || trafficDrawn.length ? crowd.lying(predicted.x, predicted.z, 80) : [];
       carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, traffic: trafficDrawn, groundY: groundAt, from: predicted, night, bodies });
-      const carSeated = !!ownDrive && !!incar && carView.seat(me, ownDrive);
+      const boardMoved = (boarding && boarding.moves) || (taking && taking.kind === 'car' && ['enter', 'shut', 'slide'].includes(taking.step)) ? boardFigure(self, taking) : false;
+      { const c = boarding ? boarding.car : taking && taking.kind === 'car' && taking.car ? taking.car : null; const m = boarding ? boarding.model : taking ? taking.model : null; const sp = m && POWER_CARS[m]; const dr = boarding ? boarding.door : taking ? taking.door : null; cameraCar = c && sp ? { x: c.x, z: c.z, h: c.h, half: sp.length / 2, wide: sp.width / 2, top: levelAt(predicted) + 1.15 * (sp.height || 1.5), doorSide: dr === 'fl' || dr === 'rl' ? 1 : dr ? -1 : 0, door: dr ? 1.05 : 0 } : null; }
+      if (taking && taking.kind === 'car' && taking.car && ['turn', 'door', 'pull', 'enter', 'shut'].includes(taking.step) && clock - cam.lastDrag > 2) {
+        const fx = Math.sin(taking.car.h), fz = Math.cos(taking.car.h), H = predicted.heading;
+        const back = (d) => -Math.sin(H + d) * fx - Math.cos(H + d) * fz;
+        const yaw = H + (back(0.55) < back(-0.55) ? 0.55 : -0.55);
+        cam.yaw += angleGap(yaw, cam.yaw) * Math.min(1, dt * 2.2);
+        cam.pitch += (0.34 - cam.pitch) * Math.min(1, dt * 1.6);
+      }
+      { const shut = !!ownDrive && !!incar && !!CAR_WINDOWS[ownDrive.id] && !(ownDrive.doors && Object.values(ownDrive.doors).some((v) => v > 0.05)) && !(boarding && boarding.kind === 'in'); audio.muffle(shut ? 1 : 0); }
+      if (boarding && boarding.moves) {
+        const t = clock - boarding.start, len = boarding.B.end - 0.1, side = boarding.door === 'fl' || boarding.door === 'rl' ? 1 : -1;
+        const r = boarding.rocked || (boarding.rocked = {});
+        if (boarding.kind === 'in' && !r.sat && t > 0.5 * len) { r.sat = carView.rock('drive', { rise: -0.16, roll: -0.11 * side }); }
+        if (boarding.kind === 'out' && !r.up && t > 0.42 * len) { r.up = carView.rock('drive', { rise: 0.13, roll: 0.09 * side }); }
+        if (!r.slam && t > boarding.B.slam + DOOR.shutting * 0.4) { r.slam = carView.rock('drive', { rise: -0.04, roll: -0.06 * side }); }
+      }
+      if (!taking) takesRocked.clear();
+      if (taking && taking.kind === 'car' && taking.times && CAR_WINDOWS[taking.model]) {
+        const key = carView.driven('drive') ? 'drive' : `traffic:${taking.id}`, side = taking.door === 'fl' ? 1 : -1;
+        const tag = `${taking.id}:${taking.door}`;
+        const r = takesRocked.get(tag) || {};
+        takesRocked.set(tag, r);
+        if (!r.out && taking.step === 'pull' && taking.progress > 0.55) r.out = carView.rock(key, { rise: 0.12, roll: 0.08 * side });
+        if (!r.sat && taking.step === 'enter' && taking.progress > 0.5) r.sat = carView.rock(key, { rise: -0.16, roll: -0.11 * side });
+        if (!r.slam && taking.step === 'shut' && taking.progress > 0.6) r.slam = carView.rock(key, { rise: -0.04, roll: -0.06 * side });
+      }
+      const carSeated = boardMoved || (!!ownDrive && !!incar && carView.seat(me, ownDrive));
       carsHeard = peerCars.map((q) => ({ key: q.key, car: q.id, x: q.x, z: q.z, rev: q.rev || 0, throttle: q.throttle || 0 }));
       for (const e of trafficCars) {
         if (e.mode === 'drive' || e.mode === 'stop') carsHeard.push({ key: `t:${e.n}`, car: e.model, x: e.x, z: e.z, rev: carRevs(e.speed, e.brake ? 0 : 0.35, carHandlingOf(POWER_CARS[e.model])), throttle: e.brake ? 0 : 0.35 });
@@ -61606,7 +67658,7 @@ function start(carried) {
       if (!me.fallDriver) layCharacter(me, me.fall, me.fellHow || 'hard');
       if (me.swimming) { me.group.position.y = (me.animated ? -(me.spec.height * 0.58) - 0.22 : -0.5) + surfHeight(me.group.position.x, me.group.position.z, waveNow()); if (me.blob) me.blob.visible = false; } else if (me.wasSwimming) me.group.position.y = groundY;
       me.wasSwimming = me.swimming;
-      me.group.visible = !aboard && (board ? board.shown : (!incar || carSeated)) && !rig.hidesPlayer && !(astride && aboardShip() !== null);
+      me.group.visible = !aboard && (board ? board.shown || boardMoved : (!incar || carSeated)) && !rig.hidesPlayer && !(astride && aboardShip() !== null) && !lookHides;
       ui.setDash(driving ? { plate: driving.plate, fuel: driving.fuel, tank: driving.tank, kmh: Math.abs(car.speed) * 3.6, load: driving.load, capacity: driving.capacity } : astride && ownSurf() ? { plate: SPORTS.surfboard.name, fuel: null, kmh: Math.abs(surfState.speed) * 3.6, load: 0, capacity: 0 } : astride && (ownBoat() || aboardShip() !== null) ? { plate: ownBoat() ? SPORTS[ownBoat()].name : 'Naval ship', fuel: null, kmh: Math.abs(boatState.speed) * 3.6, load: 0, capacity: 0 } : astride && ownSport() ? { plate: SPORTS[ownSport()].name, fuel: null, kmh: Math.abs(sportState.speed) * 3.6, load: 0, capacity: 0 } : astride && !powerBike() ? { plate: 'Motorcycle', fuel: null, kmh: Math.abs(moto.speed) * 3.6, load: 0, capacity: 0 } : null);
       if (astride && powerBike()) {
         const bike = powerBike();
@@ -61690,7 +67742,20 @@ function start(carried) {
 
       updateAmbulance(view.ambulance, dt);
 blood.update(dt, view.blood || []);
-            crowd.update({ dt, rows: view.people, okadas: view.okadas, players: peersNow(), known, eye: predicted, real: elapsed, clock, townTime: view.t, others: view.others,
+            const inCars = [];
+            for (const e of trafficCars) {
+              if (!e.who || !e.who.length) continue;
+              const d = Math.hypot(e.x - predicted.x, e.z - predicted.z);
+              if (d > IN_CARS || !carSeen(e.model)) continue;
+              const car = carView.driven(`traffic:${e.n}`);
+              if (!car || !car.glazed) continue;
+              const took = taking && taking.kind === 'car' && taking.id === e.n && taking.times && taking.times.pull ? taking : null;
+              for (const [i, seat] of e.who) {
+                const pulledNow = took && ((took.door === 'fl' && seat === 'driver') || (took.door === 'fr' && seat === 'front')) ? took.t + Math.max(0, clock - viewAt) - took.times.pull[0] : -1;
+                inCars.push({ i, key: `traffic:${e.n}`, seat, steer: e.steer || 0, d, pulled: pulledNow >= 0 ? { t: pulledNow, door: took.door } : null });
+              }
+            }
+            crowd.update({ dt, rows: view.people, okadas: view.okadas, players: peersNow(), known, eye: predicted, real: elapsed, clock, townTime: view.t, others: view.others, inCars, carOf: (key) => carView.driven(key),
         own: astride ? { n: astride.n, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: Math.abs(moto.speed) } : null,
         tug: taking && taking.kind === 'okada' && taking.step !== 'reach' ? { n: taking.id, amount: Math.min(1, Math.max(0, (taking.progress - 0.23) / 0.4)), side: taking.side } : null,
         maxRigs: MAX_RIGS[quality.detail], detail: FIGURE_DETAIL[quality.detail], crowd: CROWD[quality.detail], camera, riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, falls: view.falls, reacts: view.reacts, ahead: Math.max(0, clock - viewAt) });
@@ -61794,6 +67859,7 @@ blood.update(dt, view.blood || []);
       bonnet: playing && view && view.self.incar && ownCar() ? { ahead: ownCar().length * 0.36, height: ownCar().height * 0.66 + 0.1 } : null,
       longer: playing && view && view.self.incar && ownCar() ? Math.max(0, ownCar().length - 3) : astride && aboardShip() !== null ? 58 : astride && ownBoat() ? 2.4 : 0,
     });
+    if (cameraCar && playing) { const before = camera.position.clone(); keepOutOfCar(camera.position); if (before.distanceToSquared(camera.position) > 1e-8) { camera.lookAt(cam.target.x, cam.target.y, cam.target.z); camera.updateMatrixWorld(); } }
     const sinceKick = clock - camKick.at;
     if (sinceKick < 0.5 && camKick.amount > 0) { const k = camKick.amount * 0.07 * Math.exp(-sinceKick * 9) * Math.cos(sinceKick * 26); camera.position.x += camKick.x * k; camera.position.z += camKick.z * k; camera.position.y -= Math.abs(k) * 0.4; }
     if (playing && gunPlay) gunPlay.frameHud({ width: viewW, height: viewH, interactable: !!(prompt && prompt.short) });
@@ -61837,6 +67903,7 @@ blood.update(dt, view.blood || []);
     night = skyState.night;
     setVehicleDaylight(1 - night);
     setCarDaylight(1 - night);
+    setGlassWeather({ wet: airLevel.wetTracks ? skyState.wetness : 0, daylight: 1 - night, t: clock });
     const groundWet = updateFinishes(dt, { daylight: 1 - night, wetness: skyState.wetness, dull: skyState.dull });
     { const a = airAt({ sunUp: skyState.sunUp, cover: skyState.cover, wet: groundWet, indoor: hall ? 1 : 0, hour, clear: playing ? wildAt(predicted.x, predicted.z) : 0 }); setWorldShading({ t: clock, clouds: a.clouds * airLevel.clouds, threshold: a.threshold, haze: a.haze * airLevel.haze, glint: airLevel.glint, mirage: a.mirage * airLevel.mirage, puddles: a.puddles * airLevel.puddles }); }
     setRiver({ waves: airLevel.waves, foam: airLevel.foam, t: clock });
@@ -61949,6 +68016,7 @@ blood.update(dt, view.blood || []);
       if (!glow) glow = createScreenGlow(renderer);
       monitor.time('glow', () => glow.apply({ amount: airLevel.glow * (0.28 + 0.42 * night), night, wide: airLevel.glowWide, flare: airLevel.flare > 0 && !hall ? sunOnScreen(skyState) : null }));
     }
+    if (drewTown && recording) { try { recording.push({ t: clock, jpeg: renderer.domElement.toDataURL('image/jpeg', 0.84) }); } catch (error) { recording = null; } }
     perf.calls = renderer.info.render.calls;
     perf.triangles = renderer.info.render.triangles;
     const made = renderer.info;
@@ -62073,6 +68141,7 @@ blood.update(dt, view.blood || []);
     online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, exitGame: () => exitGame(), get exited() { return exited; }, get playing() { return playing; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },
+    hidePlayer(on) { lookHides = !!on; },
     walkable: (x, z, y, radius) => zoneWalkable(x, z, structureBoxes(), Number.isFinite(radius) ? radius : undefined, y),
     surfaceY: (x, z, y) => (Number.isFinite(y) ? zoneSurfaceY(x, z, y) : zoneGroundY(x, z)),
     deckHeights: (x, z) => zoneDeckHeights(x, z),
@@ -62084,6 +68153,12 @@ blood.update(dt, view.blood || []);
     bikeAudio: { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz }, get bikeInput() { return controls.bike(); },
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },
     slow(share = 1) { timeScale = Math.max(0.02, Math.min(1, Number(share) || 1)); return timeScale; },
+    fixedStep(seconds = 0, frames = Infinity) { fixedDt = Math.max(0, Math.min(0.25, Number(seconds) || 0)); frameBudget = frames; return fixedDt; },
+    stepFrames(n = 1) { frameBudget = n; return frameBudget; },
+    get framesLeft() { return frameBudget; },
+    record(on = true) { recording = on ? [] : null; return !!recording; },
+    recorded() { const r = recording || []; if (recording) recording = []; return r; },
+    get clock() { return clock; },
     fetchWeather: () => fetchWeather(), get realWeather() { return realWeather; },
     setSky: (choice) => { prefs.skyTime = SKY_TIMES[choice.time] !== undefined ? choice.time : 'real'; prefs.skyWeather = SKY_WEATHERS[choice.weather] ? choice.weather : 'real'; writeStored(PREFS_KEY, prefs); return skyChoice(); },
     twin(name = 'Second Player', x = null, z = null) {

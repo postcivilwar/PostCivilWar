@@ -5140,6 +5140,148 @@ plates 3, on purpose), the river bank 1 (the bench; the jetty's posts 0), the ci
 chevrons' paint 0, by the Peace Interchange 1 (a slim tree 80 m off drawn as its picture, without its roots; near it, as
 itself, they are drawn and stood on); traffic 17/17; the land beyond the town 12/12; the town's buildings 12/12; the phone's memory 11/12 (C: back at the motor park after the trip out, 90% of the town's triangles drawn again where it asks for as many as before, more of its far squares resting by then; it has failed so now and then on earlier builds too, 1 November; run again on this build and on the one before it in turn, below).
 
+## Cars with real glass, a fitted cabin and the people inside seen: Stage 2, the three sample cars (5 November 2026)
+
+The owner's brief of 5 November 2026, parts 2 to 5, Stage 2: "three sample cars (the Mint Sports Coupé, the Grey
+Saloon and the Black Luxury SUV)" with real glass, a cabin, the driver and passengers seen, getting in, out and taking
+each by his own Mixamo moves; pictures by day, at night and in the rain from the front, the back, the side and close up
+beside matching frames of his videos 3 and 4 (another game: taking a car with a driver and passengers in it; getting out
+of a car and back in), a short recording of getting in, out and taking each; then his yes before Stage 3 (every other
+car). "Copy nothing from the other game: our own designs, and no real brand names or logos anywhere, steering wheels and
+dashboards included." His files stay byte for byte: everything here is done on the game's own copies and in code.
+
+### The windows found (`tools/vehicles/windows.py`, `tools/vehicles/windows.json`)
+
+Each of the twenty showroom cars is one shell with its windows painted on its colour picture. The tool reads only the
+game's copy of a car (its shape and its colour picture, `assets/vehicles/cars/game/`): every point of the picture the
+body covers is given its place on the car and the way the surface faces there, and the car is looked at from its two
+sides, from above, from in front and from behind (each look a picture of the body's points, nearest kept, in their
+colours). In each look the glass is found by growing regions over the band where glass is (between the belt line and the
+roof), by colour, stopped at the painted edges, keeping those that are glass: on the sides not the paint's colour, from
+in front and behind leaning back as glass does; within the shapes `windows.json` allows for that car. Where the glass is
+painted nearly the paint's own colour its panes are given there as shapes measured on the looks, each taken where the
+surface faces its look as glass does:
+- the Mint Sports Coupé: its roof and its engine cover's louvres are black (not glass): the glass found only over the
+  windscreen and the hatch's glass from above, and the side windows between the belt and the roof's edge;
+- the Grey Saloon: its tail lamps wrap round onto its sides at the glass's height, so its side glass is looked for only
+  ahead of the rear quarter window's end; its back window, painted only a little darker than its paint, is given as a
+  shape seen from above, inside its black frame;
+- the Black Luxury SUV: black glass on black paint, nothing to find it by colour: all its panes given as shapes (the
+  front and rear doors' glass, the fixed pane behind the rear door and the quarter window on each side, the windscreen
+  seen from above with its foot curved as the glass is, the tailgate's glass between its tail lamps).
+Written beside the car's other files: `<id>-windows-1k.png` and `-512.png` (white where glass, on the colour picture's
+own layout, the edge eased over a point so the cut is smooth however near it is seen, and carried out past the
+picture's pieces so none shows a seam), `<id>-glass.bin` (a bit for each of the body's triangles: set where any of it is
+glass), and `src/client/car-windows.js` (for each car: those files, how low its side glass comes, whether its glass behind
+the front doors is privacy glass, and the room inside its shell for fitting a cabin: how far out its side is at 33 places
+along it and 19 heights, and how high its top is). `--sheet <folder>` draws each car from eight sides with its glass in
+red, for checking.
+
+### The glass (`src/client/car-glass.js`, `car-model.js`)
+
+Nothing in the owner's files is changed: the car's body is drawn without what its windows picture marks (no point of it
+drawn there, so the cut follows the painted edge wherever the triangles under it run), and the triangles that carry any
+glass are drawn a second time as glass, only where the picture marks it. A door's window is part of the door's own
+shape, so it is drawn with the door and swings open with it. The body is drawn from inside as well, as the car's dark
+trim: the pillars, the roof and the doors as seen from a seat, never the town through them. The glass: clear with a
+slight grey-green tint, its own colour not lit as paint is (lit so, the sun on it laid a grey haze over the people
+behind it and turned the SUV's privacy glass pale grey; light passes through glass rather than being scattered by it),
+what it gives back of the sky and the sun on top; mostly seen through face on and mostly giving back the sky at a slant; the glass behind the
+front doors of the SUV darker (privacy glass that still shows who sits there); a little dust along the bottom edge of
+the side windows; in the rain, from Medium up, drops on it sliding back. Seen from inside as from outside. The windows
+picture is kept on the graphics card at one number a point (a quarter of a colour picture's memory), the phone's at 512.
+
+### The cabin (`src/client/car-cabin.js`)
+
+A cabin made in code for each model, fitted inside its own shell (the room `windows.py` measured): two front seats
+with bolsters, headrests and stitching, a back bench (small seats in a two-door car where there is room), a dashboard
+under the windscreen with the hood over the dials, the centre stack's frame, vents and the glovebox's line, its top
+carried forward to the windscreen's foot and the firewall under it closing the cabin at the front (the engine never
+seen; a wall up to the glass, first tried, stood behind half the SUV's windscreen), the centre console with the gear lever, the pedals,
+carpet and mats, the panel and parcel shelf behind the back seat (the boot never seen), the roof lining, the visors and
+the mirror, the pillars' trim, seat belts, and the doors' insides (armrest, handle, speaker, window switches), each
+swinging with its door. Our own designs, no maker's name or badge anywhere: the steering wheel a three-spoke rim with our
+rising sun at its middle, the dials lit by night. Every piece is kept inside the shell at every height it stands at (the pillars' trim and the
+visors step in with the glass as it leans in toward the roof). One set of shapes for each model, shared by every car of
+it, one material: the cabin is one draw while its doors are shut, the wheel and the lit dials one each. Full detail
+within 30 m on a computer and 15 m on a phone; beyond that to 90 m (45 m) the seats, dashboard and the rest only; further
+off nothing (the glass mostly gives back the sky there). No light of its own but the dials' glow and the lamp over the
+doors while one is open at night (a lit shape, not a light).
+
+### The people inside (`src/client/car-moves.js`, `car-seating.js`, `render-crowd.js`, `car-view.js`)
+
+The owner's Mixamo moves for cars (`assets/characters/animations/mixamo/`, his six files byte for byte), read once by
+`tools/characters/car-moves.mjs` (with three.js r186's own FBX loader, copied into `tools/characters/fbx/` unchanged but for where it finds three.js; not in the game)
+into the game's copy, `assets/characters/animations/car-moves.json` (`figures/car-moves.json` on the site, 245 KB,
+fetched the first time someone is seen in a car or gets into one): for each frame how the hips are turned, the way each
+of 22 body bones points, and where the hips are. A move is carried onto a figure's own bones the first time that figure
+needs it (as the falls are), so each keeps its own bone lengths. Whoever sits in a car with glass (the player, another
+player, the town's drivers and passengers) is posed by `drive` at the wheel and `sit` or `talk` beside or behind (one in
+three of the town's passengers talking now and then), then set in the seat in the car's own frame as it is drawn this
+frame (its body's pitch and roll on its springs included): hips where the seat's are; leant back further, then sunk a
+little, if the head would touch the roof; the driver's seat slid back for long legs; both hands on the wheel's rim at ten
+to two as it turns, the feet on the pedals; a passenger's feet on the floor. The town's people in its cars are drawn as
+their own full figures within 30 m on a computer and 15 m on a phone, made one at a time as the crowd's others are.
+
+### Getting in, getting out, and taking a car (`src/client/car-boarding.js`, `main.js`, `src/sim/hijack.js`)
+
+By the owner's moves `enter`, `exit` and `pulled`, as he recorded them (a door on the figure's right getting in, its
+left getting out, its right pulled out), mirrored for the other side, laid on the car as it is drawn: getting in ends at
+the seat, getting out and being pulled out begin at it; the steps as long as the figure's legs; the height between
+standing on the ground and sitting in the seat as far as the move has sat down (his moves were made at a seat 0.88 m up,
+an SUV's; the coupé's is 0.3 m), the knees bent the more for a low seat and the feet kept on the ground; the door opened
+and shut at the moves' own moments, following the hand. Getting in takes about 2.75 s, getting out about 3 s (the brief:
+"about 2 to 3 seconds"). Taking a car keeps the 4 November steps (walk round to the driver's door, open it, pull the
+driver out, in, slam it; across to the wheel from the passenger's door), each now as long as the move it shows: the
+driver pulled out by the owner's `pulled` move onto the road beside the car, handed to the town lying there, then
+getting up and running; the taker in by `enter`. The camera stays outside the whole time: the car being got into or out
+of, or taken, is solid to it, so it never goes into the door, the body or the cabin.
+
+### The room inside each shell, and nothing poking through
+
+The room `windows.py` measures (`fit_of`): the car cut across at 33 places along it; each body triangle the cut
+crosses is a short line across it, and at each of 32 heights (closer near the roof, where the shell rounds in to it)
+the side is read along those lines: the skin nearest the middle line of the surface facing out to its own side (the
+doors and the side glass; not a mirror, a flared arch or a sill further out, nor the roof or the floor crossing a height
+near the middle, nor a roof rail's inner face). With it: the top over the middle line, the lowest top across the middle
+two fifths (for the dashboard and the firewall under a bonnet and a windscreen curved lower at their sides), and the
+roof's height at nine places across (for the lining). The lining is laid in leaning strips, eight across and five along,
+each a chord under the roof's curve; the seated figures' heads are kept under it (`car-seating.js`, `overHead`).
+`test/car-glass.test.mjs` checks every point of each cabin against the car's own surface, laid flat on a centimetre grid
+from its shape file (not the measured room): none out through its sides, none above the roof, the glass or the bonnet.
+
+### The camera while getting in, getting out and taking a car (`main.js`)
+
+The camera stays outside the whole time. Once the camera is placed each frame, its eye is kept out of the car being got
+into, out of or taken, and out of its open door's sweep (`keepOutOfCar`: out the nearest way, to the side, off an end
+or over the roof, still looking at the player). Taking a car, once the player is at its door, the camera eases round
+behind the player, a little toward the car's back and up, showing the player, the door and the driver pulled out (as
+the owner's video 3 does), unless the player is turning the view by hand; in the car, the driving camera behind it.
+(First tried: the car made solid to the camera's line from the player, as walls are. It drew the camera up overhead
+at the door, and with the player in the car every line began inside it, so the camera came into the cabin.)
+
+### Doors
+
+A door cut from the body (4 November: `sortDoors`) now takes only triangles wholly within the door's own stretch along
+the car and its heights, not every triangle whose middle is in it: a long one reaching from the door's edge to the
+pillar or the mirror, swung open with the door, was drawn stretched out across the road (the Grey Saloon's front
+doors' reached into the rear doors). Its window's glass, the glass triangles among its own, swings with it; its inside
+(the armrest, handle, speaker and window switches) with it.
+
+### Soft darkening (High and Ultra)
+
+The soft darkening where things meet (`ambient-occlusion.js`) is worked out from a second drawing of the solid
+surfaces. A car's body with its windows cut out was left out of it as a see-through thing would be, and the cabin
+behind it was darkened through it: its seats' and dashboard's shapes laid over the doors and the bonnet. A body with its
+windows cut (`userData.windowsCut`) is drawn into it whole, as the solid shell it is.
+
+### Sound and the springs
+
+Inside a shut car with glass the town's sounds are muffled (`audio.js` `muffle`: its background, voices and effects
+heard through a low-pass, the vehicles' half as much, the phone and the music not at all), clearer with a door open.
+The car sinks a little on its springs as someone sits in it, rises as they get up, and rocks as its door is slammed
+(`car-view.js` `rock`, at the moves' own moments).
+
 ## Tests
 
 ```
@@ -5173,6 +5315,7 @@ node test/stars.mjs out/                           # the police's stars: none wh
 ../server/with-postgres.sh node test/crowd.mjs out/ [phone]      # his townspeople, ten of each figure: many about by day at the market and the motor park, those near drawn as his own figures many at once (those in the picture), out at one in the morning, the graphics card's memory
 ../server/with-postgres.sh node test/traffic.mjs out/ [phone]    # the town's traffic in the showroom's cars: near the player, the nearest as their models and the rest as their pictures, drawn smoothly; a car taken (the stars), driven, left and taken up again, never the player's, all given back on arrest; lamps at night
 ../server/with-postgres.sh node test/car-taking.mjs out/ [phone]  # taking a car of the town's as the owner's videos show it (4 November 2026): offered from in front of it, round to the driver's door, the door opened, the driver pulled out and down, the riders out of their own doors and away, in, the door slammed; out again by the door, slammed behind; nothing in the console
+../server/with-postgres.sh node test/car-seen-sync.mjs out/        # who sits in a car seen by another player (5 November 2026, Stage 2): one takes a Grey Saloon, the other beside it sees them at the wheel, seated, through the glass (their figure painted bright magenta, found on the screen)
 ../server/with-postgres.sh node test/feet-surface.mjs out/ [phone]   # feet and tyres on the surface (5 November 2026): the marks on the ground drawn before whoever stands on them, each foot on flat ground, across a kerb and on a ramp, on the town's tar, a car's tyres on a ramp driven and left standing; pictures by night
 ../server/with-postgres.sh node test/surface-sweep.mjs out/ computer map   # the height people and vehicles stand at against the surface drawn there, on a grid over the whole map (130 areas, about an hour: give it two); an area or areas by name instead of map; SWEEP_PROBE='[[x, z, y, px, pz], ...]' every mesh over a point, the player at (px, pz)
 ../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs
