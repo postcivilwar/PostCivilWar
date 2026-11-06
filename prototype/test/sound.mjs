@@ -108,8 +108,10 @@ else {
 }
 
 // The places compared below as their own sounds have them, the town's cars taken off the roads (each car's mode
-// 'off' and their step held: the cars as the town has them are measured above).
+// 'off' and their step held: the cars as the town has them are measured above); and from ten in the morning, however
+// long the car above took (the DJ and the radios play only by day: the DJ from eight in the morning to seven at night)
 await page.evaluate(() => { const T = window.__nlw.host.game.internals.traffic; T.tick = () => {}; for (const c of T.cars) if (c.mode === 'drive' || c.mode === 'stop') { c.mode = 'off'; c.v = 0; } });
+await page.evaluate(() => { const n = window.__nlw, hour = n.view.clock.hourFloat; n.skip((24 + 10 - hour) % 24); });
 await go(150, 150); await page.waitForTimeout(3000); await measure('edge of town, dry', 10);
 await go(8, 58); await page.waitForTimeout(3000); await quietRoad(); await measure('market, mid-morning');
 // (the DJ's music for 16 s at each: its bars and its quiet moments between them come and go, and 8 s of it, one run's

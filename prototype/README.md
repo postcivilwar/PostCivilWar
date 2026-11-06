@@ -5326,6 +5326,51 @@ counted on the screen): the driver and passengers seen through the windscreen, t
 the coupé and the saloon; the SUV's through its windscreen and side windows, and from behind level with it nobody (the
 back seat's headrests and its dark glass), from behind and above as the game's camera follows a car 25 to 1,273 points.
 
+**After going live**, on the release build, one at a time: taking a car with a phone's settings 15/15; running people
+over 16/16; a phone at Medium at the PowerBike showroom (one of the brief's busiest places) 109.4 and 112.1 MB (433 and
+460 draws). **Vehicle sync** 11/12 three times running, and the game as it was before the brief, run in turn, 11/12
+alike: the same check as on 4 November, the watcher not told within its wait of the keke the driver left standing. The
+test now tells how long each page was held up at a time: the driver's 5 to 10 s, a frame drawn in software here, longer
+than the 6 s a word to the website is given, so its words were cut off (and its six links to the website at a time held
+meanwhile by the town's voices and a tower's model, fetched through a link slowed to a phone's). Its check of someone in
+a closed car looked at the Grey Saloon, which has glass now, and on its third run found the driver seen through it,
+rightly: it now looks at the Midnight Saloon, not yet given glass. **The sound** (`test/sound.mjs`) failed, and the
+build of 1 November, run in turn, failed alike: since 30 October the town's cars on its roads, driving or stopped at
+the roadside, are heard as other players' are (the nearest three within 120 m), and in town some always are (the
+test's quietest place, the edge of town, is 37 m from Waterside Road and 32 m from where they stop, and in three waits
+of two and a half minutes there it was never without one within 120 m; at the market about ten are within 120 m).
+Its places had last been measured, passing, on 29 October, before the town had traffic. The test now measures the
+market as the town has it, its traffic heard (told, not compared: -25.6 dB, the cars -29), and the places it compares
+with the town's cars taken off the roads, from ten in the morning however long the car below took, read at uneven
+moments and the DJ for 16 s; and it checks Stage 2's sound in
+a car (new): a car of the town's made the Grey Saloon and taken, inside with its doors shut the town muffled, clearer
+once its door opens, and its background quieter inside than beside it. That last was not so on the release (-51 dB
+inside, -52 beside: only the high sounds had been taken off, and the wind's low rush passed): the muffled sounds are
+now also half as loud (`audio.js` `HUSH`), -57 inside and -51 beside. (The DJ's margin is narrow: beside his speaker
+6 to 7 dB above the edge of town, the test asking 6; one run's 16 s read at even tenths of a second gave 4.8.)
+
+**Live again** (6 November, build `646cb3a9858470dc`, its page asks for `game.js?v=e701e5c75ee06f0e`): the muffled
+sounds half as loud. Tested before it went live: 617 headless, server 119; in a browser the sound (its first run, read
+at even tenths of a second, beside the DJ 4.8 dB above the edge of town; read at uneven moments, ok, 7.2 dB), taking a
+car 15/15, vehicle sync 11/12 (its keke, as above; its closed car, the Midnight Saloon, not seen through). After it went
+live: the street camera 18/18; the computer's settings at the car showroom's hall (below); the sound with the hour set,
+ok (6.8 dB); the sound on the build of 1 November's page, run in turn: every
+place it compares passing with its cars off the roads (beside the DJ 9.7 dB above the edge of town), and its Grey Saloon
+not taken (that build had not yet its way of taking a car); the graphics levels 29/29.
+
+**Before and after** (`tools/measure/places.mjs`, each alone on the machine: the game as live before the brief, 4
+November, page `bb992df235474674`, against Stage 2's release; the owner's sheets `before-and-after-phone-at-medium.pdf`
+and `before-and-after-computer.pdf`). A phone at Medium, by day and at night: the car showroom's hall 126.9 and 123.4
+MB → 127.9 and 124.1 (181 and 182 draws → 185 and 186); the PowerBike showroom 106.0 and 110.1 → 109.4 and 112.1 (430
+and 459 → 433 and 460); the market 117.3 and 126.7 → 117.9 and 126.7; the motor park 91.4 and 96.0 → 90.1 and 90.4; the
+Peace Interchange 75.8 and 77.0, alike; video 1's spot 76.2 and 77.0 → 75.8 and 77.0; a frame drawn here in software
+within a few per cent of before, the hall at night 9% longer. A computer's settings (Ultra): the hall by day 1.14 →
+1.55 million triangles a frame (301 → 320 draws), at night 2.98 → 3.06 (386 → 418), and measured again there alone
+1.35 and 2.81 (312 and 402 draws): the count moves from one measuring to the next with what is in view (each sample
+car's cabin is about 17,000 triangles: the coupé's 16,046, the saloon's and the SUV's 17,942); the market's pictures
+1,295 → 1,343 MB on the card by day (the cabins' and windows' pictures at a computer's size); elsewhere within a few per
+cent.
+
 ## Tests
 
 ```
