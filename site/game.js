@@ -32653,6 +32653,17 @@ function createCrowd(scene) {
     const reach = crowdAt ? crowdAt.reach : 0;
     const cam = frame.camera || null;
     if (cam) sight.setFromProjectionMatrix(seen3.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+    if (inCar.size) {
+      const still = new Set();
+      for (const s of frame.inCars || []) still.add(s.i);
+      for (const [i, e] of inCar) {
+        if (still.has(i)) continue;
+        const actor = actors.get(i);
+        e.rig.group.visible = true; if (e.rig.blob) e.rig.blob.visible = true;
+        if (actor && !actor.rig && known.has(i)) { actor.rig = e.rig; rigs.add(actor); } else undress(e.rig);
+        inCar.delete(i);
+      }
+    }
     crowdFigures.begin(dt);
     let c = 0;
     for (const actor of actors.values()) {
@@ -32723,7 +32734,7 @@ function createCrowd(scene) {
       if (!e) {
         if (building > 0 || rigs.size + inCar.size >= (frame.maxRigs || 0)) continue;
         const before = stats.made;
-        e = { rig: dress(s.i, info, s.d < RIG.close ? 1 : 2, false) };
+        e = { rig: dress(s.i, info, s.d < RIG.close ? 1 : 2) };
         scene.add(e.rig.group);
         inCar.set(s.i, e);
         if (stats.made !== before) building = pause;
@@ -40742,8 +40753,8 @@ const CAR_WINDOWS = Object.freeze({
    "512": "black-luxury-suv-windows-512.png"
   },
   "tris": "black-luxury-suv-glass.bin",
-  "count": 6069,
-  "belt": 0.2804,
+  "count": 5924,
+  "belt": 0.2805,
   "privacy": true,
   "fit": {
    "z": [
@@ -42393,8 +42404,8 @@ const CAR_WINDOWS = Object.freeze({
    "512": "grey-saloon-windows-512.png"
   },
   "tris": "grey-saloon-glass.bin",
-  "count": 367,
-  "belt": 0.2254,
+  "count": 371,
+  "belt": 0.2268,
   "privacy": false,
   "fit": {
    "z": [
@@ -44044,8 +44055,8 @@ const CAR_WINDOWS = Object.freeze({
    "512": "mint-sports-coupe-windows-512.png"
   },
   "tris": "mint-sports-coupe-glass.bin",
-  "count": 615,
-  "belt": 0.1853,
+  "count": 687,
+  "belt": 0.1854,
   "privacy": false,
   "fit": {
    "z": [
@@ -46126,16 +46137,6 @@ function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = 
   for (const s of [-1, 1]) box(visorWide, 0.012, 0.15, s * (visorOut - visorWide / 2), visorY, dashZ - 0.12, T.roof, 0.15);
   box(0.024, 0.05, 0.02, 0, roofIn - 0.045, dashZ - 0.05, 0x101010);
   box(0.24, 0.06, 0.015, 0, roofIn - 0.095, dashZ - 0.06, 0x18181a);
-  const pillar = (w, dd, zLow, zHigh, rx) => {
-    const n = 4, h = (roofIn - 0.05 - belt) / n;
-    for (let k = 0; k < n; k += 1) {
-      const y0 = belt + k * h, z = zLow + (zHigh - zLow) * (k + 0.5) / n;
-      const x = insideOver(z - dd / 2, z + dd / 2, y0, Math.min(roofIn, y0 + h + 0.06)) - w / 2;
-      for (const s of [-1, 1]) box(w, h + 0.012, dd, s * x, y0 + h / 2, z, T.roof, rx);
-    }
-  };
-  pillar(0.04, 0.05, dashZ - 0.02 + 0.5 * (roofIn - belt) * Math.sin(0.45), dashZ - 0.02 - 0.5 * (roofIn - belt) * Math.sin(0.45), -0.45);
-  if (four) pillar(0.05, 0.08, (hip[2] + rearZ) / 2 - 0.06, (hip[2] + rearZ) / 2 - 0.06, 0);
   for (const s of [-1, 1]) {
     const x0 = s * (inside(hip[2] - 0.1, belt + 0.25) - 0.03), y0 = Math.min(roofIn - 0.12, belt + 0.3), z0 = hip[2] - 0.18;
     box(0.045, 0.004, 0.25, x0 - s * 0.02, y0 - 0.12, z0, 0x161617, 0.9);

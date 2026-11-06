@@ -5138,7 +5138,7 @@ same places and hour as before the change (the lamp's light no longer over the s
 foot drawn); the sweep again where its first run missed: the PowerBike showroom's forecourt from outside 0 over 2 cm (its
 plates 3, on purpose), the river bank 1 (the bench; the jetty's posts 0), the city's piece built this time 0, the
 chevrons' paint 0, by the Peace Interchange 1 (a slim tree 80 m off drawn as its picture, without its roots; near it, as
-itself, they are drawn and stood on); traffic 17/17; the land beyond the town 12/12; the town's buildings 12/12; the phone's memory 11/12 (C: back at the motor park after the trip out, 90% of the town's triangles drawn again where it asks for as many as before, more of its far squares resting by then; it has failed so now and then on earlier builds too, 1 November; run again on this build and on the one before it in turn, below).
+itself, they are drawn and stood on); traffic 17/17; the land beyond the town 12/12; the town's buildings 12/12; the phone's memory 11/12 (C: back at the motor park after the trip out, 90% of the town's triangles drawn again where it asks for as many as before, more of its far squares resting by then; it has failed so now and then on earlier builds too, 1 November; run again on Stage 2's build, 12/12: below).
 
 ## Cars with real glass, a fitted cabin and the people inside seen: Stage 2, the three sample cars (5 November 2026)
 
@@ -5289,6 +5289,40 @@ heard through a low-pass, the vehicles' half as much, the phone and the music no
 The car sinks a little on its springs as someone sits in it, rises as they get up, and rocks as its door is slammed
 (`car-view.js` `rock`, at the moves' own moments).
 
+### Tested
+
+On the release build (page `cdb69616d0a036b8`, its page asks for `game.js?v=51a3542d46406e95`): 617 headless tests (new:
+`test/car-glass.test.mjs` 5: each cabin inside its car's own surface, the room read on the skin facing out, the lining
+under the roof, the seated heads under the lining, the time the owner's moves take when a car is taken), server 119. In a
+browser, one at a time: who sits in a car, seen by another player (`test/car-seen-sync.mjs`, new) 5/5: one takes a Grey
+Saloon, the other beside it sees the car with its glass and cabin, the first player in the driver's seat (0.14 m from
+it) and seen through the glass (5,080 points of their figure, painted magenta, on the other's screen); taking a car 15/15
+with a computer's settings; the seats 17/17; the phone's memory 12/12 (its check C passed: back at the motor park as
+much of the town drawn as before); traffic 17/17; the car showroom 42/42. Their first runs: the two-player test took a
+car by the Police Post, and its first player was a prisoner before the second could look (it now takes one with no
+officer within 60 m); the car showroom's 41/42 looked for the player unseen in the Grey Saloon (so before Stage 2) and,
+on its second run, 40/42, the car still rolling, drawn more slowly here, after the set two and a half seconds of
+braking when the player was to get out (it now brakes until the car has stopped). The machine was restarted twice
+during the runs; the two runs cut off were run again.
+
+**A phone at Medium** (`tools/measure/places.mjs`, `PERF_LEVEL=2`, a phone's screen, the processor slowed four times, by
+day and at 10 pm) on the release build: the car showroom's hall 127.9 and 124.1 MB on the graphics card (185 and 186
+draws, 0.66 million triangles), the market 117.9 and 126.7 MB (273 and 262 draws), the motor park 90.1 and 90.4 MB (525
+and 544 draws, 0.97 and 1.06 million triangles), the busy junction in the city (the Peace Interchange) 75.8 and 77.0 MB
+(188 and 199 draws), the spot of the owner's first video 75.8 and 77.0 MB (131 and 146 draws): under the brief's 135
+everywhere. (Measured first at the tool's own level, a phone's Ultra, which Auto never chooses on a phone: up to 153.9
+MB at the market at night, with the soft darkening's passes; the tool's level is now said in its usage.) Before and
+after, the game as it was before the brief (4 November, page `bb992df235474674`) against this, with a phone's settings
+and a computer's: after going live, below.
+
+**The pictures and recordings for the owner** (the three cars by day, at night and in the rain, from the front, the side
+and behind and close up, beside frames of his videos 3 and 4; each taken, got out of and back into): on the build before
+the last change (page `f6654ab6e42186a6`; the last hands the seated figure over as someone gets out of a car, which a
+phone had drawn as a plain shape for a moment). The colour probe (everyone in the car painted bright magenta, its points
+counted on the screen): the driver and passengers seen through the windscreen, the side windows and the back window of
+the coupé and the saloon; the SUV's through its windscreen and side windows, and from behind level with it nobody (the
+back seat's headrests and its dark glass), from behind and above as the game's camera follows a car 25 to 1,273 points.
+
 ## Tests
 
 ```
@@ -5340,7 +5374,7 @@ node test/outskirts.mjs out/                       # the road to Onitsha, the ai
 ../server/with-postgres.sh node test/town-buildings.mjs out/   # the owner's houses and towers: every model whole, each on its plot at its size, drawn near, solid; the hotel's facade
 ../server/with-postgres.sh node test/realism.mjs out/   # the leaves, the wind, their shadows; glass and the river giving back the sky, not at night; rain on the roads, and drying
 node test/look.mjs out/                            # close-up shots of people, vehicles and buildings
-../server/with-postgres.sh node tools/measure/places.mjs out/ computer|phone [all|place,place] [site]   # the town's places, the habitation's and Oganiru City's (thirty-four), and the character screen, by day and night: frame time, draws, triangles, the graphics card's memory, the script's, loading times, pictures (a phone: its settings, the processor slowed four times); site: another build's dist/site to measure instead; PERF_LEVEL=n holds a graphics level, PERF_DAY_ONLY=1 by day only, TEXTURE_LIST=1 lists the pictures held by size, TEXTURE_TRACE=1 with where in the game's code each was made; PERF_DPR sets the screen's pixels to each of the page's (a phone's 3)
+../server/with-postgres.sh node tools/measure/places.mjs out/ computer|phone [all|place,place] [site]   # the town's places, the habitation's and Oganiru City's (thirty-four), and the character screen, by day and night: frame time, draws, triangles, the graphics card's memory, the script's, loading times, pictures (a phone: its settings, the processor slowed four times); site: another build's dist/site to measure instead; PERF_LEVEL=n holds a graphics level, PERF_DAY_ONLY=1 by day only, TEXTURE_LIST=1 lists the pictures held by size, POST_LIST=1 what the picture's own passes draw (the level is the device's most, Ultra, unless PERF_LEVEL holds another: a phone at Medium is PERF_LEVEL=2), TEXTURE_TRACE=1 with where in the game's code each was made; PERF_DPR sets the screen's pixels to each of the page's (a phone's 3)
 python3 tools/measure/sheets.py before/ after/ computer|phone out.pdf [title] [before's name] [after's name]   # two measurings' pictures side by side, a page a place, the numbers under each
 ../server/with-postgres.sh node test/graphics.mjs out/   # the graphics levels, on a phone's settings and a computer's: Auto's first choice and the level kept for the device, Settings → Graphics, every level made at once without reloading, stage 3 at each level with the town drawn (the light from the whole sky, the air, the glow, the soft darkening fetched and drawn at High and Ultra, the river; each let go at a level without it), memory freed when lowering and given back when raising, Auto lowering by itself for slow frames and for a full graphics card and saying so once, #stats; on a phone, the owner's box truck at 512 far off and at its own size near, signs out of sight let go from the card and handed back as painted, and a picture let go from the card while still drawn made again from its file at once (`GRAPHICS_ONLY=phone` or `=computer`: that one alone; the watch on the pictures, `start.mjs`, tells where any picture handed over empty was made and let go, and of any let go while something drawn still uses it)
 python3 tools/measure/levels.py <folder> phone|computer out.pdf [title]   # the graphics levels side by side (PERF_LEVEL=0..3 measurings, the folder holding <device>-0 .. <device>-3), a page a place, with their numbers, and the same as a table (out.md)
