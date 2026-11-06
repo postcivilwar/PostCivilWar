@@ -8,7 +8,8 @@
 // most, by default); PERF_QUICK=1 does not wait for the town to be wholly ready first; PERF_DAY_ONLY=1 measures by day
 // only; PERF_WHEN="day:12,dusk:18.2,rain:13:rain" the hours (and weathers: clear, cloudy, rain, storm) each place is
 // measured at, named (by default day:12,night:22); PERF_DPR=n gives the screen n pixels to each of the page's (1 by default; a phone's are 2 to 3). TEXTURE_LIST=1
-// lists what is on the graphics card, picture by picture, after each place; DUMP_IMPOSTORS=1, PROBE_MIPS=1 and
+// lists what is on the graphics card, picture by picture, after each place; POST_LIST=1 what the picture's own passes
+// (into targets of their own, not the screen or the sun's shadows) draw, by kind; DUMP_IMPOSTORS=1, PROBE_MIPS=1 and
 // PROBE_HAB=1 look at the habitation's pictures of its far trees. Side by side: python3 tools/measure/sheets.py
 // <before> <after> phone|computer <out.pdf> [title].
 import { createRequire } from 'node:module';
@@ -49,6 +50,7 @@ const DPR = Number(process.env.PERF_DPR) > 0 ? Number(process.env.PERF_DPR) : 1;
 const context = await browser.newContext(PHONE ? { viewport: { width: 844, height: 390 }, deviceScaleFactor: DPR, isMobile: true, hasTouch: true, serviceWorkers: 'block' } : { viewport: { width: 1280, height: 720 }, deviceScaleFactor: DPR, serviceWorkers: 'block' });
 const page = await context.newPage();
 page.setDefaultTimeout(600000);
+if (process.env.POST_LIST) await page.addInitScript(() => { window.__postList = true; });
 const errors = [];
 page.on('pageerror', (e) => { errors.push(e.message); console.log('PAGE ERROR', e.message); });
 page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|status of 4\d\d/.test(m.text())) { errors.push(m.text()); console.log('CONSOLE', m.text().slice(0, 300)); } });
@@ -143,7 +145,10 @@ const state = () => page.evaluate(() => {
 // r186 counts the shadow map's draws in renderer.info, r128 did not: this counts both the same way on both)
 const passes = () => page.evaluate(() => new Promise((done) => {
   const r = window.__nlw.renderer, rbd = r.renderBufferDirect, render = r.render;
-  const c = { frames: 0, main: { calls: 0, tris: 0 }, shadow: { calls: 0, tris: 0 }, post: { calls: 0, tris: 0 } };
+  const c = { frames: 0, main: { calls: 0, tris: 0 }, shadow: { calls: 0, tris: 0 }, post: { calls: 0, tris: 0 }, by: new Map() };
+  // (POST_LIST=1: what is drawn into the picture's own passes, by the target's size, the material's kind and the thing's
+  // name or its parent's: for finding what a pass draws)
+  const listing = !!window.__postList;
   // (a frame is the town drawn onto the screen: since stage 3 the glow is laid over it onto the screen too, a drawing of
   // its own, not a frame)
   const town = window.__nlw.scene;
@@ -158,10 +163,11 @@ const passes = () => page.evaluate(() => new Promise((done) => {
       // (and what is drawn into the picture's own passes since stage 3: the soft darkening's picture of the near
       // surfaces, the glow's: post)
       const p = shadow ? c.shadow : main ? c.main : c.post; p.calls += 1; p.tris += Math.floor(idx / 3) * (Number.isFinite(inst) ? Math.max(0, inst) : 1);
+      if (listing && p === c.post) { const key = `${target ? `${target.width}x${target.height}` : 'screen'} ${scene === town ? 'town' : (scene && (scene.name || scene.type)) || '?'} ${material ? material.type : '?'} ${object.name || (object.parent && object.parent.name) || object.type}`; c.by.set(key, (c.by.get(key) || 0) + 1); }
     }
     return rbd.call(this, camera, scene, geometry, material, object, group);
   };
-  let k = 0; const f = () => { k += 1; if (k < 5) requestAnimationFrame(f); else { r.render = render; r.renderBufferDirect = rbd; const n = Math.max(1, c.frames); done({ frames: c.frames, mainCalls: Math.round(c.main.calls / n), mainTris: Math.round(c.main.tris / n), shadowCalls: Math.round(c.shadow.calls / n), shadowTris: Math.round(c.shadow.tris / n), postCalls: Math.round(c.post.calls / n), postTris: Math.round(c.post.tris / n) }); } };
+  let k = 0; const f = () => { k += 1; if (k < 5) requestAnimationFrame(f); else { r.render = render; r.renderBufferDirect = rbd; const n = Math.max(1, c.frames); done({ frames: c.frames, mainCalls: Math.round(c.main.calls / n), mainTris: Math.round(c.main.tris / n), shadowCalls: Math.round(c.shadow.calls / n), shadowTris: Math.round(c.shadow.tris / n), postCalls: Math.round(c.post.calls / n), postTris: Math.round(c.post.tris / n), ...(listing ? { postBy: [...c.by].sort((a, b) => b[1] - a[1]).slice(0, 25).map(([k, v]) => `${k}: ${+(v / n).toFixed(1)}`) } : {}) }); } };
   requestAnimationFrame(f);
 }));
 const setHour = (h, kind = 'clear') => page.evaluate(([h, kind]) => { const n = window.__nlw, g = n.host.game; const day = Math.floor(g.state.t / 86400); g.state.t = day * 86400 + h * 3600; g.state.weather = { kind, until: g.state.t + 12 * 3600 }; }, [h, kind]);
