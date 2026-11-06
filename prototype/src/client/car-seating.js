@@ -18,7 +18,10 @@ import { poseCarMove } from './car-moves.js';
 // (radians and metres: how far back a body may lean, how far it may sink into the cushion and slide along it; the room
 // kept over the head; the steering wheel turned by `wheelTurn` times the front wheels' angle, no further than
 // `wheelMost` either way; the head turned into a turn by `look`; a big driver's seat moved back at most `back`)
-export const SEATING = Object.freeze({ mostRecline: 0.62, sink: 0.08, slide: 0.14, back: 0.16, headRoom: 0.04, wheelTurn: 1.4, wheelMost: 0.6, look: 0.35 });
+// (6 November 2026, the brief's "the body leaning in turns, pushed back speeding up, forward when braking, jolted by bumps
+// and crashes": the body swayed `sway` times as far as the car's body rolls and pitches on its springs, no further than
+// `swayMost` radians, and dipped with a bump's jolt `jolt` times, no more than `joltMost` metres)
+export const SEATING = Object.freeze({ mostRecline: 0.62, sink: 0.08, slide: 0.14, back: 0.16, headRoom: 0.04, wheelTurn: 1.4, wheelMost: 0.6, look: 0.35, sway: 2.6, swayMost: 0.16, jolt: 2.5, joltMost: 0.05 });
 
 // The seats' hips, in the car's own units: the driver's as tools/vehicles/driver_seats.py measured it; the front
 // passenger's beside it; the back seat's three across, where the cabin's bench is (car-cabin.js `measures`, metres), or
@@ -43,7 +46,7 @@ const scratch = () => W || (W = { a: V(), b: V(), c: V(), d: V(), hip: V(), up: 
 
 // `across`: part of the way from this front seat to the other (0 to 1: someone shuffling across from the passenger's seat
 // to the wheel, or the other way to get out by the passenger's door)
-export function seatFigure(me, car, seat = 'driver', { steer = 0, move = null, t = 0, look = 0, across = 0 } = {}) {
+export function seatFigure(me, car, seat = 'driver', { steer = 0, move = null, t = 0, look = 0, across = 0, afraid = null } = {}) {
   const w = scratch();
   const spec = car && car.driver;
   if (!spec || !me || !me.bones) return false;
@@ -129,6 +132,24 @@ export function seatFigure(me, car, seat = 'driver', { steer = 0, move = null, t
     for (let i = 0; i < 8 && gap < 0 && leant() < SEATING.mostRecline; i += 1) { lean(Math.min(0.06, SEATING.mostRecline - leant())); gap = clear(); }
     if (gap < 0) { sunk = Math.min(SEATING.sink, -gap); place(); }
   }
+  // swayed with the car: leant over with its body's roll in a turn (further than the car leans), forward as its nose
+  // dips under the brakes and back as it lifts speeding up, dipped into the seat by a bump; the hands kept on the wheel
+  // below (the motion the car's body was last posed with: car-model.js `motion`)
+  const mo = car.motion;
+  if (mo) {
+    const side = Math.max(-SEATING.swayMost, Math.min(SEATING.swayMost, mo.roll * SEATING.sway));
+    if (Math.abs(side) > 1e-4) {
+      const parentQ = spine.parent.getWorldQuaternion(w.r);
+      const localAxis = w.axis.copy(dir(0, 0, 1)).applyQuaternion(parentQ.invert());
+      spine.quaternion.premultiply(w.r.setFromAxisAngle(localAxis, side));
+      spine.updateMatrixWorld(true);
+    }
+    const fore = Math.max(-SEATING.swayMost, Math.min(SEATING.swayMost, mo.pitch * SEATING.sway));
+    if (Math.abs(fore) > 1e-4) lean(-fore);
+    // (lifted off the cushion as the body drops away under them only a little: the roof is close over the head)
+    const dip = Math.max(-0.02, Math.min(SEATING.joltMost, mo.jolt * SEATING.jolt));
+    if (Math.abs(dip) > 1e-4) { sunk += dip; place(); }
+  }
   // still out of reach: sitting further forward on the seat (no more than `slide`)
   const still = short();
   if (still > 0) { forward = Math.max(forward, 0) + Math.min(SEATING.slide, still * 1.1); place(); }
@@ -147,6 +168,26 @@ export function seatFigure(me, car, seat = 'driver', { steer = 0, move = null, t
       target = at([hipAt[0] + side * 0.09 / scale, floorY + 0.08 / scale, hipAt[2] + ahead / scale], w.d).clone();
     }
     reach(thigh, calf, foot, target, dir(side * 0.3, 0.6, 1));
+  }
+  // (6 November 2026, the brief's "Passengers: ... frightened while the car is being taken": `afraid`, { side } the side
+  // of the car its door is being opened on (+1 its left): leant away from it, the head turned to it, both hands up
+  // before the face)
+  if (afraid && !driving) {
+    const away = Math.max(-0.2, Math.min(0.2, afraid.side * 0.16));
+    const parentQ = spine.parent.getWorldQuaternion(w.r);
+    const localAxis = w.axis.copy(dir(0, 0, 1)).applyQuaternion(parentQ.invert());
+    spine.quaternion.premultiply(w.r.setFromAxisAngle(localAxis, away));
+    spine.updateMatrixWorld(true);
+    if (head) {
+      const face = head.getWorldPosition(w.a).clone();
+      for (const [s, a] of Object.entries(arms)) {
+        const across = (s === 'l' ? 1 : -1) * 0.09 * H / 1.75;
+        const target = face.clone().addScaledVector(dir(0, 0, 1), 0.2 * H / 1.75).addScaledVector(dir(1, 0, 0), across).addScaledVector(dir(0, 1, 0), -0.04);
+        reach(a.u, a.l, a.h, target, dir((s === 'l' ? 1 : -1) * 0.8, -0.8, 0.1));
+      }
+    }
+    const neckBone = bones.get('neck_01');
+    if (neckBone && head) { const pq = neckBone.parent.getWorldQuaternion(w.r).invert(); neckBone.quaternion.premultiply(w.r.setFromAxisAngle(dir(0, 1, 0).applyQuaternion(pq), afraid.side * 0.75)); neckBone.updateMatrixWorld(true); }
   }
   // the head: the driver looking down the road, turned a little into the turn (or toward whoever shouts: `look`); a
   // passenger as the move has it

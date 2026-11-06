@@ -35,10 +35,15 @@ from PIL import Image
 from scipy import ndimage
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-GAME = os.path.join(ROOT, 'assets', 'vehicles', 'cars', 'game')
-SPECS = os.path.join(ROOT, 'assets', 'vehicles', 'cars', 'cars.json')
+# (the owner's ambulance and trucks, 6 November 2026, read as tools/vehicles/supplied_cars.py writes them: their shapes
+# and measures from PCW_WINDOWS_GAME and PCW_WINDOWS_SPECS, their glass's files written to PCW_WINDOWS_OUT, the list of
+# them to PCW_WINDOWS_JS as PCW_WINDOWS_NAME; by default, the cars')
+GAME = os.environ.get('PCW_WINDOWS_GAME') or os.path.join(ROOT, 'assets', 'vehicles', 'cars', 'game')
+OUTDIR = os.environ.get('PCW_WINDOWS_OUT') or GAME
+SPECS = os.environ.get('PCW_WINDOWS_SPECS') or os.path.join(ROOT, 'assets', 'vehicles', 'cars', 'cars.json')
 SETTINGS = os.path.join(os.path.dirname(__file__), 'windows.json')
-JS = os.path.join(ROOT, 'src', 'client', 'car-windows.js')
+JS = os.environ.get('PCW_WINDOWS_JS') or os.path.join(ROOT, 'src', 'client', 'car-windows.js')
+NAME = os.environ.get('PCW_WINDOWS_NAME') or 'CAR_WINDOWS'
 R = 2048                       # the colour picture's layout, at this size, for finding the glass (twice the largest
                                # written: each point of that one the share of its four here that is glass, so that the
                                # cut runs smoothly between its points rather than along them in steps)
@@ -324,7 +329,7 @@ def write(car, spec, uv, body, T, covered, glass):
         im = Image.fromarray((full * 255).astype(np.uint8), 'L').resize((size, size), Image.BOX)
         # (the edge eased over about a point of the smaller picture)
         a = ndimage.gaussian_filter(np.asarray(im).astype(np.float32), 0.6 if size >= 1024 else 0.45)
-        Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), 'L').save(os.path.join(GAME, f'{car}-windows-{name}.png'), optimize=True)
+        Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), 'L').save(os.path.join(OUTDIR, f'{car}-windows-{name}.png'), optimize=True)
     # the triangles any of whose glass is drawn: any covering a point near the glass, or with a corner or its middle on
     # the glass (one too small to cover a point of the picture)
     near = ndimage.binary_dilation(glass, iterations=2 * AT)
@@ -336,7 +341,7 @@ def write(car, spec, uv, body, T, covered, glass):
         c = np.clip((pts[:, 0] * R).astype(int), 0, R - 1); r = np.clip((pts[:, 1] * R).astype(int), 0, R - 1)
         tri |= near[r, c]
     bits = np.packbits(tri.astype(np.uint8), bitorder='little')
-    open(os.path.join(GAME, f'{car}-glass.bin'), 'wb').write(bits.tobytes())
+    open(os.path.join(OUTDIR, f'{car}-glass.bin'), 'wb').write(bits.tobytes())
     print('  glass triangles', int(tri.sum()), 'of', len(body))
     return int(tri.sum())
 
@@ -451,7 +456,7 @@ def write_js(entries):
         '// For each car whose windows are glass: its pictures of where the glass is (white), the list of the body\'s triangles\n'
         '// any of whose glass is drawn (a bit each), how low its side glass comes (the model\'s units), whether its glass behind\n'
         '// the front doors is privacy glass; and for a car given a cabin of the game\'s, the room inside its shell (`fit`).\n'
-        f'export const CAR_WINDOWS = Object.freeze({{\n{lines}\n}});\n')
+        f'export const {NAME} = Object.freeze({{\n{lines}\n}});\n')
 
 
 def main():
@@ -474,6 +479,8 @@ def main():
                      'belt': belt_of(spec, P, glass), 'privacy': car in PRIVACY}
         # (a car with a cabin of its own keeps it: no room measured for one of ours)
         if not spec['driver'].get('seen'): made[car]['fit'] = fit_of(spec, pos, body)
+        # (the owner's ambulance and trucks: their measures and their cabs' with them, drawn from their own files)
+        if NAME != 'CAR_WINDOWS': made[car].update({k: round(spec[k], 5) for k in ('length', 'height', 'body')}, driver=spec['driver'])
         if folder: sheet(car, P, N, tex, glass, found, folder)
     write_js(made)
 

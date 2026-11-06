@@ -101,12 +101,16 @@ const record = (t) => page.evaluate((t) => {
     const d = A.get(t.person);
     window.__rec.push({ at: performance.now(), step: self.hijack ? self.hijack.step : null, incar: self.incar ? self.incar.taken : null, doors, along: dx * Math.sin(t.h) + dz * Math.cos(t.h), across: dx * Math.cos(t.h) - dz * Math.sin(t.h), driver: d ? d.pose : null, riders: t.riders.filter((r) => A.has(r.i)).length, shown: n.me.group.visible,
       // (the car on the screen in this frame, and whole: every door drawn, open or shut, nothing to see through)
-      drawn: !!(car && car.group.parent && car.group.visible), whole: car && car.whole ? car.whole() : null });
+      drawn: !!(car && car.group.parent && car.group.visible), whole: car && car.whole ? car.whole() : null,
+      // (6 November 2026: whoever rides in it frightened while it is taken, as drawn: render-crowd.js)
+      afraid: (n.inCars || []).filter((q) => q.key === `traffic:${t.n}` && q.afraid).length });
     if (window.__rec.length < 4000) requestAnimationFrame(look);
   };
   requestAnimationFrame(look);
 }, t);
 await record(target);
+// (the engines started so far: one more once the player is in and the door shut, 6 November 2026)
+const startedBefore = await page.evaluate(() => { const v = window.__nlw.audio.status().voices; return v ? (v.kinds.carstart || 0) : null; });
 await page.evaluate(() => window.__nlw.act('take'));
 const plan = await page.evaluate(() => { const n = window.__nlw; n.refresh(); return n.view.self.hijack; });
 check('B: the steps: round to the driver\'s door, the door opened, the driver pulled out, in, the door slammed', !!plan.times && ['walk', 'door', 'pull', 'enter', 'shut'].every((k) => plan.times[k]) && plan.door === 'fl', plan);
@@ -130,6 +134,12 @@ const fromTake = rec.slice(rec.findIndex((q) => q.step));
 check('B: the car on the screen in every frame, the moment the player is in it as well', fromTake.length > 10 && fromTake.every((q) => q.drawn), { frames: fromTake.length, missing: fromTake.filter((q) => !q.drawn).length, firstMissing: fromTake.findIndex((q) => !q.drawn) });
 const final = await page.evaluate((t) => { const s = window.__nlw.view.self; return { incar: s.incar ? s.incar.taken : null, step: s.hijack ? s.hijack.step : null }; }, target);
 check('B: at the wheel', final.incar === target.n && !final.step, final);
+// (6 November 2026, the owner's brief: "passengers frightened while the car is being taken"; "the dials light up and the
+// engine starts")
+if (target.riders.length) check('B: whoever rides with them frightened while it is taken, until they get out', rec.some((q) => q.afraid > 0), { frames: rec.filter((q) => q.afraid > 0).length, riders: target.riders.length });
+else console.log('     (this car had nobody riding with its driver: nobody to be frightened)');
+const startedAfter = await page.evaluate(() => { const v = window.__nlw.audio.status().voices; return v ? (v.kinds.carstart || 0) : null; });
+check('B: the engine started once the door is shut', startedBefore !== null && startedAfter === startedBefore + 1, { before: startedBefore, after: startedAfter });
 await page.screenshot({ path: resolve(out, 'b-at-the-wheel.png') });
 
 // ---- C: out of it again

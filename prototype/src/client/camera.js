@@ -31,7 +31,9 @@
 
 export const CAMERA_VIEWS = Object.freeze({
   foot: Object.freeze(['street', 'behind', 'shoulder', 'high']),
-  vehicle: Object.freeze(['chase', 'far', 'high', 'bonnet']),
+  // (6 November 2026, the owner's brief, Stage 4: "a view from the driver's seat as a camera choice": in a car whose
+  // cabin is seen into, `cockpit`; passed over in a keke, on a motorcycle and in a car closed to the eye)
+  vehicle: Object.freeze(['chase', 'far', 'high', 'cockpit', 'bonnet']),
 });
 
 // dist/pitch null: whatever the player has set by dragging and zooming (`cam.dist`, `cam.pitch`), times `scale`
@@ -54,6 +56,10 @@ export const CAMERA_VIEW = Object.freeze({
   chase: Object.freeze({ name: 'Close behind', dist: 4.4, pitch: 0.2, turn: 0, shift: 0, lift: -0.1, follow: true, zoom: true }),
   far: Object.freeze({ name: 'Far behind', dist: 10.5, pitch: 0.3, turn: 0, shift: 0, lift: 0, follow: true, zoom: true }),
   bonnet: Object.freeze({ name: 'From the bonnet', seat: true, ahead: 1.3, rise: -0.35, follow: true }),
+  // (from the driver's seat, 6 November 2026: the eye where the player's own eyes are at the wheel, turned and tipped
+  // with the car's body as it leans and pitches, a little wider than the street's view; a finger looks about, to
+  // either side and up and down, and lets go once the car moves off; `cockpit` from main.js says where the eye is)
+  cockpit: Object.freeze({ name: 'From the driver\'s seat', seat: true, cockpit: true, follow: true, fov: 68 }),
   // With a gun out (25 October 2026, the owner's picture of the shooting screen and his choice: over the shoulder):
   // close behind the right shoulder, the figure to the left of the picture and the gun pointing into its middle,
   // turned exactly with the aim (`aim`: the camera's line is the gun's, gun-play.js); and, for five seconds with the
@@ -83,13 +89,15 @@ const angleGap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d
 const toward = (rate, dt) => 1 - Math.exp(-rate * dt);
 
 // The next view in the cycle for where the player is.
-export function nextView(current, where) {
-  const list = CAMERA_VIEWS[where] || CAMERA_VIEWS.foot;
+// (`skip`: views not to be had just now: the driver's seat, out of a car whose cabin is seen into)
+export function nextView(current, where, skip = []) {
+  const list = (CAMERA_VIEWS[where] || CAMERA_VIEWS.foot).filter((v) => v === current || !skip.includes(v));
   const at = list.indexOf(current);
-  return list[(at + 1) % list.length];
+  const next = list[(at + 1) % list.length];
+  return skip.includes(next) ? list.find((v) => !skip.includes(v)) : next;
 }
 // A view that exists where the player now is: the same one if it does, otherwise the first.
-export const viewFor = (current, where) => ((CAMERA_VIEWS[where] || CAMERA_VIEWS.foot).includes(current) ? current : (CAMERA_VIEWS[where] || CAMERA_VIEWS.foot)[0]);
+export const viewFor = (current, where, skip = []) => ((CAMERA_VIEWS[where] || CAMERA_VIEWS.foot).includes(current) && !skip.includes(current) ? current : (CAMERA_VIEWS[where] || CAMERA_VIEWS.foot)[0]);
 
 // `blocked(x, z, y)` says whether a point is inside something solid, or above a low roof that
 // would hide whoever stands under it. `tall(x, z)`, if given, is how high a building far taller than the
@@ -100,6 +108,7 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
   // (`look`, `lookPitch`: how far a finger has turned a following view round, and tipped it, from where it follows)
   const live = { dist: 8, pitch: 0.27, turn: 0, shift: 0, lift: 0, seat: 0, yaw: Math.PI, look: 0, lookPitch: 0, arm: 8, rise: 0, fov: BASE_FOV, run: 0, swing: 0, sway: 0, rate: 0, bob: 0 };
   const eye = new THREE.Vector3(), aim = new THREE.Vector3(), sightAim = new THREE.Vector3();
+  const W = { f: new THREE.Vector3(), u: new THREE.Vector3(), r: new THREE.Vector3() };
   const baseNear = camera.near;
   let view = 'street';
   let hidden = false;
@@ -160,7 +169,9 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
   //   moving   in a following view, whether what is followed is on the move: a view turned by a finger swings back
   //            behind it only then (a vehicle standing still is looked at from wherever it was turned to)
   //   cam.ride how much nearer (under 1) or further (over 1) than usual the views behind a vehicle stand (a pinch)
-  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55, bonnet = null, longer = 0, running = 0, sight = null, moving = true }) {
+  //   cockpit  null, or { eye, forward, up } (points and ways in the town): in a car, where the driver's eyes are and
+  //            which way its body faces and which way is up in it (the view from the driver's seat)
+  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55, bonnet = null, longer = 0, running = 0, sight = null, moving = true, cockpit = null }) {
     const v = CAMERA_VIEW[view] || CAMERA_VIEW.street;
     const ease = toward(5, dt);
     live.run += ((v.run ? Math.max(0, Math.min(1, running)) : 0) - live.run) * toward(2.2, dt);
@@ -186,7 +197,8 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
     const fovNow = sight && sight.amount > 0 ? live.fov + (sight.fov - live.fov) * sight.amount : live.fov;
     if (camera.isPerspectiveCamera && Math.abs(camera.fov - fovNow) > 0.01) { camera.fov = fovNow; camera.updateProjectionMatrix(); }
     // (an eye right behind a gun's sight sees it from a few centimetres: the nearest drawn is brought in for it)
-    const nearPlane = sight && sight.amount > 0.02 ? 0.06 : baseNear;
+    // (and in the driver's seat, the cabin all round the eye: its pillars, its roof and the door beside it)
+    const nearPlane = sight && sight.amount > 0.02 ? 0.06 : v.cockpit && live.seat > 0.3 ? 0.08 : baseNear;
     if (camera.isPerspectiveCamera && camera.near !== nearPlane) { camera.near = nearPlane; camera.updateProjectionMatrix(); }
     // In a view that follows the heading, a drag looks about and then lets go: once what is followed moves off, a
     // couple of seconds after the finger was lifted (30 October 2026; it had been a second, moving or not).
@@ -263,8 +275,19 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
       const sx = target.x + Math.sin(heading) * ahead, sz = target.z + Math.cos(heading) * ahead;
       const seatEye = new THREE.Vector3(sx, own ? target.y - 1.55 + own.height : target.y + (eyeHeight - 1.55) + 0.05 + (v.rise || 0), sz);
       const seatAim = new THREE.Vector3(sx + Math.sin(sy) * 6, seatEye.y - 0.5, sz + Math.cos(sy) * 6);
+      // (from the driver's seat: the player's own eyes, looking ahead along the car, turned about its up by a finger and
+      // tipped a little down to the road beyond the bonnet)
+      if (v.cockpit && cockpit) {
+        const f = W.f.copy(cockpit.forward).normalize(), u = W.u.copy(cockpit.up).normalize();
+        f.applyAxisAngle(u, live.look);
+        const right = W.r.crossVectors(f, u).normalize();
+        f.applyAxisAngle(right, live.lookPitch - 0.07);
+        seatEye.copy(cockpit.eye); seatAim.copy(cockpit.eye).addScaledVector(f, 6);
+      }
       eye.lerp(seatEye, live.seat); aim.lerp(seatAim, live.seat);
     }
+    // (its up the car's: the picture leans as the car leans; otherwise upright)
+    if (camera.up) { if (v.cockpit && cockpit) camera.up.set(0, 1, 0).lerp(W.u.copy(cockpit.up).normalize(), live.seat).normalize(); else camera.up.set(0, 1, 0); }
     // through a gun's sight: the eye behind it, looking along the aim
     if (sight && sight.amount > 0) {
       eye.lerp(sight.eye, sight.amount);
@@ -274,7 +297,8 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
     camera.position.copy(eye);
     camera.lookAt(aim);
     camera.updateMatrixWorld();
-    hidden = (live.seat > 0.6 && !v.ahead) || near;
+    // (from the driver's seat the figure stays, its hands on the wheel: only its head is left out, main.js)
+    hidden = (live.seat > 0.6 && !v.ahead && !v.cockpit) || near;
   }
 
   return {
@@ -286,7 +310,7 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
     drag(dyaw, dpitch = 0) {
       const v = CAMERA_VIEW[view];
       if (!v || !v.follow) return false;
-      if (v.seat) live.look = Math.max(-1.6, Math.min(1.6, live.look + dyaw));
+      if (v.seat) { live.look = Math.max(-1.6, Math.min(1.6, live.look + dyaw)); if (v.cockpit) live.lookPitch = Math.max(-0.45, Math.min(0.35, live.lookPitch - dpitch)); }
       else { live.look = angleGap(live.look + dyaw, 0); live.lookPitch = Math.max(-0.18, Math.min(0.9, live.lookPitch + dpitch)); }
       return true;
     },

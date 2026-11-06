@@ -17533,7 +17533,7 @@ function createTalk({ state, population, residents, players, weather, hub = {}, 
     const surfOf = (q) => (q.psurf ? { mode: q.psurf.mode, ...(q.psurf.ride || { speed: 0, lean: 0, phase: 0 }) } : null);
     const boatOf = (q) => (q.pboat ? { boat: q.pboat.id, ...(q.pboat.ride || { speed: 0, steer: 0, bank: 0, pitch: 0, rev: 0 }) } : q.pship ? { boat: 'naval-ship', ...(q.pship.ride || { speed: 0, steer: 0 }) } : null);
     for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), sport: sportOf(q), boat: boatOf(q), surf: surfOf(q), car: carOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
-    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, sport: v.sport || null, sports: v.sports || [], boat: v.boat || null, boats: v.boats || [], surf: v.surf || null, car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, torch: v.torch || 0, down: v.down || null, jump: Number.isFinite(v.jumpAt) && now() - v.jumpAt < jumpFor ? Math.round((now() - v.jumpAt) * 100) / 100 : null, peer: v.peer || null, health: v.health === undefined ? null : v.health, gun: v.gun || null, shots: v.shots || [], wounds: v.wounds || [], swimming: !!v.swimming, held: !!v.held });
+    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, sport: v.sport || null, sports: v.sports || [], boat: v.boat || null, boats: v.boats || [], surf: v.surf || null, car: v.car || null, cars: v.cars || [], boarding: v.boarding ? { ...v.boarding, ago: Math.round((now() - v.boarding.since) * 100) / 100 } : null, hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, torch: v.torch || 0, down: v.down || null, jump: Number.isFinite(v.jumpAt) && now() - v.jumpAt < jumpFor ? Math.round((now() - v.jumpAt) * 100) / 100 : null, peer: v.peer || null, health: v.health === undefined ? null : v.health, gun: v.gun || null, shots: v.shots || [], wounds: v.wounds || [], swimming: !!v.swimming, held: !!v.held });
     return out;
   }
   const withinOf = (player, range) => others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= range);
@@ -17613,7 +17613,12 @@ function createTalk({ state, population, residents, players, weather, hub = {}, 
     v.vel = Array.isArray(data.vel) ? [n(data.vel[0], -100, 100), n(data.vel[1], -100, 100)] : [0, 0];
     const c = data.car && typeof data.car === 'object' ? data.car : null;
     v.car = c && typeof c.car === 'string' && POWER_CARS[c.car] ? { car: c.car, steer: n(c.steer, -0.7, 0.7), speed: n(c.speed, -6, 100), throttle: n(c.throttle, 0, 1), brake: c.brake ? 1 : 0, rev: n(c.rev, 0, 1), lamps: c.lamps ? 1 : 0 } : null;
-    v.cars = (Array.isArray(data.cars) ? data.cars : []).slice(0, 3).map((b) => (b && POWER_CARS[b.car] && near(b, x, z) ? { car: b.car, x: Number(b.x), z: Number(b.z), h: n(b.h, -10, 10) } : null)).filter(Boolean);
+    v.cars = (Array.isArray(data.cars) ? data.cars : []).slice(0, 3).map((b) => (b && POWER_CARS[b.car] && near(b, x, z) ? { car: b.car, x: Number(b.x), z: Number(b.z), h: n(b.h, -10, 10), open: Number.isInteger(b.open) ? b.open & 15 : 0 } : null)).filter(Boolean);
+    const bd = data.boarding && typeof data.boarding === 'object' ? data.boarding : null;
+    if (bd && POWER_CARS[bd.car] && (bd.kind === 'in' || bd.kind === 'out') && ['fl', 'fr', 'rl', 'rr'].includes(bd.door) && near(bd, x, z)) {
+      const ago = n(bd.ago, -1, 12), was = old && old.boarding && old.boarding.kind === bd.kind && old.boarding.car === bd.car && old.boarding.door === bd.door ? old.boarding : null;
+      v.boarding = { kind: bd.kind, door: bd.door, car: bd.car, x: Number(bd.x), z: Number(bd.z), h: n(bd.h, -10, 10), at: bd.at && near(bd.at, x, z) ? { x: Number(bd.at.x), z: Number(bd.at.z) } : null, open: !!bd.open, moves: !!bd.moves, since: was && Math.abs(now() - was.since - ago) < 0.8 ? was.since : now() - ago };
+    } else v.boarding = null;
     const tk = data.talk && typeof data.talk === 'object' && POWER_BIKES[data.talk.bike] && inPowerbikeHall(x, z) ? data.talk : null;
     v.talk = tk ? { bike: tk.bike, since: old && old.talk && old.talk.bike === tk.bike ? old.talk.since : now() - n(tk.ago, 0, 3600) } : null;
     const tc = data.carTalk && typeof data.carTalk === 'object' && POWER_CARS[data.carTalk.car] && inCarHall(x, z) ? data.carTalk : null;
@@ -21721,6 +21726,7 @@ return { createLoopbackHub, createRoomTransport };
 __modules["net/link.js"] = (function () {
 
 const LINK_VERSION = 1;
+const BOARD_DOORS = Object.freeze(['fl', 'fr', 'rl', 'rr']);
 
 function encodePlayer(self, zoneId) {
   const out = { v: LINK_VERSION, zn: zoneId, n: self.name, x: Math.round(self.x * 10) / 10, z: Math.round(self.z * 10) / 10, h: Math.round(self.heading * 100) / 100, lg: self.lang || 'en', lk: { s: self.look.skin, t: self.look.top, b: self.look.bottom, f: self.look.body === 'f' ? 1 : 0 } };
@@ -21750,7 +21756,11 @@ function encodePlayer(self, zoneId) {
   const c = self.incar;
   if (c && c.car) { const d = c.drive || {}; out.mc = { i: c.car, s: d.steer || 0, v: d.speed || 0, t: d.throttle || 0, k: d.brake ? 1 : 0, r: d.rev || 0, l: d.lamps ? 1 : 0, hn: c.horns || 0 }; }
   const cars = near(self.ownCars && self.ownCars.parked).slice(0, 3);
-  if (cars.length) out.pc = cars.map((p) => [p.car, r2(p.x), r2(p.z), r2(p.h)]);
+  if (cars.length) out.pc = cars.map((p) => (Number.isInteger(p.open) && p.open > 0 ? [p.car, r2(p.x), r2(p.z), r2(p.h), p.open & 15] : [p.car, r2(p.x), r2(p.z), r2(p.h)]));
+  const bd = self.boarding;
+  if (bd && typeof bd.car === 'string' && Number.isFinite(bd.ago) && Number.isFinite(bd.x) && Number.isFinite(bd.z)) {
+    out.bd = [bd.kind === 'out' ? 1 : 0, Math.max(0, BOARD_DOORS.indexOf(bd.door)), r2(bd.ago), bd.car, r2(bd.x), r2(bd.z), r2(bd.h || 0), bd.at && Number.isFinite(bd.at.x) ? r2(bd.at.x) : null, bd.at && Number.isFinite(bd.at.z) ? r2(bd.at.z) : null, bd.open ? 1 : 0, bd.moves ? 1 : 0];
+  }
   if (self.vel) out.vl = [r2(self.vel[0]), r2(self.vel[1])];
   if (self.talk && typeof self.talk.bike === 'string') out.tk = [self.talk.bike, Math.round(Math.max(0, self.talk.ago || 0) * 10) / 10];
   if (self.carTalk && typeof self.carTalk.car === 'string') out.tc = [self.carTalk.car, Math.round(Math.max(0, self.carTalk.ago || 0) * 10) / 10];
@@ -21821,7 +21831,9 @@ function decodePlayer(state, zoneId) {
   const talk = Array.isArray(state.tk) ? { bike: state.tk[0], ago: state.tk[1] } : null;
   const mc = state.mc && typeof state.mc === 'object' ? state.mc : null;
   const car = mc ? { car: mc.i, steer: mc.s, speed: mc.v, throttle: mc.t, brake: mc.k, rev: mc.r, lamps: mc.l, horns: mc.hn } : null;
-  const cars = Array.isArray(state.pc) ? state.pc.map((p) => (Array.isArray(p) ? { car: p[0], x: p[1], z: p[2], h: p[3] } : null)) : [];
+  const cars = Array.isArray(state.pc) ? state.pc.map((p) => (Array.isArray(p) ? { car: p[0], x: p[1], z: p[2], h: p[3], ...(Number.isInteger(p[4]) ? { open: p[4] } : {}) } : null)) : [];
+  const bd = Array.isArray(state.bd) ? state.bd : null;
+  const boarding = bd ? { kind: bd[0] === 1 ? 'out' : 'in', door: BOARD_DOORS[bd[1]] || 'fl', ago: bd[2], car: bd[3], x: bd[4], z: bd[5], h: bd[6], at: Number.isFinite(bd[7]) && Number.isFinite(bd[8]) ? { x: bd[7], z: bd[8] } : null, open: bd[9] === 1, moves: bd[10] === 1 } : null;
   const carTalk = Array.isArray(state.tc) ? { car: state.tc[0], ago: state.tc[1] } : null;
   const phone = [1, 2, 3].includes(state.ph) ? state.ph : 0;
   const torch = phone && state.to === 1 ? 1 : 0;
@@ -21833,7 +21845,7 @@ function decodePlayer(state, zoneId) {
   const shots = Array.isArray(state.sh) ? state.sh.filter(Array.isArray).map((s) => ({ q: s[0], ago: s[1], o: [s[2], s[3], s[4]], e: [s[5], s[6], s[7]], what: SHOT_KINDS[s[8]] || 'air' })) : [];
   const wounds = Array.isArray(state.wd) ? state.wd.filter(Array.isArray) : [];
   const knocked = Array.isArray(state.kl) ? state.kl.filter(Array.isArray).slice(0, 6).map((k) => ({ lamp: k[0], ago: k[1], dir: k[2] })) : [];
-  return { knocked, gy: Number.isFinite(state.gy) ? state.gy : null, down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, sport, sports, boat, boats, surf, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone, torch, jump, health: Number.isFinite(state.hp) ? state.hp : null, swimming: !!state.sw, held: !!state.hd, gun, shots, wounds };
+  return { knocked, gy: Number.isFinite(state.gy) ? state.gy : null, down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, sport, sports, boat, boats, surf, vehicle, parked, kekes, vel, talk, car, cars, boarding, carTalk, phone, torch, jump, health: Number.isFinite(state.hp) ? state.hp : null, swimming: !!state.sw, held: !!state.hd, gun, shots, wounds };
 }
 
 function createLink({ transport, game, zoneId, self, interval = 0.15 }) {
@@ -32033,7 +32045,7 @@ const { reach } = __modules["client/animated.js"];
 const { bonesOf } = __modules["client/own-bike-view.js"];
 const { poseCarMove } = __modules["client/car-moves.js"];
 
-const SEATING = Object.freeze({ mostRecline: 0.62, sink: 0.08, slide: 0.14, back: 0.16, headRoom: 0.04, wheelTurn: 1.4, wheelMost: 0.6, look: 0.35 });
+const SEATING = Object.freeze({ mostRecline: 0.62, sink: 0.08, slide: 0.14, back: 0.16, headRoom: 0.04, wheelTurn: 1.4, wheelMost: 0.6, look: 0.35, sway: 2.6, swayMost: 0.16, jolt: 2.5, joltMost: 0.05 });
 
 function seatHip(car, seat) {
   const d = car.driver;
@@ -32053,7 +32065,7 @@ const V = () => new THREE.Vector3();
 let W = null;
 const scratch = () => W || (W = { a: V(), b: V(), c: V(), d: V(), hip: V(), up: V(), axis: V(), centre: V(), x: V(), u: V(), grip: V(), q: new THREE.Quaternion(), r: new THREE.Quaternion(), out: [0, 0, 0] });
 
-function seatFigure(me, car, seat = 'driver', { steer = 0, move = null, t = 0, look = 0, across = 0 } = {}) {
+function seatFigure(me, car, seat = 'driver', { steer = 0, move = null, t = 0, look = 0, across = 0, afraid = null } = {}) {
   const w = scratch();
   const spec = car && car.driver;
   if (!spec || !me || !me.bones) return false;
@@ -32126,6 +32138,20 @@ function seatFigure(me, car, seat = 'driver', { steer = 0, move = null, t = 0, l
     for (let i = 0; i < 8 && gap < 0 && leant() < SEATING.mostRecline; i += 1) { lean(Math.min(0.06, SEATING.mostRecline - leant())); gap = clear(); }
     if (gap < 0) { sunk = Math.min(SEATING.sink, -gap); place(); }
   }
+  const mo = car.motion;
+  if (mo) {
+    const side = Math.max(-SEATING.swayMost, Math.min(SEATING.swayMost, mo.roll * SEATING.sway));
+    if (Math.abs(side) > 1e-4) {
+      const parentQ = spine.parent.getWorldQuaternion(w.r);
+      const localAxis = w.axis.copy(dir(0, 0, 1)).applyQuaternion(parentQ.invert());
+      spine.quaternion.premultiply(w.r.setFromAxisAngle(localAxis, side));
+      spine.updateMatrixWorld(true);
+    }
+    const fore = Math.max(-SEATING.swayMost, Math.min(SEATING.swayMost, mo.pitch * SEATING.sway));
+    if (Math.abs(fore) > 1e-4) lean(-fore);
+    const dip = Math.max(-0.02, Math.min(SEATING.joltMost, mo.jolt * SEATING.jolt));
+    if (Math.abs(dip) > 1e-4) { sunk += dip; place(); }
+  }
   const still = short();
   if (still > 0) { forward = Math.max(forward, 0) + Math.min(SEATING.slide, still * 1.1); place(); }
   if (driving) for (const [s, a] of Object.entries(arms)) reach(a.u, a.l, a.h, gripAt(s, turn, w.grip), dir((s === 'l' ? 1 : -1) * 0.9, -0.7, -0.3));
@@ -32141,6 +32167,23 @@ function seatFigure(me, car, seat = 'driver', { steer = 0, move = null, t = 0, l
       target = at([hipAt[0] + side * 0.09 / scale, floorY + 0.08 / scale, hipAt[2] + ahead / scale], w.d).clone();
     }
     reach(thigh, calf, foot, target, dir(side * 0.3, 0.6, 1));
+  }
+  if (afraid && !driving) {
+    const away = Math.max(-0.2, Math.min(0.2, afraid.side * 0.16));
+    const parentQ = spine.parent.getWorldQuaternion(w.r);
+    const localAxis = w.axis.copy(dir(0, 0, 1)).applyQuaternion(parentQ.invert());
+    spine.quaternion.premultiply(w.r.setFromAxisAngle(localAxis, away));
+    spine.updateMatrixWorld(true);
+    if (head) {
+      const face = head.getWorldPosition(w.a).clone();
+      for (const [s, a] of Object.entries(arms)) {
+        const across = (s === 'l' ? 1 : -1) * 0.09 * H / 1.75;
+        const target = face.clone().addScaledVector(dir(0, 0, 1), 0.2 * H / 1.75).addScaledVector(dir(1, 0, 0), across).addScaledVector(dir(0, 1, 0), -0.04);
+        reach(a.u, a.l, a.h, target, dir((s === 'l' ? 1 : -1) * 0.8, -0.8, 0.1));
+      }
+    }
+    const neckBone = bones.get('neck_01');
+    if (neckBone && head) { const pq = neckBone.parent.getWorldQuaternion(w.r).invert(); neckBone.quaternion.premultiply(w.r.setFromAxisAngle(dir(0, 1, 0).applyQuaternion(pq), afraid.side * 0.75)); neckBone.updateMatrixWorld(true); }
   }
   const neck = bones.get('neck_01');
   if (neck && head && driving) {
@@ -32745,7 +32788,7 @@ function createCrowd(scene) {
       const moveName = s.seat === 'driver' ? 'drive' : (s.i % 3 === 0 ? 'talk' : 'sit');
       const move = carMove(rig, moveName);
       const seated = s.pulled ? poseBoarding(rig, car, { kind: 'pulled', door: s.pulled.door, t: s.pulled.t, groundY: (x, z) => groundOf(x, z, car.group.position.y) })
-        : !!move && seatFigure(rig, car, s.seat, { steer: s.steer || 0, move, t: clockNow + (s.i % 17) * 0.37 });
+        : !!move && seatFigure(rig, car, s.seat, { steer: s.steer || 0, move, t: clockNow + (s.i % 17) * 0.37, afraid: s.afraid || null });
       rig.group.visible = seated;
       if (rig.blob) rig.blob.visible = false;
       if (rig.label) rig.label.visible = false;
@@ -35203,6 +35246,15 @@ function createGunVoice(ctx, { out, fetchBytes, urls = {}, indoors = () => false
     if (!r) return;
     const t = ctx.currentTime + 0.005 + r.delay;
     if (what === 'vehicle') { ring(r.node, t, [[2350, 1], [3720, 0.7], [5100, 0.35]], 0.08, 0.22); burst(r.node, t, { freq: 4000, q: 1, level: 0.1, length: 0.03 }); }
+    else if (what === 'glass' || what === 'shatter') {
+      burst(r.node, t, { type: 'highpass', freq: 3200, level: 0.24, length: 0.03 });
+      ring(r.node, t, [[4300, 1], [6150, 0.6]], 0.03, 0.1);
+      burst(r.node, t + 0.006, { freq: 2400, q: 1.1, level: 0.09, length: 0.07 });
+      if (what === 'shatter') {
+        burst(r.node, t + 0.02, { type: 'highpass', freq: 1800, level: 0.16, length: 0.55, attack: 0.01 });
+        for (let k = 0; k < 16; k += 1) ring(r.node, t + 0.03 + k * 0.035 + Math.random() * 0.03, [[2800 + Math.random() * 4200, 1]], 0.016 * (1 - k / 20), 0.06);
+      }
+    }
     else if (what === 'person') { burst(r.node, t, { type: 'lowpass', freq: 380, level: 0.35, length: 0.07 }); burst(r.node, t, { freq: 1400, q: 0.8, level: 0.07, length: 0.04 }); }
     else if (what === 'wall') { burst(r.node, t, { freq: 1900, q: 0.9, level: 0.22, length: 0.06 }); burst(r.node, t + 0.01, { type: 'lowpass', freq: 500, level: 0.12, length: 0.08 }); }
     else if (what === 'ground') burst(r.node, t, { type: 'lowpass', freq: 700, level: 0.2, length: 0.09 });
@@ -35516,6 +35568,7 @@ const KINDS = Object.freeze({
   footstep: { limit: 2, rank: 1 }, knock: { limit: 1, rank: 0 }, bird: { limit: 1, rank: 0 }, beep: { limit: 1, rank: 0 }, bell: { limit: 1, rank: 1 },
   horn: { limit: 2, rank: 2 }, blow: { limit: 3, rank: 2 }, whistle: { limit: 1, rank: 3 }, shout: { limit: 2, rank: 2 }, door: { limit: 2, rank: 1 }, ui: { limit: 2, rank: 3 },
   shutter: { limit: 2, rank: 3 }, choose: { limit: 1, rank: 3 },
+  carstart: { limit: 2, rank: 2 },
   birdsong: { limit: 3, rank: 0 }, frog: { limit: 2, rank: 0 }, cricket: { limit: 2, rank: 0 },
   boil: { limit: 3, rank: 0 },
 });
@@ -35538,7 +35591,7 @@ function createAudio() {
   const ducks = { panel: false, focusUntil: 0 };
   let since = 1;
   let birdAt = 0, knockAt = 0, beepAt = 0, hornAt = 0, stepAt = 0;
-  const stats = { started: 0, refused: 0, tooFar: 0 };
+  const stats = { started: 0, refused: 0, tooFar: 0, kinds: {} };
 
   function looped(buffer, filterType, freq, q = 0.7) {
     const src = ctx.createBufferSource();
@@ -35673,6 +35726,7 @@ function createAudio() {
     }
     playing.push({ kind, until: now + seconds });
     stats.started += 1;
+    stats.kinds[kind] = (stats.kinds[kind] || 0) + 1;
     return true;
   }
 
@@ -36018,6 +36072,25 @@ function createAudio() {
       burst(out, t + 0.03, 'bandpass', 3400, 3, 0.05, 0.07);
     };
     return at(x, z, kind === 'slam' ? 45 : 25, 'door', kind === 'slam' ? 0.6 : 0.4, 'effects', play);
+  }
+
+  function carStart(x, z) {
+    const play = (out, t) => {
+      const osc = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(105, t); osc.frequency.linearRampToValueAtTime(140, t + 0.55);
+      f.type = 'lowpass'; f.frequency.value = 900;
+      g.gain.setValueAtTime(0.0001, t);
+      for (let k = 0; k < 5; k += 1) { const s = t + k * 0.11; g.gain.exponentialRampToValueAtTime(0.08, s + 0.03); g.gain.exponentialRampToValueAtTime(0.022, s + 0.09); }
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.62);
+      osc.connect(f); f.connect(g); g.connect(out); osc.start(t); osc.stop(t + 0.66);
+      thump(ctx, out, t + 0.58, 0.32, 85, 45, 0.18);
+      const r = ctx.createOscillator(), rg = ctx.createGain(), rf = ctx.createBiquadFilter();
+      r.type = 'sawtooth'; r.frequency.setValueAtTime(45, t + 0.6); r.frequency.exponentialRampToValueAtTime(95, t + 0.85); r.frequency.exponentialRampToValueAtTime(38, t + 1.4);
+      rf.type = 'lowpass'; rf.frequency.value = 600;
+      rg.gain.setValueAtTime(0.0001, t + 0.6); rg.gain.exponentialRampToValueAtTime(0.11, t + 0.7); rg.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
+      r.connect(rf); rf.connect(rg); rg.connect(out); r.start(t + 0.6); r.stop(t + 1.55);
+    };
+    return at(x, z, 35, 'carstart', 1.6, 'vehicles', play);
   }
 
   function streetLamp(kind, x, z) {
@@ -36371,7 +36444,7 @@ function createAudio() {
   return {
     supported: !!Ctx,
     voiceLine, decode, voiceStats: () => ({ ...voiceStats }), playerVoice, micPipe,
-    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, shipHorn, surfBreak, previewBike, stopPreview, previewing: () => !!preview, blow, streetLamp, carDoor, whistle, shout, door, chime, shutter, choose, focus, level, muffle, get muffled() { return muffledNow; },
+    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, shipHorn, surfBreak, previewBike, stopPreview, previewing: () => !!preview, blow, streetLamp, carDoor, carStart, whistle, shout, door, chime, shutter, choose, focus, level, muffle, get muffled() { return muffledNow; },
     player,
     gunLoad: (gun) => { const v = guns(); return v ? v.load(gun) : Promise.resolve(); },
     gunShot: (gun, at, opts) => (gunReady() ? guns().shot(gun, at, opts) : false),
@@ -37127,7 +37200,7 @@ __modules["client/camera.js"] = (function () {
 
 const CAMERA_VIEWS = Object.freeze({
   foot: Object.freeze(['street', 'behind', 'shoulder', 'high']),
-  vehicle: Object.freeze(['chase', 'far', 'high', 'bonnet']),
+  vehicle: Object.freeze(['chase', 'far', 'high', 'cockpit', 'bonnet']),
 });
 
 const CAMERA_VIEW = Object.freeze({
@@ -37142,6 +37215,7 @@ const CAMERA_VIEW = Object.freeze({
   chase: Object.freeze({ name: 'Close behind', dist: 4.4, pitch: 0.2, turn: 0, shift: 0, lift: -0.1, follow: true, zoom: true }),
   far: Object.freeze({ name: 'Far behind', dist: 10.5, pitch: 0.3, turn: 0, shift: 0, lift: 0, follow: true, zoom: true }),
   bonnet: Object.freeze({ name: 'From the bonnet', seat: true, ahead: 1.3, rise: -0.35, follow: true }),
+  cockpit: Object.freeze({ name: 'From the driver\'s seat', seat: true, cockpit: true, follow: true, fov: 68 }),
   aim: Object.freeze({ name: 'Over the shoulder, aiming', dist: 1.75, pitch: null, turn: 0, shift: 0.5, lift: 0.08, fov: 58, follow: false, riseWant: 0.6, aim: true }),
   overview: Object.freeze({ name: 'The whole scene', dist: 5.8, pitch: 0.42, turn: 0, shift: 0, lift: 0.25, fov: 64, follow: false, riseWant: 5.8 }),
 });
@@ -37155,16 +37229,18 @@ const BASE_FOV = 55;
 const angleGap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
 const toward = (rate, dt) => 1 - Math.exp(-rate * dt);
 
-function nextView(current, where) {
-  const list = CAMERA_VIEWS[where] || CAMERA_VIEWS.foot;
+function nextView(current, where, skip = []) {
+  const list = (CAMERA_VIEWS[where] || CAMERA_VIEWS.foot).filter((v) => v === current || !skip.includes(v));
   const at = list.indexOf(current);
-  return list[(at + 1) % list.length];
+  const next = list[(at + 1) % list.length];
+  return skip.includes(next) ? list.find((v) => !skip.includes(v)) : next;
 }
-const viewFor = (current, where) => ((CAMERA_VIEWS[where] || CAMERA_VIEWS.foot).includes(current) ? current : (CAMERA_VIEWS[where] || CAMERA_VIEWS.foot)[0]);
+const viewFor = (current, where, skip = []) => ((CAMERA_VIEWS[where] || CAMERA_VIEWS.foot).includes(current) && !skip.includes(current) ? current : (CAMERA_VIEWS[where] || CAMERA_VIEWS.foot)[0]);
 
 function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, ground = null, terrain = null, floor = null } = {}) {
   const live = { dist: 8, pitch: 0.27, turn: 0, shift: 0, lift: 0, seat: 0, yaw: Math.PI, look: 0, lookPitch: 0, arm: 8, rise: 0, fov: BASE_FOV, run: 0, swing: 0, sway: 0, rate: 0, bob: 0 };
   const eye = new THREE.Vector3(), aim = new THREE.Vector3(), sightAim = new THREE.Vector3();
+  const W = { f: new THREE.Vector3(), u: new THREE.Vector3(), r: new THREE.Vector3() };
   const baseNear = camera.near;
   let view = 'street';
   let hidden = false;
@@ -37199,7 +37275,7 @@ function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, groun
     return Math.max(0.2, d);
   }
 
-  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55, bonnet = null, longer = 0, running = 0, sight = null, moving = true }) {
+  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55, bonnet = null, longer = 0, running = 0, sight = null, moving = true, cockpit = null }) {
     const v = CAMERA_VIEW[view] || CAMERA_VIEW.street;
     const ease = toward(5, dt);
     live.run += ((v.run ? Math.max(0, Math.min(1, running)) : 0) - live.run) * toward(2.2, dt);
@@ -37218,7 +37294,7 @@ function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, groun
     live.fov += (wantFov - live.fov) * toward(4, dt);
     const fovNow = sight && sight.amount > 0 ? live.fov + (sight.fov - live.fov) * sight.amount : live.fov;
     if (camera.isPerspectiveCamera && Math.abs(camera.fov - fovNow) > 0.01) { camera.fov = fovNow; camera.updateProjectionMatrix(); }
-    const nearPlane = sight && sight.amount > 0.02 ? 0.06 : baseNear;
+    const nearPlane = sight && sight.amount > 0.02 ? 0.06 : v.cockpit && live.seat > 0.3 ? 0.08 : baseNear;
     if (camera.isPerspectiveCamera && camera.near !== nearPlane) { camera.near = nearPlane; camera.updateProjectionMatrix(); }
     const before = live.yaw;
     if (v.follow) {
@@ -37268,8 +37344,16 @@ function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, groun
       const sx = target.x + Math.sin(heading) * ahead, sz = target.z + Math.cos(heading) * ahead;
       const seatEye = new THREE.Vector3(sx, own ? target.y - 1.55 + own.height : target.y + (eyeHeight - 1.55) + 0.05 + (v.rise || 0), sz);
       const seatAim = new THREE.Vector3(sx + Math.sin(sy) * 6, seatEye.y - 0.5, sz + Math.cos(sy) * 6);
+      if (v.cockpit && cockpit) {
+        const f = W.f.copy(cockpit.forward).normalize(), u = W.u.copy(cockpit.up).normalize();
+        f.applyAxisAngle(u, live.look);
+        const right = W.r.crossVectors(f, u).normalize();
+        f.applyAxisAngle(right, live.lookPitch - 0.07);
+        seatEye.copy(cockpit.eye); seatAim.copy(cockpit.eye).addScaledVector(f, 6);
+      }
       eye.lerp(seatEye, live.seat); aim.lerp(seatAim, live.seat);
     }
+    if (camera.up) { if (v.cockpit && cockpit) camera.up.set(0, 1, 0).lerp(W.u.copy(cockpit.up).normalize(), live.seat).normalize(); else camera.up.set(0, 1, 0); }
     if (sight && sight.amount > 0) {
       eye.lerp(sight.eye, sight.amount);
       sightAim.copy(sight.eye).addScaledVector(sight.dir, 10);
@@ -37278,7 +37362,7 @@ function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, groun
     camera.position.copy(eye);
     camera.lookAt(aim);
     camera.updateMatrixWorld();
-    hidden = (live.seat > 0.6 && !v.ahead) || near;
+    hidden = (live.seat > 0.6 && !v.ahead && !v.cockpit) || near;
   }
 
   return {
@@ -37288,7 +37372,7 @@ function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, groun
     drag(dyaw, dpitch = 0) {
       const v = CAMERA_VIEW[view];
       if (!v || !v.follow) return false;
-      if (v.seat) live.look = Math.max(-1.6, Math.min(1.6, live.look + dyaw));
+      if (v.seat) { live.look = Math.max(-1.6, Math.min(1.6, live.look + dyaw)); if (v.cockpit) live.lookPitch = Math.max(-0.45, Math.min(0.35, live.lookPitch - dpitch)); }
       else { live.look = angleGap(live.look + dyaw, 0); live.lookPitch = Math.max(-0.18, Math.min(0.9, live.lookPitch + dpitch)); }
       return true;
     },
@@ -41036,6 +41120,14 @@ return { CAR_WINDOWS };
 __modules["client/car-glass.js"] = (function () {
 
 const weather = { uWet: { value: 0 }, uTime: { value: 0 }, uDay: { value: 1 } };
+const glassWet = () => weather.uWet.value;
+let rainNow = 0;
+const glassRain = () => rainNow;
+const GLINTS = 8;
+let glintU = null;
+const glintUniforms = () => glintU || (glintU = { uGlints: { value: Array.from({ length: GLINTS }, () => new THREE.Vector4()) }, uGlintColour: { value: Array.from({ length: GLINTS }, () => new THREE.Color()) }, uGlintCount: { value: 0 } });
+let noWipers = null;
+const NO_WIPERS = () => noWipers || (noWipers = Object.freeze({ uWipe: { value: new THREE.Vector4(0, 0, 0, 0) }, uWipeAt: { value: new THREE.Vector3(0, 0, 0) } }));
 const live = new Set();
 
 const GLASS = Object.freeze({
@@ -41082,24 +41174,44 @@ function carGlass(spec, picture, { lite = false, privacy = false, belt = null, b
   const uniforms = {
     uSlant: { value: GLASS.slant }, uBelt: { value: belt === null ? -1 : belt }, uDust: { value: GLASS.dust }, uEdge: { value: GLASS.edge * spec.length },
     uClear: { value: GLASS.clear }, uPrivate: { value: privacy ? GLASS.privacy : GLASS.clear }, uBehind: { value: behind },
-    uDrops: { value: drops() }, ...weather,
+    uDrops: { value: drops() }, ...weather, ...glintUniforms(),
   };
   const options = {
     color: GLASS.tint, transparent: true, opacity: 1, depthWrite: false, side: THREE.DoubleSide,
     roughness: GLASS.roughness, metalness: 0, alphaMap: picture, ...(envMap ? { envMap, envMapIntensity: 1.1 * weather.uDay.value } : {}),
   };
   const material = env ? new THREE.MeshPhysicalMaterial({ ...options, clearcoat: 0, ior: 1.5, specularIntensity: 1 }) : new THREE.MeshStandardMaterial(options);
-  material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
+  material.onBeforeCompile = function compile(shader) {
+    Object.assign(shader.uniforms, uniforms, (this && this.userData && this.userData.wipers) || NO_WIPERS());
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vGlassAt;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlassAt = position;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGlassAt; varying vec3 vGlassFacing;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlassAt = position; vGlassFacing = objectNormal;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
-varying vec3 vGlassAt;
+varying vec3 vGlassAt; varying vec3 vGlassFacing;
 uniform float uSlant; uniform float uBelt; uniform float uDust; uniform float uEdge; uniform float uWet; uniform float uTime; uniform float uDay;
 uniform float uClear; uniform float uPrivate; uniform float uBehind;
-uniform sampler2D uDrops;`)
+uniform sampler2D uDrops;
+uniform vec4 uWipe; uniform vec3 uWipeAt;
+uniform vec4 uGlints[8]; uniform vec3 uGlintColour[8]; uniform int uGlintCount;
+/* (the wipers: on the windscreen (glass facing forward), each blade from its pivot at the screen's foot, both at the same
+   angle from lying along the foot toward the car's right, up over the glass; the glass they have swept clear of drops.
+   uWipe: the foot's height, the pivots' places across, the blades' length, on (1) or off; uWipeAt: the blades' angle,
+   how wide a blade is, how far the screen goes forward of its foot) */
+float wiper(out float swept) {
+  swept = 0.0;
+  if (uWipe.w < 0.5 || normalize(vGlassFacing).z < 0.3) return 0.0;
+  float blade = 0.0;
+  vec2 b = vec2(-cos(uWipeAt.x), sin(uWipeAt.x));
+  for (int k = 0; k < 2; k++) {
+    vec2 d = vGlassAt.xy - vec2(k == 0 ? uWipe.y : uWipe.y - uWipe.z * 1.11, uWipe.x);
+    float along = dot(d, b), across = abs(d.x * b.y - d.y * b.x);
+    blade = max(blade, step(0.0, along) * step(along, uWipe.z) * (1.0 - smoothstep(uWipeAt.y * 0.5, uWipeAt.y, across)));
+    float r = length(d), a = atan(d.y, -d.x);
+    swept = max(swept, step(r, uWipe.z) * step(-0.05, a) * step(a, uWipeAt.x + 0.05));
+  }
+  return blade;
+}`)
       .replace('#include <alphamap_fragment>', `float glassMask = texture2D( alphaMap, vAlphaMapUv ).r;
 if ( glassMask < 0.45 ) discard;`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
@@ -41109,11 +41221,32 @@ roughnessFactor = mix(roughnessFactor, 0.6, glassDust);`)
 float glassFace = abs(dot(normalize(normal), normalize(vViewPosition)));
 float glassSlant = pow(1.0 - glassFace, 3.0) * uSlant;
 vec2 dropAt = vec2(vGlassAt.x * 14.0 + vGlassAt.y * 3.0, vGlassAt.z * 14.0 + uTime * 0.6);
-float glassDrops = uWet * texture2D(uDrops, dropAt).a;
+float wiped = 0.0;
+float wiperBlade = wiper(wiped);
+float glassDrops = uWet * texture2D(uDrops, dropAt).a * (1.0 - 0.75 * wiped);
 float glassBase = vGlassAt.z < uBehind ? uPrivate : uClear;
 outgoingLight = mix(outgoingLight, vec3(0.62, 0.64, 0.62) * (0.35 + 0.65 * uDay), glassDust * 0.5);
 outgoingLight += glassDrops * vec3(0.55) * (0.3 + 0.7 * uDay);
 diffuseColor.a = clamp(max(glassBase, glassSlant) + glassDust * 0.35 + glassDrops * 0.25, 0.0, 0.97) * smoothstep(0.45, 0.6, glassMask);
+outgoingLight = mix(outgoingLight, vec3(0.012), wiperBlade);
+diffuseColor.a = max(diffuseColor.a, wiperBlade * 0.97 * smoothstep(0.45, 0.6, glassMask));
+/* (at night, the street lamps and head lamps near given back: each a small bright spot where the line from the eye,
+   turned off the glass, points at it, with a faint halo; the further, the smaller and fainter) */
+if (uGlintCount > 0) {
+  vec3 glassHere = -vViewPosition;
+  vec3 glassTurned = reflect(normalize(glassHere), normalize(normal));
+  vec3 glassGlint = vec3(0.0);
+  for (int k = 0; k < 8; k++) {
+    if (k >= uGlintCount) break;
+    vec3 toLamp = uGlints[k].xyz - glassHere;
+    float far = length(toLamp);
+    float c = max(dot(glassTurned, toLamp / far), 0.0);
+    glassGlint += uGlintColour[k] * uGlints[k].w * (pow(c, 900.0) * 7.0 + pow(c, 70.0) * 0.12) / (1.0 + far * far * 0.0025);
+  }
+  glassGlint *= (1.0 - wiperBlade) * smoothstep(0.45, 0.6, glassMask);
+  outgoingLight += glassGlint;
+  diffuseColor.a = max(diffuseColor.a, min(0.95, dot(glassGlint, vec3(0.3))));
+}
 #include <opaque_fragment>`);
   };
   material.customProgramCacheKey = () => `pcw-car-glass-${env ? 'p' : 's'}`;
@@ -41156,18 +41289,51 @@ diffuseColor.a = clamp(max(glassBase, glassSlant) + glassDust * 0.35 + glassDrop
       mesh.renderOrder = 3;
       return mesh;
     },
+    wipers(screen) {
+      const own = material.clone();
+      own.onBeforeCompile = material.onBeforeCompile;
+      own.customProgramCacheKey = material.customProgramCacheKey;
+      own.userData = { ...material.userData, wipers: { uWipe: { value: new THREE.Vector4(screen.foot, screen.half * 0.55, screen.half * 0.72, 0) }, uWipeAt: { value: new THREE.Vector3(0, screen.blade, 0) } } };
+      live.add(own);
+      return {
+        material: own,
+        wipe(angle) { const w = own.userData.wipers; w.uWipe.value.w = angle === null ? 0 : 1; w.uWipeAt.value.x = angle || 0; },
+        dispose() { live.delete(own); own.dispose(); },
+      };
+    },
     dispose() { live.delete(material); material.dispose(); },
   };
 }
 
-function setGlassWeather({ wet = 0, daylight = 1, t = 0 } = {}) {
+const glintAt = () => (glintAt.v || (glintAt.v = new THREE.Vector3()));
+function setGlassGlints(points, camera) {
+  const u = glintUniforms();
+  let n = 0;
+  if (points && points.length && camera) {
+    camera.updateMatrixWorld();
+    const view = camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+    for (const p of points) {
+      if (n >= GLINTS) break;
+      if (!(p.w > 0.01)) continue;
+      const v = glintAt().set(p.x, p.y, p.z).applyMatrix4(view);
+      u.uGlints.value[n].set(v.x, v.y, v.z, p.w);
+      u.uGlintColour.value[n].set(p.colour === undefined ? 0xffffff : p.colour);
+      n += 1;
+    }
+  }
+  u.uGlintCount.value = n;
+  return n;
+}
+
+function setGlassWeather({ wet = 0, rain = wet, daylight = 1, t = 0 } = {}) {
   weather.uWet.value = wet;
+  rainNow = rain;
   weather.uDay.value = Math.max(0.05, Math.min(1, daylight));
   weather.uTime.value = t % 1000;
   for (const m of live) m.envMapIntensity = 1.1 * weather.uDay.value;
 }
 
-return { GLASS, windowsPicture, carGlass, setGlassWeather };
+return { glassWet, glassRain, GLASS, windowsPicture, carGlass, setGlassGlints, setGlassWeather };
 })();
 
 __modules["client/car-cabin.js"] = (function () {
@@ -41282,11 +41448,11 @@ function shellRoom(fit, scale) {
 }
 
 const made = new Map();
-function makeCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = {}) {
+function makeCabin(id, spec, { scale, lite = false, fit = null, doors = [], cab = false } = {}) {
   if (!spec.driver) return null;
-  const key = `${id}|${scale.toFixed(5)}|${doors.map((q) => q.key).join('')}|${lite ? 'lite' : 'full'}`;
+  const key = `${id}|${scale.toFixed(5)}|${doors.map((q) => q.key).join('')}|${lite ? 'lite' : 'full'}|${cab ? 'cab' : 'car'}`;
   let shared = made.get(key);
-  if (!shared) { shared = { ...buildCabin(id, spec, { scale, lite, fit, doors }), users: 0 }; made.set(key, shared); }
+  if (!shared) { shared = { ...buildCabin(id, spec, { scale, lite, fit, doors, cab }), users: 0 }; made.set(key, shared); }
   shared.users += 1;
   const mesh = new THREE.Mesh(shared.whole, shared.material); mesh.name = 'car-cabin';
   const restMesh = new THREE.Mesh(shared.rest, shared.material); restMesh.name = 'car-cabin'; restMesh.visible = false;
@@ -41363,14 +41529,14 @@ function makeDials(id, { at, facing, size }) {
   };
 }
 
-function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = {}) {
+function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [], cab = false } = {}) {
   const d = spec.driver;
   const T = { ...PLAIN, ...(TRIMS[id] || {}) };
   const m = (v) => v * scale;                         // the model's units to metres
   const hip = d.hip.map(m), wheel = d.wheel.map(m), feet = d.feet.map((f) => f.map(m));
   const roof = d.roof ? m(d.roof) : m(spec.height) * 0.94;
   const half = m(spec.body) / 2;
-  const four = !TWO_DOORS.has(id);
+  const four = !cab && !TWO_DOORS.has(id);
   const shell = shellRoom(fit, scale);
   const EDGE = 0.045;
   const inside = (z, y) => { const r = shell.room(z, y); return r === null ? half * 0.84 : Math.max(0.2, r - EDGE); };
@@ -41380,7 +41546,7 @@ function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = 
   const belt = hip[1] + (roof - hip[1]) * 0.4;
   const backZ = hip[2] - 0.17;
   const dashZ = wheel[2] + 0.12;
-  const rearZ = hip[2] - (four ? 0.86 : 0.62);
+  const rearZ = hip[2] - (cab ? 0.42 : four ? 0.86 : 0.62);
   const B = new Batch({ uv: 'keep' });
   const at = (x, y, z, rx = 0, ry = 0, rz = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), new THREE.Vector3(1, 1, 1));
   const box = (w, h, dd, x, y, z, hex, rx = 0, ry = 0, rz = 0) => B.box(w, h, dd, at(x, y, z, rx, ry, rz), hex);
@@ -41419,14 +41585,14 @@ function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = 
     for (const s of [-1, 1]) soft(0.26, 0.18, 0.1, 0.05, s * Math.min(hip[0], w / 2 - 0.16), hy, rearZ - 0.31, T.seat, -0.2);
     box(w - 0.1, 0.004, 0.004, 0, top + 0.001, rearZ + 0.1, T.stitch);
     box(w, Math.max(0.02, top - 0.13 - floor), 0.44, 0, (top - 0.13 + floor) / 2, rearZ + 0.08, 0x111112);
-  } else if (rearZ - 0.3 > -m(spec.length) / 2 + 0.6) {
+  } else if (!cab && rearZ - 0.3 > -m(spec.length) / 2 + 0.6) {
     const w = 2 * insideOver(rearZ - 0.2, rearZ + 0.25, hip[1] - 0.15, hip[1] + 0.3) - 0.04;
     for (const s of [-1, 1]) soft(Math.min(0.42, w / 2 - 0.02), 0.1, 0.36, 0.04, s * Math.min(hip[0], w / 4), hip[1] - 0.09, rearZ + 0.08, T.seat, -0.06);
     soft(w - 0.06, Math.max(0.2, Math.min(0.42, under(rearZ - 0.3, rearZ) - hip[1] - 0.12)), 0.1, 0.04, 0, hip[1] + 0.12, rearZ - 0.12, T.seat, -0.35);
   }
 
   const dashLow = wheel[1] - 0.26;
-  let dashDeep = 0.42;
+  let dashDeep = Math.min(0.42, Math.max(0.12, m(spec.length) / 2 - 0.1 - dashZ));
   let dashTop = Math.min(belt + 0.04, wheel[1] + 0.16);
   for (let k = 0; k < 8 && dashDeep > 0.16 && under(dashZ, dashZ + dashDeep, 0.03, 'careful') < dashTop; k += 1) dashDeep -= 0.04;
   dashTop = Math.min(dashTop, under(dashZ, dashZ + dashDeep, 0.03, 'careful'));
@@ -41448,7 +41614,7 @@ function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = 
   const fireWide = 2 * insideOver(fireZ - 0.05, fireZ + 0.05, floor, fireTop);
   box(fireWide, Math.max(0.05, fireTop - floor), 0.04, 0, (fireTop + floor) / 2, fireZ, 0x141415);
   let deckEnd = fireZ;
-  for (let z = fireZ; z < fireZ + 0.8; z += 0.025) { const low = shell.lowAt(z); if (low === null || low < dashTop + 0.02) break; deckEnd = z; }
+  for (let z = fireZ; z < Math.min(fireZ + 0.8, m(spec.length) / 2 - 0.08); z += 0.025) { const low = shell.lowAt(z); if (low === null || low < dashTop + 0.02) break; deckEnd = z; }
   if (deckEnd > fireZ + 0.02) {
     const deckWide = 2 * insideOver(fireZ, deckEnd, dashTop - 0.04, dashTop);
     box(deckWide, 0.03, deckEnd - fireZ + 0.02, 0, dashTop - 0.015, (fireZ + deckEnd) / 2, T.dash);
@@ -41462,18 +41628,20 @@ function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = 
   box(0.035, 0.03, 0.2, 0.05, cy + 0.02, hip[2] + 0.05, 0x101011, 0.18);
 
   for (const f of feet) box(0.07, 0.11, 0.015, f[0], f[1] + 0.03, f[2] + 0.04, T.metal, -0.5);
-  box(0.06, 0.1, 0.015, hip[0] + 0.12, feet[0][1] + 0.05, feet[0][2], 0x111112, -0.6);
-  const floorBack = rearZ - 0.35;
+  box(0.06, 0.1, 0.015, Math.min(hip[0] + 0.12, insideOver(feet[0][2] - 0.02, feet[0][2] + 0.02, feet[0][1], feet[0][1] + 0.1) - 0.035), feet[0][1] + 0.05, feet[0][2], 0x111112, -0.6);
+  const floorBack = cab ? rearZ : rearZ - 0.35;
   const floorWide = 2 * insideOver(floorBack, fireZ, floor - 0.02, floor + 0.1) - 0.06;
   box(floorWide, 0.02, fireZ - floorBack, 0, floor - 0.01, (fireZ + floorBack) / 2, T.carpet);
   if (T.mats) for (const z of [hip[2] + 0.38, ...(four ? [rearZ + 0.42] : [])]) for (const s of [-1, 1]) { const room = insideOver(z - 0.25, z + 0.25, floor - 0.01, floor + 0.02); const half = Math.min(0.21, Math.max(0.06, (room - 0.04) / 2)); box(2 * half, 0.006, 0.5, s * Math.min(hip[0], room - half - 0.01), floor + 0.004, z, T.mats); }
-  const shelfZ = rearZ - 0.38;
-  const shelfY = Math.min(belt + 0.08, under(shelfZ - 0.36, shelfZ, 0.03));
-  const panelWide = 2 * insideOver(shelfZ - 0.02, shelfZ + 0.02, floor, shelfY);
-  box(panelWide, Math.max(0.1, shelfY - floor), 0.03, 0, (shelfY + floor) / 2, shelfZ, T.carpet);
-  box(2 * insideOver(shelfZ - 0.36, shelfZ, shelfY - 0.02, shelfY + 0.02), 0.015, 0.36, 0, shelfY, shelfZ - 0.18, T.dash);
+  const shelfZ = cab ? rearZ : rearZ - 0.38;
+  let shelfY = Math.min(belt + 0.08, under(shelfZ - 0.36, shelfZ, 0.03));
+  if (!cab) {
+    const panelWide = 2 * insideOver(shelfZ - 0.02, shelfZ + 0.02, floor, shelfY);
+    box(panelWide, Math.max(0.1, shelfY - floor), 0.03, 0, (shelfY + floor) / 2, shelfZ, T.carpet);
+    box(2 * insideOver(shelfZ - 0.36, shelfZ, shelfY - 0.02, shelfY + 0.02), 0.015, 0.36, 0, shelfY, shelfZ - 0.18, T.dash);
+  }
 
-  const liningZ0 = rearZ - 0.4, liningZ1 = dashZ - 0.05;
+  const liningZ0 = cab ? rearZ : rearZ - 0.4, liningZ1 = dashZ - 0.05;
   const liningY = under(liningZ0 + 0.1, liningZ1 - 0.1, 0.012) ;
   const roofIn = Math.min(roof, liningY);
   const liningHalf = insideOver(liningZ0, liningZ1, roofIn - 0.08, roofIn);
@@ -41490,6 +41658,7 @@ function buildCabin(id, spec, { scale, lite = false, fit = null, doors = [] } = 
       for (const s of [-1, 1]) box(wide, 0.02, z1 - z0 + 0.004, s * mx, my, (z0 + z1) / 2, T.roof, 0, 0, s * tilt);
     }
   }
+  if (cab) { const wallWide = 2 * insideOver(rearZ - 0.02, rearZ + 0.02, floor, roofIn) - 0.01; box(wallWide, Math.max(0.2, roofIn - floor), 0.03, 0, (roofIn + floor) / 2, rearZ - 0.015, T.dash); shelfY = roofIn; }
   const liningAt = (x, z) => {
     const p = pieces.find((q) => z >= q.z0 && z <= q.z1) || (z < liningZ0 ? pieces[0] : pieces[LENGTHS - 1]);
     const e = p.edges, ax = Math.abs(x);
@@ -41582,6 +41751,226 @@ const CAR_DIALS = Object.freeze({
 return { CAR_DIALS };
 })();
 
+__modules["client/car-damage.js"] = (function () {
+
+const HOLES = Object.freeze({ metal: 0.075, glass: 0.2, most: 24 });
+const BITS = Object.freeze({ window: 70, lite: 34, most: 220, liteMost: 100, lie: 40, size: [0.006, 0.02] });
+
+function seeded(seed) { let s = seed; return () => { s = (s * 16807) % 2147483647; return s / 2147483647; }; }
+
+let pictures = null;
+function holePictures() {
+  if (pictures) return pictures;
+  const make = (size, draw) => { const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d'); g.clearRect(0, 0, size, size); draw(g, size); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 2; return t; };
+  pictures = {
+    metal: make(64, (g, S) => {
+      const r = seeded(11), m = S / 2;
+      const soot = g.createRadialGradient(m, m, 4, m, m, m * 0.95);
+      soot.addColorStop(0, 'rgba(20,18,16,0.55)'); soot.addColorStop(1, 'rgba(20,18,16,0)');
+      g.fillStyle = soot; g.beginPath(); g.arc(m, m, m * 0.95, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(196,198,200,0.95)'; g.beginPath();
+      for (let k = 0; k <= 18; k += 1) { const a = (k / 18) * Math.PI * 2, rr = S * (0.15 + r() * 0.05); if (k) g.lineTo(m + Math.cos(a) * rr, m + Math.sin(a) * rr); else g.moveTo(m + Math.cos(a) * rr, m + Math.sin(a) * rr); }
+      g.fill();
+      g.fillStyle = 'rgba(8,8,8,1)'; g.beginPath(); g.arc(m, m, S * 0.1, 0, Math.PI * 2); g.fill();
+    }),
+    glass: make(128, (g, S) => {
+      const r = seeded(29), m = S / 2;
+      const frost = g.createRadialGradient(m, m, 2, m, m, S * 0.12);
+      frost.addColorStop(0, 'rgba(235,240,238,0.9)'); frost.addColorStop(1, 'rgba(235,240,238,0)');
+      g.fillStyle = frost; g.beginPath(); g.arc(m, m, S * 0.12, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = 'rgba(240,244,242,0.8)'; g.lineWidth = 1.1; g.lineCap = 'round';
+      const cracks = [];
+      const n = 11 + Math.floor(r() * 4);
+      for (let k = 0; k < n; k += 1) {
+        const a0 = (k / n) * Math.PI * 2 + (r() - 0.5) * 0.35, len = S * (0.24 + r() * 0.24);
+        cracks.push({ a: a0, len });
+        g.beginPath(); g.moveTo(m, m);
+        let x = m, y = m, a = a0;
+        for (let s = 1; s <= 6; s += 1) { a += (r() - 0.5) * 0.25; x = m + Math.cos(a) * (len * s) / 6; y = m + Math.sin(a) * (len * s) / 6; g.lineTo(x, y); }
+        g.stroke();
+      }
+      g.strokeStyle = 'rgba(240,244,242,0.42)'; g.lineWidth = 0.9;
+      for (const ring of [0.1, 0.17, 0.25]) {
+        g.beginPath();
+        cracks.forEach((c, k) => { if (c.len < S * ring) return; const x = m + Math.cos(c.a) * S * ring * (0.92 + r() * 0.16), y = m + Math.sin(c.a) * S * ring * (0.92 + r() * 0.16); if (k && r() < 0.8) g.lineTo(x, y); else g.moveTo(x, y); });
+        g.stroke();
+      }
+      g.fillStyle = 'rgba(30,32,32,0.85)'; g.beginPath(); g.arc(m, m, S * 0.032, 0, Math.PI * 2); g.fill();
+    }),
+  };
+  return pictures;
+}
+
+let shapes = null;
+function holeShapes() {
+  if (shapes) return shapes;
+  const P = holePictures();
+  const common = { transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, side: THREE.DoubleSide, alphaTest: 0.02 };
+  shapes = {
+    plane: new THREE.PlaneGeometry(1, 1),
+    metal: new THREE.MeshStandardMaterial({ ...common, map: P.metal, roughness: 0.55, metalness: 0.35 }),
+    glass: new THREE.MeshStandardMaterial({ ...common, map: P.glass, roughness: 0.25, metalness: 0 }),
+  };
+  return shapes;
+}
+
+const reach = new WeakMap();         // a list of triangles (the index) -> Float32Array of [x, y, z, r] for each
+function reachOf(geometry) {
+  const index = geometry.index;
+  let c = reach.get(index);
+  if (c) return c;
+  const pos = geometry.attributes.position.array, ix = index.array, n = ix.length / 3;
+  c = new Float32Array(n * 4);
+  for (let t = 0; t < n; t += 1) {
+    const a = ix[t * 3] * 3, b = ix[t * 3 + 1] * 3, d = ix[t * 3 + 2] * 3;
+    const x = (pos[a] + pos[b] + pos[d]) / 3, y = (pos[a + 1] + pos[b + 1] + pos[d + 1]) / 3, z = (pos[a + 2] + pos[b + 2] + pos[d + 2]) / 3;
+    let r = 0;
+    for (const k of [a, b, d]) r = Math.max(r, (pos[k] - x) ** 2 + (pos[k + 1] - y) ** 2 + (pos[k + 2] - z) ** 2);
+    c[t * 4] = x; c[t * 4 + 1] = y; c[t * 4 + 2] = z; c[t * 4 + 3] = Math.sqrt(r);
+  }
+  reach.set(index, c);
+  return c;
+}
+let castScratch = null;
+function castOn(mesh, path, out) {
+  const g = mesh.geometry;
+  if (!g || !g.index || !g.attributes.position) return;
+  const W = castScratch || (castScratch = { inv: new THREE.Matrix4(), o: new THREE.Vector3(), d: new THREE.Vector3(), w: new THREE.Vector3(), c: new THREE.Vector3(), scale: new THREE.Vector3(), sphere: new THREE.Sphere() });
+  if (!g.boundingSphere) g.computeBoundingSphere();
+  W.sphere.copy(g.boundingSphere).applyMatrix4(mesh.matrixWorld);
+  const sc = W.c.copy(W.sphere.center).sub(path.origin), sAlong = sc.dot(path.dir);
+  if (sAlong < path.near - W.sphere.radius || sAlong > path.far + W.sphere.radius || sc.lengthSq() - sAlong * sAlong > W.sphere.radius * W.sphere.radius) return;
+  W.inv.copy(mesh.matrixWorld).invert();
+  const o = W.o.copy(path.origin).applyMatrix4(W.inv), d = W.d.copy(path.dir).transformDirection(W.inv);
+  const scale = W.scale.setFromMatrixScale(mesh.matrixWorld).x || 1;
+  const far = path.far / scale, near = path.near / scale;
+  const c = reachOf(g), ix = g.index.array, pos = g.attributes.position.array, uv = g.attributes.uv ? g.attributes.uv.array : null;
+  const start = Math.floor(g.drawRange.start / 3), end = Math.min(ix.length / 3, g.drawRange.count === Infinity ? Infinity : start + Math.floor(g.drawRange.count / 3));
+  for (let t = start; t < end; t += 1) {
+    const cx = c[t * 4] - o.x, cy = c[t * 4 + 1] - o.y, cz = c[t * 4 + 2] - o.z, r = c[t * 4 + 3];
+    const along = cx * d.x + cy * d.y + cz * d.z;
+    if (along < near - r || along > far + r) continue;
+    if (cx * cx + cy * cy + cz * cz - along * along > r * r) continue;
+    const ia = ix[t * 3] * 3, ib = ix[t * 3 + 1] * 3, ic = ix[t * 3 + 2] * 3;
+    const e1x = pos[ib] - pos[ia], e1y = pos[ib + 1] - pos[ia + 1], e1z = pos[ib + 2] - pos[ia + 2];
+    const e2x = pos[ic] - pos[ia], e2y = pos[ic + 1] - pos[ia + 1], e2z = pos[ic + 2] - pos[ia + 2];
+    const px = d.y * e2z - d.z * e2y, py = d.z * e2x - d.x * e2z, pz = d.x * e2y - d.y * e2x;
+    const det = e1x * px + e1y * py + e1z * pz;
+    if (Math.abs(det) < 1e-12) continue;
+    const inv = 1 / det;
+    const tx = o.x - pos[ia], ty = o.y - pos[ia + 1], tz = o.z - pos[ia + 2];
+    const u = (tx * px + ty * py + tz * pz) * inv;
+    if (u < 0 || u > 1) continue;
+    const qx = ty * e1z - tz * e1y, qy = tz * e1x - tx * e1z, qz = tx * e1y - ty * e1x;
+    const v = (d.x * qx + d.y * qy + d.z * qz) * inv;
+    if (v < 0 || u + v > 1) continue;
+    const k = (e2x * qx + e2y * qy + e2z * qz) * inv;
+    if (k < near || k > far) continue;
+    const point = new THREE.Vector3(o.x + d.x * k, o.y + d.y * k, o.z + d.z * k).applyMatrix4(mesh.matrixWorld);
+    const distance = W.w.copy(point).sub(path.origin).length();
+    const normal = new THREE.Vector3(e1y * e2z - e1z * e2y, e1z * e2x - e1x * e2z, e1x * e2y - e1y * e2x).normalize();
+    const a = ix[t * 3], b = ix[t * 3 + 1], cc = ix[t * 3 + 2];
+    const hitUv = uv ? new THREE.Vector2(uv[a * 2] * (1 - u - v) + uv[b * 2] * u + uv[cc * 2] * v, uv[a * 2 + 1] * (1 - u - v) + uv[b * 2 + 1] * u + uv[cc * 2 + 1] * v) : null;
+    out.push({ distance, point, object: mesh, face: { a, b, c: cc, normal }, faceIndex: t, uv: hitUv });
+  }
+}
+
+function holeDecal(kind, size) {
+  const S = holeShapes();
+  const mesh = new THREE.Mesh(S.plane, kind === 'glass' ? S.glass : S.metal);
+  mesh.scale.setScalar(size);
+  mesh.renderOrder = 3;
+  mesh.castShadow = false; mesh.receiveShadow = false;
+  mesh.userData.hole = kind;
+  return mesh;
+}
+
+const masks = new Map();             // url -> { data, size } | 'loading' | 'failed'
+function glassMaskAt(url, u, v) {
+  const m = masks.get(url);
+  if (m && m.data) {
+    const s = m.size, x = Math.max(0, Math.min(s - 1, Math.floor(u * s))), y = Math.max(0, Math.min(s - 1, Math.floor(v * s)));
+    return m.data[y * s + x] > 127;
+  }
+  if (!m) {
+    masks.set(url, 'loading');
+    fetch(url).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
+      .then((blob) => createImageBitmap(blob))
+      .then((bmp) => {
+        const size = 128, c = document.createElement('canvas'); c.width = c.height = size;
+        const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(bmp, 0, 0, size, size);
+        const px = g.getImageData(0, 0, size, size).data, data = new Uint8Array(size * size);
+        for (let k = 0; k < size * size; k += 1) data[k] = px[k * 4];
+        if (bmp.close) bmp.close();
+        masks.set(url, { data, size });
+      })
+      .catch(() => masks.set(url, 'failed'));
+  }
+  return null;
+}
+
+function createGlassBits(scene, { lite = false } = {}) {
+  const most = lite ? BITS.liteMost : BITS.most;
+  let mesh = null;
+  const list = [];
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), s = new THREE.Vector3(), p = new THREE.Vector3();
+  const make = () => {
+    const material = new THREE.MeshStandardMaterial({ color: 0xd6e6e2, roughness: 0.12, metalness: 0.1, transparent: true, opacity: 0.85 });
+    mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 0.55, 1), material, most);
+    mesh.count = 0; mesh.frustumCulled = false; mesh.castShadow = false; mesh.receiveShadow = false;
+    mesh.name = 'glass-bits';
+    scene.add(mesh);
+  };
+  return {
+    burst(box, dir) {
+      if (!mesh) make();
+      const r = Math.random;
+      const n = lite ? BITS.lite : BITS.window;
+      const size = BITS.size;
+      for (let k = 0; k < n; k += 1) {
+        if (list.length >= most) list.shift();
+        const at = new THREE.Vector3(box.min.x + (box.max.x - box.min.x) * r(), box.min.y + (box.max.y - box.min.y) * (0.15 + 0.85 * r()), box.min.z + (box.max.z - box.min.z) * r());
+        const v = new THREE.Vector3(dir.x, 0, dir.z).multiplyScalar(r() < 0.55 ? 0.4 + r() * 1.5 : -(0.3 + r() * 0.9)).add(new THREE.Vector3((r() - 0.5) * 1.4, r() * 1.0, (r() - 0.5) * 1.4));
+        list.push({ p: at, v, spin: new THREE.Vector3((r() - 0.5) * 24, (r() - 0.5) * 24, (r() - 0.5) * 24), turn: new THREE.Euler(r() * 6, r() * 6, r() * 6), size: size[0] + (size[1] - size[0]) * r(), age: 0, still: false });
+      }
+    },
+    update(dt, groundY = () => 0) {
+      if (!mesh) return;
+      let n = 0;
+      for (let k = list.length - 1; k >= 0; k -= 1) {
+        const b = list[k];
+        b.age += dt;
+        if (b.age > BITS.lie) { list.splice(k, 1); continue; }
+        if (!b.still) {
+          b.v.y -= 9.8 * dt;
+          b.p.addScaledVector(b.v, dt);
+          b.turn.x += b.spin.x * dt; b.turn.y += b.spin.y * dt; b.turn.z += b.spin.z * dt;
+          const floor = groundY(b.p.x, b.p.z) + b.size * 0.3;
+          if (b.p.y < floor) {
+            b.p.y = floor;
+            if (Math.abs(b.v.y) < 0.6) { b.still = true; b.turn.x = 0; b.turn.z = 0; } else { b.v.y = -b.v.y * 0.25; b.v.x *= 0.45; b.v.z *= 0.45; b.spin.multiplyScalar(0.5); }
+          }
+        }
+      }
+      for (const b of list) {
+        const k = b.age > BITS.lie - 3 ? Math.max(0, (BITS.lie - b.age) / 3) : 1;
+        q.setFromEuler(e.copy(b.turn));
+        m4.compose(p.copy(b.p), q, s.setScalar(b.size * k));
+        mesh.setMatrixAt(n, m4);
+        n += 1;
+      }
+      mesh.count = n;
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.visible = n > 0;
+    },
+    count: () => list.length,
+    dispose() { if (mesh) { scene.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose(); mesh = null; } list.length = 0; },
+  };
+}
+
+return { HOLES, BITS, castOn, holeDecal, glassMaskAt, createGlassBits };
+})();
+
 __modules["client/car-model.js"] = (function () {
 const { softPatch } = __modules["client/soft-patch.js"];
 const { CAR_PARTS } = __modules["client/car-parts.js"];
@@ -41596,6 +41985,7 @@ const { CAR_WINDOWS } = __modules["client/car-windows.js"];
 const { carGlass, windowsPicture } = __modules["client/car-glass.js"];
 const { makeCabin, makeDials, TRIMS, PLAIN } = __modules["client/car-cabin.js"];
 const { CAR_DIALS } = __modules["client/car-dials.js"];
+const { holeDecal, glassMaskAt, castOn, HOLES } = __modules["client/car-damage.js"];
 
 const carSeen = (id) => !!(CAR_PARTS[id] && CAR_PARTS[id].driver && (CAR_PARTS[id].driver.seen || CAR_WINDOWS[id]));
 
@@ -41667,7 +42057,7 @@ async function buildShape(base, spec, priority, id = null, glassOf = id) {
   if (glass && glass.count) {
     const glassIndex = new THREE.BufferAttribute(glass.list, 1);
     const part = (from, count) => { const q = new THREE.BufferGeometry(); for (const [name, a] of Object.entries(attrs)) q.setAttribute(name, a); q.setIndex(glassIndex); q.setDrawRange(from * 3, count * 3); bound(q, glass.list.subarray(from * 3, (from + count) * 3), position); return q; };
-    const set = { whole: part(0, glass.count), rest: doors ? part(glass.rest.from, glass.rest.count) : null, doors: new Map(), pillar: doors ? doors.pillar : null };
+    const set = { whole: part(0, glass.count), rest: doors ? part(glass.rest.from, glass.rest.count) : null, doors: new Map(), pillar: doors ? doors.pillar : null, screen: screenOf(glass.list, position, normal) };
     for (const d of glass.doors) if (d.count) set.doors.set(d.key, part(d.from, d.count));
     geometries.glass = set;
     geometries.push(set.whole, ...(set.rest ? [set.rest] : []), ...set.doors.values());
@@ -41708,6 +42098,16 @@ function jambsOf(list, plan) {
   g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
   g.computeBoundingSphere();
   return g;
+}
+function screenOf(list, position, normal) {
+  let foot = Infinity, top = -Infinity, half = 0, n = 0;
+  for (let i = 0; i < list.length; i += 1) {
+    const v = list[i];
+    if (normal[v * 3 + 2] / 32767 < 0.5) continue;
+    const x = position[v * 3], y = position[v * 3 + 1];
+    if (y < foot) foot = y; if (y > top) top = y; if (Math.abs(x) > half) half = Math.abs(x); n += 1;
+  }
+  return n >= 6 && top > foot ? { foot, top, half } : null;
 }
 function sortGlass(bits, index, doors, parent = null) {
   const tris = index.length / 3;
@@ -41904,27 +42304,32 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
   const mesh = (g) => { const m = new THREE.Mesh(g, material); m.castShadow = true; m.receiveShadow = false; return m; };
   const springs = new THREE.Group(); springs.position.set(0, spec.height * 0.35, 0); frame.add(springs);
   const body = mesh(geometries[0]); body.position.set(0, -spec.height * 0.35, 0); springs.add(body);
+  body.userData.shot = 'body';
   const doorSet = geometries.doors || null;
   const doorParts = new Map();
   let rest = null, liner = null, inner = null, jambs = null, opened = false;
+  const harm = { split: false, holes: [], broken: new Set(), holders: new Map() };
   const glassSet = glass ? geometries.glass : null;
   const panes = { whole: null, rest: null };
+  const paneList = [];
+  let ownWipers = null;
   if (glassSet) {
-    panes.whole = glass.pane(glassSet.whole); panes.whole.position.copy(body.position); springs.add(panes.whole);
-    if (glassSet.rest) { panes.rest = glass.pane(glassSet.rest); panes.rest.position.copy(body.position); panes.rest.visible = false; springs.add(panes.rest); }
+    panes.whole = glass.pane(glassSet.whole); panes.whole.position.copy(body.position); springs.add(panes.whole); paneList.push(panes.whole); panes.whole.userData.shot = 'glass';
+    if (glassSet.rest) { panes.rest = glass.pane(glassSet.rest); panes.rest.position.copy(body.position); panes.rest.visible = false; springs.add(panes.rest); paneList.push(panes.rest); panes.rest.userData.shot = 'glass-rest'; }
   }
   const fitted = glassSet && spec.driver && !spec.driver.seen ? makeCabin(id, spec, { scale, lite: lite || isLite(), fit: CAR_WINDOWS[id].fit, doors: doorSet ? doorSet.list.map((d) => ({ key: d.key, side: d.side, front: d.hinge[1], rear: d.rear, bottom: d.bottom })) : [] }) : null;
   if (doorSet) {
-    rest = mesh(doorSet.rest); rest.position.copy(body.position); rest.visible = false; springs.add(rest);
+    rest = mesh(doorSet.rest); rest.position.copy(body.position); rest.visible = false; springs.add(rest); rest.userData.shot = 'rest';
     if (doorSet.jambs) { jambs = new THREE.Mesh(doorSet.jambs, JAMB()); jambs.position.copy(body.position); jambs.visible = false; jambs.castShadow = false; springs.add(jambs); }
     if (!glassSet) inner = new THREE.MeshStandardMaterial({ color: 0x1d1d1f, roughness: 0.85, metalness: 0, side: THREE.BackSide });
     for (const d of doorSet.list) {
       const hinge = new THREE.Group(); hinge.position.set(d.hinge[0], -spec.height * 0.35, d.hinge[1]); hinge.visible = false; springs.add(hinge);
-      const skin = mesh(d.geometry); skin.position.set(-d.hinge[0], 0, -d.hinge[1]); hinge.add(skin);
+      const skin = mesh(d.geometry); skin.position.set(-d.hinge[0], 0, -d.hinge[1]); hinge.add(skin); skin.userData.shot = `door:${d.key}`;
       if (inner) { const back = new THREE.Mesh(d.geometry, inner); back.position.copy(skin.position); hinge.add(back); }
-      if (glassSet && glassSet.doors.has(d.key)) { const pane = glass.pane(glassSet.doors.get(d.key)); pane.position.copy(skin.position); hinge.add(pane); }
+      let pane = null;
+      if (glassSet && glassSet.doors.has(d.key)) { pane = glass.pane(glassSet.doors.get(d.key)); pane.position.copy(skin.position); hinge.add(pane); paneList.push(pane); pane.userData.shot = `glass:${d.key}`; }
       if (fitted && fitted.doors.has(d.key)) { const panel = fitted.doors.get(d.key); const holder = new THREE.Group(); holder.position.copy(skin.position); holder.scale.setScalar(1 / scale); holder.add(panel); hinge.add(holder); }
-      doorParts.set(d.key, { hinge, side: d.side, angle: 0 });
+      doorParts.set(d.key, { hinge, side: d.side, angle: 0, skin, pane, from: d.from, count: d.count });
     }
     if (!glassSet) {
       liner = new THREE.Mesh(doorSet.rest, new THREE.MeshBasicMaterial({ color: 0x0e0e10, side: THREE.BackSide }));
@@ -41940,15 +42345,16 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
       part.hinge.rotation.y = -part.side * a;
       if (a > 0.002) any = true;
     }
-    if (any !== opened) {
-      opened = any;
-      body.visible = !any; rest.visible = any;
-      if (jambs) jambs.visible = any;
-      if (liner) liner.visible = any;
-      if (panes.whole) { panes.whole.visible = !any; if (panes.rest) panes.rest.visible = any; }
-      if (fitted) fitted.open(any);
+    const layout = any || harm.split;
+    if (layout !== opened) {
+      opened = layout;
+      body.visible = !layout; rest.visible = layout;
+      if (panes.whole) { panes.whole.visible = !layout; if (panes.rest) panes.rest.visible = layout; }
+      if (fitted) fitted.open(layout);
     }
-    for (const part of doorParts.values()) part.hinge.visible = any;
+    if (jambs) jambs.visible = any;
+    if (liner) liner.visible = any;
+    for (const part of doorParts.values()) part.hinge.visible = layout;
   };
   const X = new THREE.Vector3(1, 0, 0);
   const wheels = spec.wheels.map((w, k) => {
@@ -41970,6 +42376,43 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
   const dials = !fitted && spec.driver && spec.driver.seen && CAR_DIALS[id] ? makeDials(id, CAR_DIALS[id]) : null;
   if (dials) cabin.add(dials.mesh);
   standing(group);
+  const motion = { pitch: 0, roll: 0, rise: 0, jolt: 0 };
+  const shotParts = [body, rest, panes.whole, panes.rest, ...[...doorParts.values()].flatMap((d) => [d.skin, d.pane])].filter(Boolean);
+  const drawnNow = (o) => { for (let q = o; q; q = q.parent) { if (!q.visible) return false; if (q === group) return true; } return false; };
+  const doorOfBody = (fi) => { if (!doorSet) return null; for (const d of doorSet.list) if (fi >= d.from && fi < d.from + d.count) return d.key; return null; };
+  const doorOfGlass = (fi) => { if (!glassSet) return null; for (const [key, g] of glassSet.doors) { const a = g.drawRange.start / 3; if (fi >= a && fi < a + g.drawRange.count / 3) return key; } return null; };
+  const maskUrl = glassSet && CAR_WINDOWS[id] ? `${base}${CAR_WINDOWS[id].masks['512']}` : null;
+  const Z = new THREE.Vector3(0, 0, 1);
+  const holderOf = (part) => {
+    let h = harm.holders.get(part);
+    if (h) return h;
+    h = new THREE.Group();
+    if (part === 'body') { h.position.copy(body.position); springs.add(h); } else { const dp = doorParts.get(part); if (!dp) return null; h.position.copy(dp.skin.position); dp.hinge.add(h); }
+    harm.holders.set(part, h);
+    return h;
+  };
+  const harmWith = (entry) => {
+    if (entry.kind === 'break') {
+      const dp = doorParts.get(entry.part);
+      if (!dp || !dp.pane || harm.broken.has(entry.part)) return null;
+      harm.broken.add(entry.part); harm.split = true;
+      group.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(dp.pane);
+      dp.pane.visible = false;
+      return box;
+    }
+    if (entry.part !== 'body') harm.split = true;
+    const holder = holderOf(entry.part);
+    if (!holder) return null;
+    const hole = holeDecal(entry.kind, (entry.kind === 'glass' ? HOLES.glass : HOLES.metal) / scale);
+    const n = new THREE.Vector3(entry.n[0], entry.n[1], entry.n[2]).normalize();
+    hole.position.set(entry.p[0], entry.p[1], entry.p[2]).addScaledVector(n, 0.0015 / scale);
+    hole.quaternion.setFromUnitVectors(Z, n); hole.rotateZ(entry.spin || 0);
+    holder.add(hole);
+    harm.holes.push(hole);
+    if (harm.holes.length > HOLES.most) { const old = harm.holes.shift(); if (old.parent) old.parent.remove(old); }
+    return null;
+  };
   return {
     id, group, scale, spec, frame, toBody, cabin,
     driver: spec.driver ? (glassSet && !spec.driver.seen ? { ...spec.driver, seen: true } : spec.driver) : null,
@@ -41985,8 +42428,61 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
       });
       springs.rotation.set(pitch, 0, roll);
       springs.position.y = springsY + rise / scale;
+      motion.jolt = motion.jolt * 0.8 + (rise - motion.rise); motion.pitch = pitch; motion.roll = roll; motion.rise = rise;
     },
+    motion,
+    hitBy(path) {
+      group.updateMatrixWorld(true);
+      const all = [];
+      for (const m of shotParts) if (drawnNow(m)) castOn(m, path, all);
+      if (!all.length) return null;
+      all.sort((a, b) => a.distance - b.distance);
+      for (const h of all) {
+        const tag = h.object.userData.shot;
+        if (tag.startsWith('glass')) {
+          const door = tag.startsWith('glass:') ? tag.slice(6) : tag === 'glass' ? doorOfGlass(h.faceIndex) : null;
+          const mask = maskUrl && h.uv ? glassMaskAt(maskUrl, h.uv.x, h.uv.y) : null;
+          if (mask === false) continue;
+          if (door && harm.broken.has(door)) continue;
+          return { hit: h, glass: true, door };
+        }
+        const door = tag.startsWith('door:') ? tag.slice(5) : tag === 'body' ? doorOfBody(h.faceIndex) : null;
+        const mask = glassSet && maskUrl && h.uv ? glassMaskAt(maskUrl, h.uv.x, h.uv.y) : null;
+        const pane = glassSet ? all.find((g) => g.object.userData.shot.startsWith('glass') && Math.abs(g.distance - h.distance) < 0.012) : null;
+        if (mask === true || (mask === null && pane)) {
+          if (door && harm.broken.has(door)) continue;
+          return { hit: pane || h, glass: true, door };
+        }
+        return { hit: h, glass: false, door };
+      }
+      return null;
+    },
+    struck(found, dir) {
+      const h = found.hit, o = h.object;
+      const local = o.worldToLocal(h.point.clone());
+      const n = h.face ? h.face.normal.clone() : new THREE.Vector3(0, 1, 0);
+      if (n.clone().transformDirection(o.matrixWorld).dot(dir) > 0) n.negate();
+      const doorGlass = found.glass && found.door && doorParts.has(found.door) && !!doorParts.get(found.door).pane;
+      const entry = { part: found.door && doorParts.has(found.door) ? found.door : 'body', kind: found.glass ? (doorGlass ? 'break' : 'glass') : 'metal', p: [local.x, local.y, local.z], n: [n.x, n.y, n.z], spin: Math.random() * Math.PI * 2 };
+      const box = harmWith(entry);
+      return { entry, box, at: h.point.clone() };
+    },
+    harmed(list) { for (const entry of list || []) harmWith(entry); },
+    unharmed() {
+      for (const h of harm.holders.values()) if (h.parent) h.parent.remove(h);
+      harm.holders.clear(); harm.holes.length = 0;
+      for (const k of harm.broken) { const dp = doorParts.get(k); if (dp && dp.pane) dp.pane.visible = true; }
+      harm.broken.clear(); harm.split = false;
+    },
+    harmNow: () => ({ holes: harm.holes.length, glass: harm.holes.filter((m) => m.userData.hole === 'glass').length, broken: [...harm.broken], split: harm.split }),
     lamps(state) { fx.set(state); },
+    wipe(angle) {
+      if (!glass || !glassSet || !glassSet.screen) return false;
+      if (angle === null && !ownWipers) return false;
+      if (!ownWipers) { ownWipers = glass.wipers({ ...glassSet.screen, blade: 0.03 / scale }); for (const m of paneList) m.material = ownWipers.material; }
+      ownWipers.wipe(angle);
+      return true;
+    },
     cabinLight(state) { if (fitted) fitted.light(state); else if (dials) dials.light(state); },
     cabinDetail(level) { if (fitted) fitted.detail(level); else if (dials) dials.detail(level); },
     glazed: !!glassSet,
@@ -42000,7 +42496,7 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
     headlampAt: (out = new THREE.Vector3()) => fx.head.getWorldPosition(out),
     doors: () => (doorSet ? Object.fromEntries([...doorParts].map(([k, part]) => [k, part.angle])) : null),
     whole: () => (!doorSet ? body.visible : opened ? rest.visible && !body.visible && [...doorParts.values()].every((part) => part.hinge.visible) : body.visible && !rest.visible),
-    dispose() { fx.dispose(); if (inner) inner.dispose(); if (liner) liner.material.dispose(); if (fitted) fitted.dispose(); if (dials) dials.dispose(); if (group.parent) group.parent.remove(group); if (held) { held = false; if (own) free(parts); else { users.set(key, users.get(key) - 1); trim(); } } },
+    dispose() { for (const h of harm.holders.values()) if (h.parent) h.parent.remove(h); harm.holders.clear(); harm.holes.length = 0; if (ownWipers) { ownWipers.dispose(); ownWipers = null; } fx.dispose(); if (inner) inner.dispose(); if (liner) liner.material.dispose(); if (fitted) fitted.dispose(); if (dials) dials.dispose(); if (group.parent) group.parent.remove(group); if (held) { held = false; if (own) free(parts); else { users.set(key, users.get(key) - 1); trim(); } } },
   };
 }
 
@@ -51265,12 +51761,15 @@ const { wheelLifts, bodyOn, kickBody } = __modules["client/wheel-bumps.js"];
 const { seatFigure } = __modules["client/car-seating.js"];
 const { loadCarMoves, carMove } = __modules["client/car-moves.js"];
 const { fetchKept } = __modules["client/glb.js"];
+const { glassRain } = __modules["client/car-glass.js"];
+const { createGlassBits } = __modules["client/car-damage.js"];
 
 const SIGHT = 120;                  // metres within which a parked car is drawn
 const PEER_SIGHT = 220, PEER_MOST = 4;     // another player's car being driven: drawn within this, the nearest few
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
 const TRAFFIC_DRAWN = Object.freeze({ lite: Object.freeze({ most: 2, sight: 45, tier: '512' }), full: Object.freeze({ most: 5, sight: 90, tier: '1k' }) });
 const SPRINGS = Object.freeze({ pitch: 0.012, most: 0.05, roll: 0.0045 });
+const WIPERS = Object.freeze({ sweep: 1.75, pace: 4.4 });
 const CABIN_SEEN = Object.freeze({ lite: Object.freeze({ near: 15, far: 45 }), full: Object.freeze({ near: 30, far: 90 }) });
 const DRIVE = Object.freeze({ recline: 0.38, mostRecline: 0.62, sink: 0.08, slide: 0.14, headRoom: 0.04, wheelTurn: 1.4, wheelMost: 0.6, look: 0.35 });
 const SETTLE = Object.freeze({ most: 0.25, step: 0.5, travel: 0.12 });
@@ -51310,24 +51809,46 @@ const w = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3
 
 function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}, onBump = () => {} } = {}) {
   const shown = new Map();          // key -> { id, car, loading, travelled, failed, fx }
+  const harmed = new Map();         // which car -> [entries (car-model.js `struck`)]
+  const bits = createGlassBits(scene, { lite });
+  const ray = { origin: new THREE.Vector3(), dir: new THREE.Vector3(), near: 0, far: 0 };
   const frozen = new Set();         // figures whose bones seat() set by hand this frame
 
   function entry(key, id, tier = null) {
     let e = shown.get(key);
     if (e && e.id !== id) { if (e.car) e.car.dispose(); shown.delete(key); e = null; }
     if (!e) {
-      e = { id, car: null, loading: true, travelled: 0, failed: false, fx: null };
+      e = { id, key, car: null, loading: true, travelled: 0, failed: false, fx: null };
       shown.set(key, e);
       const spec = POWER_CARS[id];
       const later = String(key).startsWith('peer:') || String(key).startsWith('traffic:');
       loadCar(id, { base, lite, length: spec ? spec.length : 4.6, priority: later ? 'low' : undefined, tier }).then((car) => {
         if (shown.get(key) !== e) { car.dispose(); return; }
-        e.car = car; e.loading = false; scene.add(car.group);
+        e.car = car; e.loading = false; e.placed = false; car.group.visible = false; scene.add(car.group);
         if (car.glazed) loadCarMoves((path) => fetchKept(path)).catch(() => {});
       }, (error) => { e.loading = false; e.failed = true; onError(error); });
     }
     return e;
   }
+
+  const whichCar = (key, e) => {
+    const k = String(key);
+    if (k === 'drive') return e.as || `own:${e.id}`;
+    if (k.startsWith('park:')) return `own:${k.slice(5)}`;
+    if (k.startsWith('peer:')) return `peer:${k.slice(5)}:${e.id}`;
+    if (k.startsWith('cpark:')) return `peer:${k.slice(6)}`;
+    return k;
+  };
+  const markOn = (key, e) => {
+    if (!e.car || !e.car.harmed) return;
+    const which = whichCar(key, e), list = harmed.get(which) || null;
+    if (e.marked === e.car && e.markedAs !== which) { e.car.unharmed(); e.markedCount = 0; e.markedAs = which; }
+    if (!list) { if (e.marked !== e.car) { e.marked = e.car; e.markedCount = 0; e.markedAs = which; } return; }
+    if (e.marked === e.car && e.markedCount === list.length) return;
+    if (e.marked !== e.car) { e.marked = e.car; e.markedCount = 0; e.markedAs = which; }
+    e.car.harmed(list.slice(e.markedCount));
+    e.markedCount = list.length;
+  };
 
   function springs(e, d, dt) {
     const fx = e.fx || (e.fx = { pitch: 0, roll: 0, lastH: d.h, lastSpeed: d.speed || 0 });
@@ -51350,11 +51871,13 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
     g.position.set(d.x, on.y, d.z);
     g.rotation.set(on.pitch, d.h, on.roll, 'YXZ');
     g.visible = true;
+    e.placed = true;
     return on;
   };
   const place = (e, d, groundY, dt, night, bodies = []) => {
     const fx = springs(e, d, dt);
     const on = sitOn(e, d, groundY);
+    markOn(e.key, e);
     const bars = bodies.length ? barsNear(bodies, d.x, d.z, e.car.size.length / 2 + 2) : NONE;
     const lifts = e.lifts || (e.lifts = []);
     wheelLifts(bars, e.car.wheels, d.x, d.z, d.h, -(d.steer || 0), lifts);
@@ -51372,7 +51895,8 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
     e.car.pose({ travelled: e.travelled, steerAngle: -(d.steer || 0), pitch: fx.pitch + b.pitch, roll: fx.roll + b.roll, lifts: on.all, rise: b.rise, doors: d.doors || null });
     e.state = { head: night > 0.25 || d.lamps ? 1 : 0, tail: night > 0.25 || d.lamps ? 1 : 0, brake: (d.brake && (d.speed || 0) > 0.2) || d.held ? 1 : 0, reverse: (d.speed || 0) < -0.2 ? 1 : 0 };
     e.car.lamps(e.state);
-    e.car.cabinLight({ night, on: true, door: !!(d.doors && Object.values(d.doors).some((a) => a > 0.05)) });
+    e.car.cabinLight({ night, on: d.engine !== false, door: !!(d.doors && Object.values(d.doors).some((a) => a > 0.05)) });
+    if (e.car.wipe) e.car.wipe(glassRain() > 0.12 && d.engine !== false ? WIPERS.sweep * (0.5 - 0.5 * Math.cos(performance.now() / 1000 * WIPERS.pace + (e.phase || (e.phase = 1 + Math.random() * 5)))) : null);
     e.car.cabinDetail(cabinLevel(d));
   };
   const C = CABIN_SEEN[lite ? 'lite' : 'full'];
@@ -51381,6 +51905,7 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
 
   function update(dt, { driven = null, drives = [], parked = [], parkedMost = 4, traffic = [], groundY = () => 0, from = { x: 0, z: 0 }, night = 0, bodies = [] }) {
     fromNow = from;
+    bits.update(dt, groundY);
     for (const f of frozen) f.freeze = false;
     frozen.clear();
     const wanted = new Set();
@@ -51390,9 +51915,11 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
     if (driven && POWER_CARS[driven.id]) {
       wanted.add('drive');
       const e = entry('drive', driven.id);
+      if (driven.as) e.as = driven.as;
       e.travelled += (driven.speed || 0) * dt;
-      if (e.car) place(e, driven, groundY, dt, night, bodies);
-      else wait(e, driven);
+      if (e.car) {
+        place(e, driven, groundY, dt, night, bodies);
+      } else wait(e, driven);
     }
     const dist = (q) => Math.hypot(q.x - from.x, q.z - from.z);
     for (const r of drives.filter((q) => POWER_CARS[q.id] && dist(q) <= PEER_SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, PEER_MOST)) {
@@ -51415,6 +51942,7 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
     const near = parked.filter((p) => POWER_CARS[p.car] && dist(p) <= SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, parkedMost);
     const stand = (e, p) => {
       const on = sitOn(e, p, groundY);
+      markOn(e.key, e);
       e.car.pose({ travelled: e.travelled, steerAngle: 0, pitch: 0, roll: 0, lifts: on.lifts, doors: p.doors || null });
       e.car.lamps({});
       e.car.cabinLight({ night, on: false, door: !!(p.doors && Object.values(p.doors).some((a) => a > 0.05)) });
@@ -51431,6 +51959,34 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
       for (const [key, o] of shown) if (!wanted.has(key) && o.id === w.e.id && o.car) { wanted.add(key); w.put(o); w.e.by = key; break; }
     }
     for (const [key, e] of shown) if (!wanted.has(key)) { if (e.car) e.car.dispose(); shown.delete(key); }
+  }
+
+  function shot(from, to, told = null) {
+    const dir = to.clone().sub(from);
+    const len = dir.length();
+    if (!(len > 0.05)) return null;
+    dir.divideScalar(len);
+    ray.origin.copy(from); ray.dir.copy(dir); ray.near = 0; ray.far = len + (told === 'vehicle' ? 6 : 0.6);
+    let best = null;
+    for (const [key, e] of shown) {
+      if (!e.car || !e.car.hitBy || !e.car.group.visible) continue;
+      const c = e.car.group.position, reachOf = e.car.size.length * 0.6 + 0.5;
+      const t = Math.max(0, Math.min(ray.far, (c.x - from.x) * dir.x + (c.y - from.y) * dir.y + (c.z - from.z) * dir.z));
+      if ((from.x + dir.x * t - c.x) ** 2 + (from.y + dir.y * t - c.y) ** 2 + (from.z + dir.z * t - c.z) ** 2 > reachOf * reachOf) continue;
+      const found = e.car.hitBy(ray);
+      if (found && (!best || found.hit.distance < best.found.hit.distance)) best = { key, e, found };
+    }
+    if (!best) return null;
+    markOn(best.key, best.e);
+    const what = best.e.car.struck(best.found, dir);
+    const which = whichCar(best.key, best.e);
+    const list = harmed.get(which) || [];
+    list.push(what.entry);
+    harmed.delete(which); harmed.set(which, list);
+    if (harmed.size > 60) harmed.delete(harmed.keys().next().value);
+    best.e.marked = best.e.car; best.e.markedCount = list.length; best.e.markedAs = which;
+    if (what.box) bits.burst(what.box, dir);
+    return { glass: what.entry.kind !== 'metal', broke: what.entry.kind === 'break', at: what.at, key: best.key };
   }
 
   function seat(me, d, key = 'drive', where = 'driver') {
@@ -51526,12 +52082,15 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
     bumpPeak: (key = 'drive') => { const e = shown.get(key); if (!e || !e.peak) return null; const pk = e.peak; e.peak = null; return { lifts: [...pk.lifts], pitchMin: pk.pitchMin, pitchMax: pk.pitchMax, roll: pk.roll }; },
     rules: DRIVE,
     ready: () => { const e = shown.get('drive'); return !!(e && e.car); },
-    driven: (key = 'drive') => { const e = shown.get(key); if (!e) return null; if (e.car) return e.car; const by = e.by ? shown.get(e.by) : null; return by && by.car ? by.car : null; },
+    driven: (key = 'drive') => { const e = shown.get(key); if (!e) return null; const by = e.by ? shown.get(e.by) : null; if (e.car && (e.placed !== false || !(by && by.car))) return e.car; return by && by.car ? by.car : e.car || null; },
+    shot,
+    harmOf: (key = 'drive') => { const e = shown.get(key); return e ? { kept: (harmed.get(whichCar(key, e)) || []).length, car: e.car && e.car.harmNow ? e.car.harmNow() : null } : null; },
+    glassBits: () => bits.count(),
     stateOf: (key = 'drive') => { const e = shown.get(key); return e ? e.state || null : null; },
     failed: () => { const e = shown.get('drive'); return !!(e && e.failed); },
     count: () => shown.size,
     keys: () => [...shown.keys()],
-    dispose() { for (const e of shown.values()) if (e.car) e.car.dispose(); shown.clear(); },
+    dispose() { for (const e of shown.values()) if (e.car) e.car.dispose(); shown.clear(); bits.dispose(); },
   };
 }
 
@@ -53246,6 +53805,76 @@ function buildSports(scene, { lite = false, renderer = null } = {}) {
 return { buildSports };
 })();
 
+__modules["client/supplied-windows.js"] = (function () {
+const SUPPLIED_WINDOWS = Object.freeze({
+ "ambulance": {"masks":{"1k":"ambulance-windows-1k.png","512":"ambulance-windows-512.png"},"tris":"ambulance-glass.bin","count":127,"belt":0.2815,"privacy":false,"fit":{"z":[-0.4801,-0.4501,-0.4201,-0.3901,-0.3601,-0.33,-0.3,-0.27,-0.24,-0.21,-0.18,-0.15,-0.12,-0.09,-0.06,-0.03,0.0,0.03,0.06,0.09,0.12,0.15,0.18,0.21,0.24,0.27,0.3,0.33,0.3601,0.3901,0.4201,0.4501,0.4801],"y":[0.0541,0.0812,0.1083,0.1354,0.1625,0.1895,0.2166,0.2437,0.2708,0.2978,0.3249,0.352,0.3791,0.4061,0.4332,0.4549,0.4603,0.4657,0.4711,0.4765,0.4819,0.4874,0.4928,0.4982,0.5036,0.509,0.5144,0.5198,0.5253,0.5307,0.5361,0.5415],"half":[[null,null,0.1911,0.149,0.1411,0.1747,0.1855,0.1854,0.1818,null,0.0096,0.0041,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,0.0969,0.1879,0.1858,0.1851,0.1904,0.1902,0.19,0.1882,0.1849,0.1815,0.1782,0.1748,0.1723,0.1647,0.155,0.1526,0.1502,0.1477,0.1449,0.1401,null,null,null,null,null,null,null,null,null,null,null],[null,0.097,0.1906,0.186,0.1856,0.1912,0.1911,0.1909,0.1908,0.1828,0.1791,0.1755,0.1739,0.1728,0.1669,null,0.1547,0.1522,0.1497,0.1462,0.1422,0.1389,0.1318,null,null,null,null,null,null,null,null,null],[null,0.1891,0.1909,0.1861,0.1864,0.1914,0.1912,0.191,0.1911,0.1829,0.1792,0.1756,0.1737,0.173,0.1664,null,0.1548,0.1523,0.1495,0.1455,0.1426,0.1398,0.1319,null,null,null,null,null,null,null,null,null],[0.1808,0.1809,0.1207,null,0.1873,0.1915,0.1913,0.1913,0.1914,0.1869,0.1831,0.1793,0.1755,0.1732,0.1665,null,0.1549,0.1523,0.1491,0.1462,0.1434,null,0.132,null,null,null,null,null,null,null,null,null],[0.1666,0.1665,0.1209,0.1221,0.1933,0.1916,0.1914,0.1916,0.1915,0.1866,0.1829,0.1792,0.1755,0.1734,0.1666,null,0.155,0.1525,0.1496,0.1467,0.1439,null,0.1322,null,null,null,null,null,null,null,null,null],[0.1725,0.1711,0.121,0.1223,0.1936,0.1917,0.1916,0.1919,0.1917,0.1864,0.1827,0.179,0.1753,0.1736,0.1667,0.1574,0.155,0.1527,0.1517,0.1505,0.1492,0.1436,0.1323,null,null,null,null,null,null,null,null,null],[0.1846,null,0.1212,0.1226,0.1906,0.1919,0.1918,0.1921,0.1919,0.1861,0.1824,0.1788,0.1751,0.1739,0.1668,0.1574,0.155,0.1527,0.1519,0.1506,0.1494,0.1481,0.1324,null,null,null,null,null,null,null,null,null],[null,0.1212,0.1278,0.1902,0.1874,0.192,0.192,0.1924,0.1921,0.1859,0.1822,0.1785,0.1749,0.1741,0.1667,0.1574,0.155,null,0.152,0.1507,0.1495,0.1483,0.1325,null,null,null,null,null,null,null,null,null],[null,0.1208,0.1931,0.1863,0.1875,0.1921,0.1923,0.1927,0.1923,0.1856,0.182,0.1783,0.1747,0.1743,0.1666,0.1574,0.1551,null,0.1521,0.1509,0.1497,0.1486,0.1327,null,null,null,null,null,null,null,null,null],[null,0.1202,0.1934,0.1865,0.1877,0.1922,0.1926,0.193,0.1924,0.1854,0.1818,0.1781,0.1744,0.1745,0.1666,0.1573,0.155,null,0.1523,0.1511,0.1499,0.1488,0.1328,null,null,null,null,null,null,null,null,null],[null,0.1196,0.1936,0.1869,0.1881,0.1925,0.1929,0.1932,0.1918,0.1881,0.1846,0.1811,0.1775,0.1746,0.1665,0.1574,0.1551,0.153,0.1524,0.1512,0.1501,0.1489,0.1329,null,null,null,null,null,null,null,null,null],[null,0.119,0.1936,0.187,0.1881,0.1926,0.193,0.1933,0.1927,0.186,0.1823,0.1785,0.1747,0.1747,0.1666,0.1574,0.1551,0.153,0.1525,0.1514,0.1502,0.149,0.133,null,null,null,null,null,null,null,null,null],[null,0.1257,0.1937,0.187,0.1882,0.1928,0.1931,0.1934,0.1928,0.1862,0.1824,0.1786,0.1748,0.1747,0.1667,0.1574,0.1551,0.153,0.1527,0.1515,0.1503,0.1491,0.1332,null,null,null,null,null,null,null,null,null],[null,0.1256,0.1938,0.187,0.1884,0.1929,0.1932,0.1935,0.1929,0.1863,0.1825,0.1787,0.1748,0.1748,0.1667,0.1574,0.1551,0.153,0.1528,0.1516,0.1503,0.1491,0.1333,null,null,null,null,null,null,null,null,null],[null,0.1254,0.1939,0.187,0.1886,0.193,0.1934,0.1936,0.1932,0.1864,0.1826,0.1787,0.1748,0.1748,0.1668,0.1574,0.1551,0.1531,0.1529,0.1486,0.1457,null,0.1334,null,null,null,null,null,null,null,null,null],[null,0.1253,0.1941,0.187,0.1888,0.1931,0.1935,0.1936,0.1934,0.1865,0.1826,0.1788,0.1749,0.1748,0.1668,0.1575,0.1552,0.1528,0.1505,0.1482,0.1458,null,0.1335,null,0.0754,0.0016,null,null,null,null,null,null],[null,0.1252,0.1942,0.187,0.189,0.1933,0.1935,0.1937,0.1936,0.1866,0.1827,0.1788,0.1749,0.1749,0.1677,0.1656,0.1569,0.1529,0.1505,0.1482,0.1458,null,0.1331,null,null,null,null,0.0574,0.0605,0.0581,0.0636,null],[null,0.125,0.1943,0.1872,0.1892,0.1934,0.1936,0.1937,0.1936,0.1903,0.1864,0.1825,0.1786,0.1749,0.1674,0.1654,0.1568,0.1528,0.1504,0.148,0.1455,null,0.1328,0.1034,0.0725,null,0.0752,0.0752,0.0752,0.0752,0.0752,null],[0.1621,0.1143,0.1939,0.1874,0.1894,0.1935,0.1936,0.1938,0.1926,0.189,0.1854,0.1818,0.1782,0.1749,0.1667,0.164,0.1545,0.152,0.1496,0.147,null,0.1341,0.1074,null,null,null,null,null,null,null,null,null],[0.1572,0.1121,0.1888,0.1845,0.1868,0.1919,0.192,0.1922,0.1916,0.189,0.1842,0.1805,0.1767,0.1729,0.1654,0.1587,0.1526,0.1501,0.1475,0.1395,0.1139,null,null,null,null,null,null,null,null,null,null,null],[0.1569,0.1099,0.1862,0.1812,0.185,0.1887,0.1896,0.1897,0.189,0.1798,0.177,0.1741,0.1713,0.1697,0.1644,0.1515,null,0.1408,0.1154,0.074,0.074,0.074,0.0892,0.0892,0.0892,null,null,null,null,null,null,null],[null,0.1077,0.1841,0.1778,0.1825,0.1855,0.1867,0.1873,0.1857,0.1766,0.1738,0.171,0.1683,0.1664,0.163,null,null,null,null,0.0742,0.0742,0.0742,null,null,null,null,null,null,null,null,null,null],[null,0.1055,0.1885,0.1781,0.1801,0.1823,0.1835,0.1847,0.1801,0.1733,0.1707,0.168,0.1655,0.1626,0.1513,0.0083,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[0.0346,0.04,0.0892,0.1173,0.1828,0.1826,0.1831,0.1824,0.1768,0.1701,0.1702,0.167,0.1626,0.1484,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[0.076,0.038,0.1159,0.117,0.1948,0.182,0.1806,0.1795,0.1735,0.1694,0.1665,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[0.1025,0.0359,0.1152,0.1168,0.1938,0.1804,0.1786,0.1767,0.1679,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[0.1838,0.0339,0.1146,0.1166,0.1821,0.1775,0.1754,0.171,0.1506,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,0.0319,0.1843,0.1805,0.1776,0.1725,0.1705,0.1644,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,0.0299,0.1727,0.1755,0.1729,0.1673,0.1654,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,0.1626,0.1661,0.169,0.1667,0.1603,0.1579,0.1265,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,0.1181,null,0.1264,null,0.1181,0.1113,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,null,0.0778,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]],"top":[0.3572,0.4989,0.5057,0.5063,0.507,0.5074,0.5075,0.5077,0.5078,0.508,0.5082,0.5083,0.5082,0.5081,0.508,0.5079,0.5139,0.5081,0.541,0.4996,0.4899,0.5054,0.5054,0.457,0.4167,0.3599,0.3096,0.2809,0.2759,0.2705,0.2644,0.2515,0.1506],"low":[0.3237,0.4933,0.5005,0.5007,0.5012,0.5014,0.5017,0.5011,0.5012,0.5013,0.5014,0.5015,0.5014,0.5013,0.5011,0.5009,0.5008,0.5039,0.5016,0.4947,0.4856,0.5054,0.4587,0.4424,0.4111,0.3476,0.2968,0.277,0.2727,0.2673,0.2611,0.2405,0.1504],"roof":[[0.3572,0.3238,0.3246,0.3253,0.3263,0.3272,0.3391,0.2568,null],[0.4989,0.4949,0.4945,0.4937,0.4924,0.4873,0.4423,0.2778,null],[0.5057,0.5031,0.5026,0.5011,0.4989,0.4943,0.4561,0.2961,null],[0.5063,0.5036,0.503,0.5014,0.4986,0.4919,0.4561,0.2965,null],[0.507,0.5042,0.5035,0.5018,0.4985,0.4915,0.4561,0.295,null],[0.5074,0.5046,0.5039,0.502,0.4987,0.4916,0.4568,0.2924,null],[0.5075,0.5047,0.504,0.5019,0.4984,0.494,0.4473,0.2906,null],[0.5077,0.5048,0.5041,0.502,0.4982,0.496,0.4473,0.2889,null],[0.5078,0.505,0.5041,0.5021,0.498,0.4964,0.454,0.3183,null],[0.508,0.5051,0.5042,0.5022,0.498,0.496,0.4474,0.2998,null],[0.5082,0.5053,0.5044,0.5023,0.4978,0.496,0.4528,0.2836,null],[0.5083,0.5054,0.5045,0.5023,0.4979,0.496,0.485,0.3039,null],[0.5082,0.5053,0.5044,0.5023,0.4978,0.4953,0.4474,0.2885,null],[0.5081,0.5052,0.5043,0.5021,0.4978,0.495,0.4516,0.2893,null],[0.508,0.5051,0.5042,0.5019,0.4977,0.495,0.4476,0.2901,null],[0.5079,0.505,0.5041,0.5018,0.4976,0.4925,0.4476,0.2909,null],[0.5139,0.5062,0.5054,0.5023,0.4974,0.4956,0.4477,0.3079,null],[0.5081,0.5054,0.5378,0.5022,0.4973,0.4952,0.4595,0.2924,null],[0.5066,0.5037,0.5409,0.5019,0.4981,0.4948,0.4829,0.3182,null],[0.4996,0.497,0.4962,0.4951,0.4935,0.4892,0.4568,0.3102,null],[0.4899,0.4874,0.4867,0.4858,0.4843,0.4803,0.4547,0.307,null],[0.5054,0.5054,0.5054,0.5054,0.4722,0.467,0.4504,0.2857,null],[0.5054,0.5054,0.5054,0.5054,0.4583,0.4522,0.4418,0.2748,null],[0.457,0.4438,0.4432,0.4426,0.4414,0.4388,0.4244,0.2568,null],[0.4167,0.4165,0.415,0.412,0.4079,0.4116,0.393,0.218,null],[0.3599,0.357,0.3543,0.3491,0.3428,0.3331,0.3352,0.292,null],[0.3096,0.3067,0.3043,0.2983,0.291,0.2801,0.2838,0.1713,null],[0.2809,0.2798,0.2787,0.2773,0.2758,0.2731,0.2577,0.16,null],[0.2759,0.275,0.2743,0.2729,0.2708,0.268,0.246,0.1169,null],[0.2705,0.2698,0.269,0.2676,0.2651,0.2624,0.2425,null,null],[0.2644,0.2638,0.2631,0.2614,0.2584,0.2407,0.2256,null,null],[0.2515,0.2505,0.2462,0.2412,0.2386,0.1663,null,null,null],[0.1504,0.1507,0.1511,0.1123,null,null,null,null,null]],"roofX":[0.0,0.0268,0.0535,0.0803,0.1071,0.1338,0.1606,0.1873,0.2141]},"length":1.00014,"height":0.5415,"body":0.42822,"driver":{"hip":[0.068,0.24,0.15],"wheel":[0.068,0.293,0.222],"radius":0.034,"tilt":0.55,"feet":[[0.083,0.147,0.27],[0.053,0.147,0.265]],"roof":0.47,"seen":false}},
+ "boxTruck": {"masks":{"1k":"boxTruck-windows-1k.png","512":"boxTruck-windows-512.png"},"tris":"boxTruck-glass.bin","count":326,"belt":0.1377,"privacy":false,"fit":{"z":[-0.529,-0.4959,-0.4629,-0.4298,-0.3968,-0.3637,-0.3306,-0.2976,-0.2645,-0.2314,-0.1984,-0.1653,-0.1323,-0.0992,-0.0661,-0.0331,0.0,0.0331,0.0661,0.0992,0.1323,0.1653,0.1984,0.2314,0.2645,0.2976,0.3306,0.3637,0.3968,0.4298,0.4629,0.4959,0.529],"y":[0.044,0.066,0.088,0.11,0.132,0.154,0.176,0.198,0.22,0.242,0.264,0.286,0.308,0.33,0.352,0.3696,0.374,0.3784,0.3827,0.3871,0.3915,0.3959,0.4003,0.4047,0.4091,0.4135,0.4179,0.4223,0.4267,0.4311,0.4355,0.4399],"half":[[null,null,null,0.1634,null,0.1641,0.1639,0.1637,0.1635,0.1632,0.1632,0.1632,0.1632,0.1632,0.1631,0.1631,0.1632,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,null,null,0.1637,0.1637,0.1645,0.1643,0.1641,0.1639,0.1634,0.1633,0.1633,0.1633,0.1633,0.1633,0.1634,0.1634,0.1632,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,null,null,0.1641,0.1638,0.1649,0.1647,0.1645,0.1642,0.1635,0.1635,0.1635,0.1634,0.1634,0.1635,0.1636,0.1636,0.1637,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,null,0.1634,0.1644,null,0.1653,0.1651,0.1649,0.1643,0.1637,0.1636,0.1636,0.1636,0.1637,0.1638,0.1639,0.1639,0.1639,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,null,0.1647,0.1647,null,0.1657,0.1655,0.1651,0.1644,0.1638,0.1637,0.1637,0.1638,0.1639,0.164,0.1641,0.1641,0.1641,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,null,null,0.1651,null,0.1661,0.1658,0.1652,0.1646,0.164,0.1639,0.164,0.1641,0.1642,0.1643,0.1644,0.1644,0.1644,0.1644,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,null,null,0.1654,0.1631,0.1666,0.166,0.1654,0.1648,0.1643,0.1643,0.1644,0.1645,0.1646,0.1647,0.1648,0.1648,0.1648,0.1649,null,null,null,null,null,null,null,null,null,null,null,null,null],[0.126,0.1262,0.1258,0.1234,0.1642,0.1672,0.1667,0.1661,0.1655,0.1651,0.1651,0.1652,0.1653,0.1654,0.1655,0.1656,0.1657,0.1657,0.1657,null,null,null,null,null,null,null,null,null,null,null,null,null],[0.0139,0.0183,0.1268,0.1263,0.0909,0.1679,0.1674,0.1668,0.1663,0.1659,0.1659,0.166,0.1661,0.1662,0.1664,0.1665,0.1665,0.1666,0.1666,null,null,null,null,null,null,null,null,null,null,null,null,null],[0.02,0.0236,0.127,null,0.0904,0.1686,0.1681,0.1675,0.1671,0.1667,0.1667,0.1668,0.1669,0.1671,0.1672,0.1674,0.1674,0.1674,0.1674,0.1675,null,null,null,null,null,null,null,null,null,null,null,null],[0.1296,0.1294,0.1296,0.0819,0.09,0.1694,0.1688,0.1684,0.168,0.1676,0.1675,0.1676,0.1678,0.1679,0.1681,0.1682,0.1682,0.1683,0.1683,0.1683,null,null,null,null,null,null,null,null,null,null,null,null],[0.1311,0.1312,0.1309,0.0827,0.0828,0.1701,0.1696,0.1692,0.1688,0.1684,0.1683,0.1685,0.1686,0.1688,0.169,0.1691,0.1691,0.1691,0.1692,0.1692,null,null,null,null,null,null,null,null,null,null,null,null],[0.1312,0.1314,0.1311,0.0835,0.1577,0.1707,0.1703,0.1699,0.1695,0.1691,0.1691,0.1693,0.1694,0.1696,0.1697,0.1699,0.1699,0.1699,0.17,0.17,null,null,null,null,null,null,null,null,null,null,null,null],[null,0.1689,0.1698,0.169,null,0.1713,0.1709,0.1705,0.1701,0.1697,0.1697,0.1698,0.17,0.1701,0.1703,0.1704,0.1705,0.1705,0.1705,0.1706,0.1706,null,null,null,null,null,null,null,null,null,null,null],[null,0.1742,0.17,0.1698,null,0.1718,0.1714,0.171,0.1706,0.1703,0.1702,0.1704,0.1706,0.1707,0.1709,0.171,0.171,0.1711,0.1711,0.1711,0.1712,null,null,null,null,null,null,null,null,null,null,null],[0.1325,0.1749,0.1713,0.1702,0.177,0.1723,0.1719,0.1715,0.1712,0.1709,0.1708,0.171,0.1711,0.1713,0.1714,0.1716,0.1716,0.1716,0.1717,0.1717,0.1717,null,null,null,null,null,null,null,null,null,null,null],[0.1358,0.1751,0.1727,0.1706,0.1773,0.1728,0.1724,0.1721,0.1718,0.1715,0.1714,0.1715,0.1717,0.1719,0.172,0.1721,0.1722,0.1722,0.1722,0.1722,0.1723,0.1723,null,null,null,null,null,null,null,null,null,null],[0.1392,0.1753,0.1732,0.171,0.1776,0.1733,0.173,0.1727,0.1723,0.172,0.172,0.1721,0.1723,0.1724,0.1726,0.1727,0.1727,0.1728,0.1728,0.1728,0.1728,0.1729,null,null,null,null,null,null,null,null,null,null],[0.1417,0.1755,0.1736,0.1714,0.1779,0.1737,0.1734,0.173,0.1727,0.1724,0.1725,0.1726,0.1728,0.1729,0.1731,0.1732,0.1732,0.1733,0.1733,0.1733,0.1734,0.1733,null,null,null,null,null,null,null,null,null,null],[0.0935,0.0997,0.1721,0.1718,0.1723,0.1735,0.1732,0.1729,0.1726,0.1726,0.1729,0.173,0.1732,0.1733,0.1735,0.1735,0.1735,0.1734,0.1734,0.1733,0.1732,0.1732,0.1731,null,null,null,null,null,null,null,null,null],[0.0927,0.0936,0.1719,0.172,0.17,0.1734,0.1731,0.1728,0.1726,0.173,0.1732,0.1734,0.1735,0.1737,0.1737,0.1734,0.1734,0.1733,0.1732,0.1732,0.1731,0.1731,0.173,null,null,null,null,null,null,null,null,null],[0.0923,0.093,0.1717,0.1718,0.1704,0.1732,0.1729,0.1726,0.1727,0.1726,0.1726,0.1728,0.1729,0.173,0.1728,0.1727,0.1727,0.1726,0.1726,0.1726,0.1725,0.1725,0.1725,0.1621,null,null,null,null,null,null,null,null],[0.0918,0.0924,0.1715,0.1714,0.1705,0.1727,0.1723,0.1721,0.1721,0.172,0.172,0.1721,0.1722,0.172,0.1719,0.1717,0.1717,0.1717,0.1716,0.1716,0.1716,0.1716,0.1715,0.1715,null,null,null,null,null,null,null,null],[0.0913,0.0918,0.1706,0.1707,0.1705,0.1718,0.1716,0.1715,0.1298,0.1267,0.1714,0.1713,0.1712,0.171,0.1709,0.1708,0.1707,0.1707,0.1707,0.1707,0.1706,0.1706,0.1706,0.1705,null,null,null,null,null,null,null,null],[null,null,0.1304,0.1326,0.1398,0.1457,0.0341,0.0275,0.0213,0.015,0.0087,0.0025,0.1357,0.0406,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,0.1047,0.1283,0.1317,0.1394,0.1423,0.1439,0.1445,0.1414,0.14,0.14,0.1399,0.1355,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,0.117,0.1287,0.1308,0.1349,0.1385,0.1405,0.141,0.1387,0.1379,0.1376,0.1368,0.1329,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,null,0.1666,null,0.1306,0.1347,0.137,0.1374,0.14,0.1362,0.1351,0.1335,0.1256,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[0.1568,0.1571,0.1562,0.0836,0.0838,null,0.134,0.1345,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[0.1635,0.1644,0.0833,0.0832,0.0833,0.1678,0.1298,0.1259,0.1223,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[0.1595,0.1611,0.0829,0.0827,0.0828,0.1674,0.1204,0.1156,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,0.0828,0.0825,0.0822,0.1653,null,0.1065,0.1031,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,null,null,null,null,0.0956,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]],"top":[0.3778,0.3787,0.3797,0.3807,0.3817,0.3826,0.3837,0.3852,0.3866,0.388,0.3894,0.3908,0.3922,0.3937,0.3951,0.3965,0.3979,0.3992,0.4006,0.402,0.4034,0.4048,0.4062,0.4076,0.3452,0.3278,0.3298,0.3265,0.2647,0.2323,0.222,0.2091,0.1948],"low":[0.3777,0.3787,0.3796,0.3806,0.3816,0.3826,0.3837,0.385,0.3863,0.3876,0.389,0.3904,0.3918,0.3932,0.3946,0.396,0.3974,0.3988,0.4003,0.4018,0.4033,0.4048,0.4062,0.4076,0.3452,0.3253,0.3241,0.319,0.2546,0.227,0.2159,0.2023,0.1852],"roof":[[0.3778,0.3777,0.3777,0.3777,0.3777,0.3777,0.3776,0.3555,null],[0.3787,0.3787,0.3787,0.3787,0.3786,0.3786,0.3786,null,null],[0.3797,0.3797,0.3797,0.3796,0.3796,0.3797,0.3798,0.3713,null],[0.3807,0.3807,0.3806,0.3806,0.3807,0.3809,0.3811,null,null],[0.3817,0.3816,0.3816,0.3817,0.3819,0.3821,0.3823,null,null],[0.3826,0.3826,0.3828,0.383,0.3831,0.3833,0.3835,0.3733,null],[0.3837,0.3838,0.3839,0.3841,0.3843,0.3845,0.3847,0.0875,null],[0.3851,0.385,0.385,0.3852,0.3854,0.3856,0.3857,0.1301,null],[0.3865,0.3864,0.3863,0.3862,0.3864,0.3866,0.3868,0.1355,null],[0.388,0.3879,0.3877,0.3876,0.3875,0.3877,0.3879,0.1492,null],[0.3894,0.3893,0.3891,0.389,0.3889,0.3887,0.3889,0.1538,null],[0.3908,0.3907,0.3906,0.3904,0.3903,0.3901,0.39,0.3895,null],[0.3922,0.3921,0.392,0.3918,0.3917,0.3916,0.3914,0.3905,null],[0.3937,0.3935,0.3934,0.3932,0.3931,0.393,0.3928,0.3928,null],[0.3951,0.3949,0.3948,0.3946,0.3945,0.3943,0.3943,0.3943,null],[0.3965,0.3963,0.3962,0.396,0.3959,0.3958,0.3958,0.3958,null],[0.3979,0.3977,0.3976,0.3974,0.3973,0.3973,0.3973,0.3973,null],[0.3992,0.3991,0.399,0.3988,0.3988,0.3988,0.3988,0.3988,null],[0.4006,0.4005,0.4003,0.4003,0.4003,0.4003,0.4003,0.4003,null],[0.402,0.4019,0.4018,0.4018,0.4018,0.4018,0.4018,0.4018,null],[0.4034,0.4033,0.4033,0.4033,0.4033,0.4033,0.4033,0.4033,null],[0.4048,0.4048,0.4048,0.4048,0.4048,0.4048,0.4048,0.4048,null],[0.4062,0.4062,0.4063,0.4063,0.4063,0.4063,0.4063,0.4063,null],[0.4076,0.4077,0.4077,0.4077,0.4077,0.4078,0.4078,0.4078,null],[0.3452,0.3452,0.3452,0.3452,0.3228,0.3179,0.2557,null,null],[0.3278,0.3275,0.3273,0.3256,0.3263,0.3187,0.1967,null,null],[0.3266,0.3296,0.326,0.3244,0.3279,0.3179,0.1069,null,null],[0.3244,0.326,0.3214,0.3194,0.3166,0.3119,0.113,null,null],[0.2643,0.2635,0.2622,0.2552,0.2492,0.2334,0.1556,null,null],[0.2323,0.2308,0.23,0.2277,0.2256,0.221,0.1707,null,null],[0.222,0.2201,0.2193,0.2164,0.2132,0.1757,0.1676,0.1494,null],[0.2091,0.2067,0.2054,0.2028,0.1992,0.1601,0.1504,null,null],[0.1948,0.191,0.1885,0.1854,0.1581,0.1177,null,null,null]],"roofX":[0.0,0.0247,0.0494,0.0741,0.0988,0.1235,0.1482,0.1729,0.1976]},"length":1.10209,"height":0.43994,"body":0.39525,"driver":{"hip":[0.062,0.188,0.312],"wheel":[0.062,0.234,0.37],"radius":0.03,"tilt":0.6,"feet":[[0.075,0.122,0.402],[0.048,0.122,0.398]],"roof":0.327,"seen":false}},
+ "heavyTruck": {"masks":{"1k":"heavyTruck-windows-1k.png","512":"heavyTruck-windows-512.png"},"tris":"heavyTruck-glass.bin","count":2115,"belt":0.2599,"privacy":false,"fit":{"z":[-0.4781,-0.4482,-0.4183,-0.3884,-0.3586,-0.3287,-0.2988,-0.2689,-0.239,-0.2092,-0.1793,-0.1494,-0.1195,-0.0896,-0.0598,-0.0299,0.0,0.0299,0.0598,0.0896,0.1195,0.1494,0.1793,0.2092,0.239,0.2689,0.2988,0.3287,0.3586,0.3884,0.4183,0.4482,0.4781],"y":[0.0499,0.0748,0.0998,0.1247,0.1497,0.1746,0.1996,0.2245,0.2495,0.2744,0.2994,0.3243,0.3493,0.3742,0.3992,0.4191,0.4241,0.4291,0.4341,0.4391,0.4441,0.4491,0.454,0.459,0.464,0.469,0.474,0.479,0.484,0.489,0.494,0.4989],"half":[[null,null,null,0.0212,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[0.1548,0.1564,0.1565,0.1555,0.1563,0.1566,0.1568,0.1567,0.1565,0.1565,0.1565,0.1566,0.1567,0.1567,0.1568,0.1568,0.1568,0.1568,0.1568,0.1568,0.1567,0.1566,0.1565,0.1563,0.156,0.1558,0.1536,null,null,null,null,null],[0.1595,0.1598,0.1602,0.1601,0.1599,0.1598,0.1601,0.1599,0.1597,0.1597,0.1602,0.1603,0.1604,0.1604,0.1602,0.1599,0.1599,0.1599,0.1599,0.1599,0.1599,0.1598,0.1598,0.1598,0.1596,0.1593,0.1572,null,null,null,null,null],[0.1622,0.1625,0.1629,0.1628,0.1627,0.1625,0.1627,0.1626,0.1625,0.1626,0.1644,0.1621,0.1622,0.1636,0.1635,0.1627,0.1626,0.1626,0.1626,0.1626,0.1625,0.1625,0.1625,0.1624,0.1623,0.162,0.1609,null,null,null,null,null],[0.1649,0.1652,0.1655,0.1655,0.1654,0.1652,0.1654,0.1653,0.1653,0.1655,0.167,0.1649,0.1649,0.1663,0.1664,0.1654,0.1654,0.1653,0.1653,0.1653,0.1652,0.1652,0.1652,0.1651,0.1649,0.1645,0.1624,null,null,null,null,null],[0.1675,0.1676,0.1682,0.1678,0.1677,0.1676,0.1678,0.1679,0.1679,0.1679,0.1697,0.1674,0.1674,0.1687,0.1687,0.1677,0.1677,0.1677,0.1676,0.1676,0.1676,0.1675,0.1674,0.1673,0.1672,0.1669,0.1657,null,null,null,null,null],[0.1697,0.1699,0.1702,0.1702,0.17,0.1698,0.1701,0.1702,0.1702,0.1703,0.1721,0.1697,0.1696,0.1705,0.1706,0.17,0.17,0.1699,0.1699,0.1699,0.1698,0.1698,0.1697,0.1696,0.1694,0.1693,0.1683,null,null,null,null,null],[0.1733,0.173,0.1731,0.1725,0.1724,0.172,0.1723,0.1724,0.1724,0.1725,0.1742,0.172,0.1718,0.1728,0.1733,0.1722,0.1721,0.1721,0.172,0.172,0.1719,0.1719,0.1718,0.1718,0.1716,0.1713,0.1703,null,null,null,null,null],[0.0778,0.0779,0.1672,0.1751,0.1745,0.1742,0.1746,0.1747,0.1747,0.1747,0.176,0.1752,0.1751,0.1759,0.1758,0.1744,0.1743,0.1743,0.1742,0.1742,0.1741,0.1741,0.174,0.1739,0.1738,0.1737,0.1724,null,null,null,null,null],[0.0806,0.0806,0.0808,0.1792,0.1768,0.1764,0.1766,0.1767,0.1767,0.1767,0.1767,0.1767,0.1768,0.1767,0.1767,0.1765,0.1765,0.1765,0.1765,0.1764,0.1764,0.1764,0.1764,0.1764,0.1763,0.176,0.1753,null,null,null,null,null],[0.0832,0.0833,0.0838,0.1789,0.1785,0.1784,0.1786,0.1786,0.1785,0.1785,0.1785,0.1784,0.1784,0.1784,0.1784,0.1784,0.1784,0.1784,0.1784,0.1784,0.1784,0.1784,0.1784,0.1784,0.1783,0.1782,0.1774,null,null,null,null,null],[0.09,0.1772,0.1853,0.181,0.1807,0.1805,0.1807,0.1806,0.1805,0.1804,0.1804,0.1803,0.1803,0.1803,0.1803,0.1803,0.1803,0.1803,0.1803,0.1803,0.1803,0.1803,0.1803,0.1802,0.1801,0.18,0.1792,null,null,null,null,null],[0.0892,0.0894,0.0897,0.1848,0.1827,0.1826,0.1828,0.1827,0.1825,0.1824,0.1823,0.1823,0.1822,0.1822,0.1822,0.1822,0.1822,0.1822,0.1822,0.1821,0.1821,0.1821,0.1821,0.1821,0.182,0.1817,0.1812,null,null,null,null,null],[0.0918,0.0919,0.0921,null,0.1843,0.1846,0.1849,0.1847,0.1845,0.1843,0.1842,0.1842,0.1841,0.1841,0.184,0.184,0.184,0.184,0.184,0.184,0.184,0.184,0.184,0.184,0.1838,0.1835,0.1831,null,null,null,null,null],[0.0944,0.0946,0.1059,0.1265,0.1866,0.1864,0.1867,0.1865,0.1863,0.186,0.1859,0.1858,0.1858,0.1858,0.1857,0.1856,0.1856,0.1856,0.1856,0.1856,0.1856,0.1856,0.1856,0.1855,0.1853,0.1852,0.1847,null,null,null,null,null],[0.1886,0.1886,0.1895,0.1299,0.1879,0.1881,0.1884,0.1882,0.1879,0.1876,0.1873,0.1873,0.1873,0.1872,0.1872,0.1871,0.1871,0.1871,0.1871,0.1871,0.1871,0.187,0.187,0.1871,0.1868,0.1866,0.1861,null,null,null,null,null],[0.1865,null,0.1904,0.1329,0.1894,0.1893,0.1896,0.1895,0.1891,0.1887,0.1885,0.1885,0.1884,0.1884,0.1884,0.1883,0.1883,0.1883,0.1883,0.1882,0.1882,0.1882,0.1882,0.1881,0.1879,0.1877,0.1874,0.1848,null,null,null,null],[0.1906,0.1835,0.1912,0.1332,0.1905,0.1901,0.1905,0.1904,0.1902,0.1898,0.1897,0.1897,0.1897,0.1896,0.1896,0.1895,0.1895,0.1895,0.1895,0.1894,0.1893,0.1892,0.1891,0.189,0.1886,0.1885,0.1883,0.1854,null,null,null,null],[0.1909,0.1908,0.1914,null,0.1906,0.1909,0.1913,0.1912,0.191,0.1907,0.1915,0.1916,0.1918,0.1919,0.1914,0.1903,0.1903,0.1902,0.1902,0.1901,0.19,0.1899,0.1898,0.1897,0.1894,0.1893,0.1892,0.1865,null,null,null,null],[0.1912,0.1914,0.1923,null,0.1906,0.1915,0.192,0.1919,0.1917,0.1916,0.1924,0.1912,0.1911,0.1921,0.1923,0.191,0.191,0.1909,0.1908,0.1907,0.1907,0.1906,0.1905,0.1904,0.1902,0.19,0.1898,0.1868,null,null,null,null],[0.1918,0.192,0.1933,null,0.1921,0.1922,0.1925,0.1925,0.1923,0.1922,0.1931,0.192,0.1918,0.193,0.1929,0.1916,0.1915,0.1914,0.1913,0.1912,0.1912,0.1911,0.191,0.1909,0.1907,0.1905,0.1902,0.1876,null,null,null,null],[0.1921,0.1923,0.1924,0.1405,0.1922,0.1924,0.1927,0.1926,0.1925,0.1924,0.1935,0.1922,0.1921,0.1932,0.1928,0.1918,0.1917,0.1916,0.1915,0.1914,0.1913,0.1912,0.1911,0.1909,0.1907,0.1905,0.1905,0.1874,null,null,null,null],[0.1922,0.1924,0.193,0.1926,0.1923,0.1925,0.1928,0.1926,0.1925,0.1924,0.1937,0.1924,0.1924,0.1936,0.1931,0.1919,0.1918,0.1917,0.1916,0.1915,0.1914,0.1913,0.1912,0.1911,0.1909,0.1907,0.1905,0.1876,null,null,null,null],[0.1922,0.1923,0.1924,0.1925,0.1923,0.1926,0.1929,0.1927,0.1925,0.1924,0.1937,0.1931,0.1932,0.1941,0.1933,0.192,0.1919,0.1917,0.1916,0.1915,0.1914,0.1913,0.1912,0.1911,0.1909,0.1909,0.1904,0.1869,null,null,null,null],[0.1923,0.1923,0.1935,0.1927,0.1929,0.1931,0.1934,0.1934,0.1933,0.1932,0.1932,0.1931,0.193,0.1929,0.1926,0.1923,0.1922,0.1922,0.1921,0.192,0.1918,0.1917,0.1916,0.1915,0.1915,0.1913,0.1905,0.1868,null,null,null,null],[0.1941,0.1947,0.1893,0.1867,0.1949,0.1962,0.1928,0.1929,0.1939,0.1929,0.1931,0.1924,0.192,0.1876,0.1928,0.192,0.1911,0.1907,0.1901,0.1897,0.189,0.1887,null,0.1883,0.1876,0.1825,0.1783,null,null,null,null,null],[0.1166,0.1166,0.117,0.1937,0.197,0.1955,0.196,0.1958,0.1956,0.193,0.1922,0.191,0.1895,0.1874,0.1943,0.1936,0.1933,0.1929,0.1925,0.1921,0.1916,0.191,0.1903,0.1895,0.1882,0.183,0.1783,null,null,null,null,null],[0.118,0.1179,0.118,0.1183,0.1902,0.1895,0.1922,0.1925,0.1925,0.1901,0.1883,0.1874,0.1863,0.1847,0.1913,0.1908,0.1905,0.1902,0.1899,0.1895,0.1891,0.1885,0.1878,0.1869,0.1846,0.1788,0.1735,null,null,null,null,null],[0.1193,0.1192,0.1192,0.1203,0.1945,0.1854,0.187,0.1878,0.1877,0.1784,0.1767,0.1761,0.1756,0.1795,0.1861,0.1855,0.1854,0.1851,0.1849,0.1846,0.1842,0.1836,0.1827,0.1814,null,0.1713,0.1674,null,null,null,null,null],[0.12,0.1201,0.1203,0.1893,0.1905,0.1811,0.1824,0.1824,0.1822,0.1719,0.171,0.1703,0.1698,0.175,0.179,0.1781,0.1778,0.1774,0.1769,0.1761,0.1751,0.1737,0.1718,0.1683,0.1653,0.1624,0.1583,null,null,0.1322,null,null],[0.1542,0.1813,0.1804,0.1822,0.1835,0.1737,0.1741,0.1741,0.173,0.167,0.1663,0.1675,0.1663,0.1665,0.1655,0.162,0.1614,0.1607,0.1599,0.1587,0.1573,0.1552,0.152,0.1485,0.144,null,null,null,0.1316,null,null,null],[0.1502,0.1743,0.1706,0.1711,null,0.1665,0.168,0.1619,0.1586,null,null,null,0.1553,0.1516,0.142,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],[null,null,0.1157,null,null,0.0222,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null]],"top":[0.476,0.4771,0.4775,0.478,0.4783,0.4785,0.4787,0.479,0.4792,0.4794,0.4797,0.4799,0.4801,0.4803,0.4805,0.4807,0.4809,0.481,0.4812,0.4813,0.4815,0.4816,0.4818,0.4819,0.4821,0.4819,0.4838,0.4838,0.483,0.4809,0.4795,0.4564,0.4203],"low":[0.1865,0.4767,0.4771,0.4774,0.4777,0.4779,0.4782,0.4784,0.4786,0.4788,0.4791,0.4793,0.4795,0.4797,0.48,0.4801,0.4804,0.4806,0.4808,0.481,0.4811,0.4812,0.4812,0.4813,0.4813,0.4524,0.4836,0.4835,0.4825,0.4798,0.4709,0.4121,0.2567],"roof":[[0.1869,0.1861,null,null,null,null,null,null,null],[0.477,0.477,0.4769,0.4768,0.4765,0.476,null,null,null],[0.4775,0.4774,0.4772,0.4771,0.4769,0.4763,null,null,null],[0.4778,0.4777,0.4775,0.4774,0.4772,0.4767,0.391,null,null],[0.4781,0.478,0.4778,0.4777,0.4775,0.4771,0.4675,null,null],[0.4784,0.4782,0.4781,0.4779,0.4777,0.4774,0.4732,null,null],[0.4786,0.4784,0.4783,0.4782,0.4779,0.4776,0.4769,null,null],[0.4788,0.4787,0.4786,0.4784,0.4782,0.4779,0.4768,null,null],[0.479,0.4789,0.4788,0.4787,0.4784,0.4781,0.4769,null,null],[0.4793,0.4791,0.479,0.4789,0.4787,0.4784,0.4777,null,null],[0.4795,0.4794,0.4793,0.4791,0.4789,0.4786,0.4779,null,null],[0.4797,0.4796,0.4795,0.4793,0.4791,0.4788,0.4784,null,null],[0.4799,0.4798,0.4797,0.4795,0.4793,0.479,0.4786,null,null],[0.4801,0.48,0.4799,0.4798,0.4796,0.4793,0.4789,null,null],[0.4803,0.4802,0.4801,0.48,0.4798,0.4795,0.4792,null,null],[0.4805,0.4804,0.4803,0.4802,0.48,0.4798,0.4794,null,null],[0.4807,0.4806,0.4805,0.4804,0.4802,0.48,0.4797,null,null],[0.4808,0.4808,0.4807,0.4806,0.4804,0.4803,0.48,0.0378,null],[0.481,0.481,0.4809,0.4808,0.4807,0.4805,0.4802,0.0394,null],[0.4812,0.4811,0.4811,0.481,0.4809,0.4807,0.4804,0.3929,null],[0.4813,0.4812,0.4812,0.4811,0.481,0.4809,0.4806,0.3979,null],[0.4814,0.4814,0.4813,0.4812,0.4811,0.4815,0.4807,0.3995,null],[0.4816,0.4815,0.4814,0.4813,0.4811,0.4809,0.4806,0.4027,null],[0.4817,0.4816,0.4815,0.4813,0.4811,0.4809,0.481,0.4058,null],[0.4818,0.4816,0.4815,0.4813,0.4811,0.4822,0.4805,0.3925,null],[0.4813,0.4805,0.4749,0.4526,0.4615,0.4701,0.4764,0.3999,null],[0.4838,0.4837,0.4836,0.4836,0.4836,0.4807,0.4788,0.4299,null],[0.4837,0.4836,0.4835,0.4835,0.4836,0.4817,0.4779,0.1719,null],[0.4829,0.4828,0.4827,0.4825,0.4828,0.4807,0.4766,0.1671,null],[0.4808,0.4807,0.4802,0.4798,0.4797,0.478,0.4646,0.1662,null],[0.4761,0.4751,0.4756,0.4754,0.4682,0.4674,0.3998,null,null],[0.4561,0.4494,0.4376,0.4184,0.418,0.3997,0.2357,null,null],[0.4077,0.4073,0.3729,0.2567,0.1028,null,null,null,null]],"roofX":[0.0,0.0282,0.0563,0.0845,0.1126,0.1408,0.169,0.1971,0.2253]},"length":0.996,"height":0.49895,"body":0.45058,"driver":{"hip":[0.064,0.235,0.38],"wheel":[0.064,0.278,0.434],"radius":0.031,"tilt":0.75,"feet":[[0.077,0.182,0.46],[0.05,0.182,0.456]],"roof":0.47,"seen":false}}
+});
+
+return { SUPPLIED_WINDOWS };
+})();
+
+__modules["client/supplied-glass.js"] = (function () {
+const { SUPPLIED_WINDOWS } = __modules["client/supplied-windows.js"];
+const { carGlass, windowsPicture } = __modules["client/car-glass.js"];
+const { makeCabin, PLAIN } = __modules["client/car-cabin.js"];
+const { fetchKept } = __modules["client/glb.js"];
+
+const BASE = 'supplied/';
+
+async function pictureOf(url) {
+  const r = await fetchKept(url);
+  if (!r.ok) throw new Error(`${url}: ${r.status}`);
+  const blob = await r.blob();
+  const bmp = typeof createImageBitmap === 'function' ? await createImageBitmap(blob).catch(() => null) : null;
+  const image = bmp || await new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); });
+  return windowsPicture(image);
+}
+
+async function glazeSupplied(id, mesh, fitted, { lite = false, env = null } = {}) {
+  const win = SUPPLIED_WINDOWS[id];
+  if (!win || !mesh.geometry.index) return null;
+  const [picture, bits] = await Promise.all([pictureOf(BASE + win.masks[lite ? '512' : '1k']), fetchKept(BASE + win.tris).then((r) => { if (!r.ok) throw new Error(`${win.tris}: ${r.status}`); return r.arrayBuffer(); })]);
+  const own = new Uint8Array(bits);
+  const index = mesh.geometry.index.array;
+  const list = [];
+  for (let t = 0; t < index.length / 3; t += 1) if ((own[t >> 3] >> (t & 7)) & 1) list.push(index[t * 3], index[t * 3 + 1], index[t * 3 + 2]);
+  const paneShape = new THREE.BufferGeometry();
+  for (const [name, a] of Object.entries(mesh.geometry.attributes)) paneShape.setAttribute(name, a);
+  paneShape.setIndex(list);
+  paneShape.boundingSphere = mesh.geometry.boundingSphere ? mesh.geometry.boundingSphere.clone() : null;
+  const { frame } = fitted;
+  const spec = { length: win.length, height: win.height, body: win.body, width: win.body, driver: win.driver };
+  const glass = carGlass(spec, picture, { lite, privacy: false, belt: win.belt + frame.y0, inside: new THREE.Color(PLAIN.roof).multiplyScalar(0.28), envMap: lite ? null : env });
+  glass.body(mesh.material);
+  const pane = glass.pane(paneShape);
+  mesh.add(pane);
+  const cab = win.driver ? makeCabin(`supplied:${id}`, spec, { scale: fitted.scale, lite, fit: win.fit || null, doors: [], cab: true }) : null;
+  const holder = new THREE.Group();
+  holder.position.set((frame.u0 + frame.u1) / 2, frame.y0, (frame.w0 + frame.w1) / 2);
+  if (cab) holder.add(cab.group);
+  fitted.fit.add(holder);
+  let gone = false;
+  return {
+    pane, cab, holder,
+    detail(level) { if (cab) cab.detail(level); },
+    light(state) { if (cab) cab.light(state); },
+    dispose() {
+      if (gone) return; gone = true;
+      if (cab) cab.dispose();
+      if (holder.parent) holder.parent.remove(holder);
+      if (pane.parent) pane.parent.remove(pane);
+      paneShape.setIndex(null); paneShape.dispose();
+      glass.dispose();
+      picture.dispose();
+    },
+  };
+}
+
+return { glazeSupplied };
+})();
+
 __modules["client/render-supplied.js"] = (function () {
 
 const { softPatch } = __modules["client/soft-patch.js"];
@@ -53254,6 +53883,9 @@ const { loadSuppliedMesh } = __modules["client/supplied-model.js"];
 const { surface } = __modules["client/render-kit.js"];
 const { wantPicture } = __modules["client/glb.js"];
 const { standing } = __modules["client/marks.js"];
+const { glazeSupplied } = __modules["client/supplied-glass.js"];
+const { SUPPLIED_WINDOWS } = __modules["client/supplied-windows.js"];
+const { CABIN_SEEN } = __modules["client/car-view.js"];
 
 function fitVehicle(mesh, v) {
   const pos = mesh.geometry.attributes.position, c = Math.cos(v.front), s = Math.sin(v.front);
@@ -53331,9 +53963,13 @@ function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } =
     p.want = thinFor(p.v, d, 0); p.wantAt = performance.now();
     p.loading = loadSuppliedMesh(p.v.file, { maxTexture: most, env, name: `supplied-${p.id}`, want: p.want })
       .then(({ mesh, triangles }) => {
-        const { fit } = fitVehicle(mesh, p.v);
+        const fitted = fitVehicle(mesh, p.v);
+        const { fit } = fitted;
         p.model = fit; p.triangles = triangles;
         p.holder.add(standing(fit)); p.standIn.visible = false;
+        glazeSupplied(p.id, mesh, fitted, { lite, env })
+          .then((glazed) => { if (!glazed) return; if (p.model === fit) { p.glazed = glazed; standing(fit); } else glazed.dispose(); })
+          .catch(() => {});
       })
       .catch((error) => { p.failed = String(error.message || error); p.failedAt = performance.now(); })
       .finally(() => { p.loading = null; });
@@ -53341,6 +53977,7 @@ function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } =
   }
   function release(p) {
     if (!p.model) return;
+    if (p.glazed) { p.glazed.dispose(); p.glazed = null; }
     p.holder.remove(p.model);
     p.model.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); for (const key of ['map', 'normalMap', 'roughnessMap']) if (o.material[key]) o.material[key].dispose(); o.material.dispose(); } });
     p.model = null; p.standIn.visible = true;
@@ -53357,9 +53994,14 @@ function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } =
     const want = THIN ? THIN.size : 0;
     ambulanceLoading = loadSuppliedMesh(v.file, { maxTexture: most, env, name: 'supplied-ambulance', want })
       .then(({ mesh, triangles }) => {
-        const { fit, frame } = fitVehicle(mesh, v);
+        const fitted = fitVehicle(mesh, v);
+        const { fit, frame } = fitted;
         const roof = roofFront(mesh, frame);
-        ambulance = { fit, roof, triangles, want, wantAt: performance.now() - 1e9, van: null };
+        ambulance = { fit, roof, triangles, want, wantAt: performance.now() - 1e9, van: null, glazed: null, scale: fitted.scale };
+        const mine = ambulance;
+        glazeSupplied('ambulance', mesh, fitted, { lite, env })
+          .then((glazed) => { if (!glazed) return; if (ambulance === mine) { mine.glazed = glazed; standing(fit); } else glazed.dispose(); })
+          .catch(() => {});
       })
       .catch((error) => { ambulance = { failed: String(error.message || error) }; ambulanceFailedAt = performance.now(); })
       .finally(() => { ambulanceLoading = null; });
@@ -53382,23 +54024,37 @@ function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } =
     return van.dressed;
   }
 
+  const SEEN = CABIN_SEEN[lite ? 'lite' : 'full'];
+  const cabLevel = (d) => (d <= SEEN.near ? 2 : d <= SEEN.far ? 1 : 0);
   function tick(eye) {
     for (const p of parked) {
       const d = Math.hypot(eye.x - p.v.x, eye.z - p.v.z);
+      if (p.glazed) p.glazed.detail(cabLevel(d));
       if (d < p.v.reach && (!p.failed || (!ON_DISK && performance.now() - (p.failedAt || 0) > 30000))) load(p, d);
       else if (d > p.v.reach * 1.6) release(p);
       if (p.model) thinOut(p, p.model, p.v, d);
     }
     if (ambulance && ambulance.van && !ambulance.failed) {
       const at = ambulance.van.group.position;
-      thinOut(ambulance, ambulance.fit, SUPPLIED_VEHICLES.ambulance, Math.hypot(eye.x - at.x, eye.z - at.z));
+      const d = Math.hypot(eye.x - at.x, eye.z - at.z);
+      thinOut(ambulance, ambulance.fit, SUPPLIED_VEHICLES.ambulance, d);
+      if (ambulance.glazed) ambulance.glazed.detail(cabLevel(d));
     }
   }
   const state = () => ({
     parked: parked.map((p) => ({ id: p.id, loaded: !!p.model, loading: !!p.loading, failed: p.failed, triangles: p.triangles, standIn: p.standIn.visible, at: [p.holder.position.x, p.holder.position.z], heading: p.holder.rotation.y, want: p.want || 0, thinned: p.thinned || 0 })),
     ambulance: ambulance ? { loaded: !ambulance.failed, failed: ambulance.failed || null, triangles: ambulance.triangles || 0, want: ambulance.want || 0, thinned: ambulance.thinned || 0 } : { loaded: false, loading: !!ambulanceLoading },
   });
-  return { tick, load: (id) => load(parked.find((p) => p.id === id)), loadAmbulance, dressAmbulance, state, parked };
+  function ambulanceCar() {
+    const a = ambulance;
+    if (!a || a.failed || !a.van || !a.glazed || !a.glazed.cab) return null;
+    if (!a.car) {
+      const w = SUPPLIED_WINDOWS.ambulance;
+      a.car = { glazed: true, driver: w.driver, group: a.van.group, cabin: a.glazed.holder, cabinMeasures: a.glazed.cab.measures, scale: a.scale, spec: { length: w.length, height: w.height } };
+    }
+    return a.car;
+  }
+  return { tick, load: (id) => load(parked.find((p) => p.id === id)), loadAmbulance, dressAmbulance, ambulanceCar, state, parked };
 }
 
 return { fitVehicle, createSupplied };
@@ -57830,6 +58486,7 @@ function createGunFx(scene, { lite = false, ground = () => 0, light = true, draw
     const back = A.copy(dir).normalize().multiplyScalar(-1);
     if (what === 'person') { blood(at, dir, { calm }); return; }
     if (what === 'air') return;
+    if (what === 'glass') { puff(at, 0xe6eeec, { size: 0.035, grow: 3, life: 0.28, alpha: 0.55, rise: 0.02, v: back.clone().multiplyScalar(0.5) }); return; }
     if (what === 'vehicle') {
       const n = lite ? 5 : 10;
       for (let i = 0; i < n; i += 1) add(sparks, { p: at.clone(), v: back.clone().multiplyScalar(2 + Math.random() * 4).add(B.set(Math.random() - 0.5, Math.random() * 0.8, Math.random() - 0.5).multiplyScalar(4)), age: 0, life: 0.15 + Math.random() * 0.2, size: 0.008 }, most.sparks);
@@ -58640,9 +59297,11 @@ function createGunPlay(deps) {
     const bore = t.sightDir.lengthSq() > 0 ? t.sightDir : to;
     fx.flash(o, bore, { near: true });
     fx.streak(o, end);
-    fx.strike(s.what, end, to, { calm: !!deps.calm() });
+    const car = deps.carShot ? deps.carShot(o, end, s.what) : null;
+    const hitAt = car ? car.at : end, hitWhat = car ? (car.broke ? 'shatter' : car.glass ? 'glass' : 'vehicle') : s.what;
+    fx.strike(hitWhat === 'shatter' ? 'glass' : hitWhat, hitAt, to, { calm: !!deps.calm() });
     audio.gunShot(def.id, { x: o.x, y: o.y, z: o.z }, { own: true });
-    if (end.distanceTo(o) < 45) audio.gunStrike(s.what, { x: end.x, y: end.y, z: end.z });
+    if (hitAt.distanceTo(o) < 45) audio.gunStrike(hitWhat, { x: hitAt.x, y: hitAt.y, z: hitAt.z });
     if (S.gun) {
       const port = S.gun.point('port', t.b);
       t.right.set(0, 0, 1).applyQuaternion(S.gun.group.quaternion);
@@ -58770,9 +59429,11 @@ function createGunPlay(deps) {
     const near = Math.hypot(muzzle.x - eye.x, muzzle.z - eye.z) < 25;
     fx.flash(muzzle, dir, { near });
     fx.streak(muzzle, end);
-    fx.strike(shot.what, end, dir, { calm: !!deps.calm() });
+    const car = deps.carShot ? deps.carShot(from, end, shot.what) : null;
+    const hitAt = car ? car.at : end, hitWhat = car ? (car.broke ? 'shatter' : car.glass ? 'glass' : 'vehicle') : shot.what;
+    fx.strike(hitWhat === 'shatter' ? 'glass' : hitWhat, hitAt, dir, { calm: !!deps.calm() });
     audio.gunShot(shot.gun || 'rifle', { x: from.x, y: from.y, z: from.z });
-    audio.gunStrike(shot.what, { x: end.x, y: end.y, z: end.z });
+    audio.gunStrike(hitWhat, { x: hitAt.x, y: hitAt.y, z: hitAt.z });
     const ear = t.a.set(eye.x, eye.y, eye.z);
     const along = t.b.copy(ear).sub(from).dot(dir);
     if (along > 2 && along < from.distanceTo(end)) { const nearest = from.clone().addScaledVector(dir, along); if (nearest.distanceTo(ear) < 3) audio.gunPast({ x: nearest.x, y: nearest.y, z: nearest.z }); }
@@ -59137,7 +59798,7 @@ const { createConfirm } = __modules["client/confirm.js"];
 const { createVoiceChat } = __modules["net/voice-chat.js"];
 const { createVoiceUI, PRIVACY } = __modules["client/ui-voice.js"];
 const { makeDealMarker } = __modules["client/render-holaris.js"];
-const { createOwnBikeView } = __modules["client/own-bike-view.js"];
+const { createOwnBikeView, bonesOf } = __modules["client/own-bike-view.js"];
 const { createSportView } = __modules["client/sport-view.js"];
 const { createSportRidersView } = __modules["client/sport-riders-view.js"];
 const { SPORT_HANDLING, SPORT_BELL, stepSport, sportSeated } = __modules["sim/sport-ride.js"];
@@ -59152,7 +59813,7 @@ const { SURF, inSurf, catchable, crestOf, surfHeight, wavesAt, waveAt } = __modu
 const { createCarView } = __modules["client/car-view.js"];
 const { createStandins } = __modules["client/vehicle-standins.js"];
 const { setCarDaylight, carsHeld, trimCars, carSeen } = __modules["client/car-model.js"];
-const { setGlassWeather } = __modules["client/car-glass.js"];
+const { setGlassWeather, setGlassGlints } = __modules["client/car-glass.js"];
 const { CAR_WINDOWS } = __modules["client/car-windows.js"];
 const { carMove, carMovesLoaded } = __modules["client/car-moves.js"];
 const { boardTimes, poseBoarding } = __modules["client/car-boarding.js"];
@@ -59196,6 +59857,7 @@ const TOUCH_FIRST = typeof window !== 'undefined' && !!window.matchMedia && wind
 const LITE = !HASH.includes('full') && (TOUCH_FIRST || HASH.includes('lite'));
 const MAX_RIGS = LITE ? [14, 11, 8, 5] : [26, 18, 12, 6];
 const IN_CARS = LITE ? 15 : 30;
+const AMBULANCE_DRIVER = Object.freeze({ index: -101, short: null, look: Object.freeze({ skin: 0x5e3b24, top: 0xf4f4f0, bottom: 0xf4f4f0, build: 1, body: 'm', hair: 'low', shoeColour: 0xf4f4f0, sleeves: 'short', age: 34 }) });
 const VEHICLE_BIAS = [1, 0.8, 0.6, 0.45];     // how much nearer a vehicle must be for each step of detail (quality.detail), as quality drops
 const DRIVER_SEAT = vehicleMeta('keke').seats.driver;   // where the keke's driver sits, in the keke's own frame
 const SEATED_HEIGHT = 0.845;                 // how far above its own feet a seated figure's seat is, for a figure of height 1
@@ -59471,6 +60133,7 @@ function start(carried) {
       game: () => host.game, send: (intent) => server.send(intent), view: () => view, playerId: () => playerId,
       refresh: () => refreshView(), cam: () => cam, calm: () => !!prefs.calm,
       peers: () => shownPeers, rigOf: (key) => (crowd ? crowd.rigOf(key) : null),
+      carShot: (from, to, what) => (carView ? carView.shot(from, to, what) : null),
       toast: (text) => ui.toast({ type: 'note', text }),
       confirm: ({ title, text, yes, no }) => confirm.ask({ title, body: text, confirm: yes, cancel: no, run: async () => ({ ok: true }) }),
       hudRoot: $('hud'), hudr: $('hudr'), bloodRoot: $('game') || document.body,
@@ -59774,7 +60437,11 @@ function start(carried) {
     if (!view) return null;
     const armed = gunPlay ? gunPlay.linkFields(cam) : null;
     const gy = Number.isFinite(view.self.y) ? view.self.y : zoneGroundY(view.self.x, view.self.z);
-    const me = { ...view.self, ...(voiceChat.active ? { voiceOn: 1 } : {}), ...(armed || {}), ...(Number.isFinite(gy) ? { gy } : {}), ...(phoneShown ? { phone: phoneShown, ...(torch.lit ? { torch: 1 } : {}) } : {}) };
+    const b = boarding && typeof boarding.key === 'string' && boarding.key.startsWith('own:') ? boarding : null;
+    const boardingOut = b ? { boarding: { kind: b.kind, door: b.door, ago: Math.max(-1, clock - b.start), car: b.model, x: b.car.x, z: b.car.z, h: b.car.h, at: b.at || null, open: b.fleeing ? 1 : 0, moves: b.moves ? 1 : 0 } } : {};
+    const own = view.self.ownCars;
+    const ownOut = own && Array.isArray(own.parked) && own.parked.some((c) => doorsLeftOpen(`own:${c.car}`)) ? { ownCars: { ...own, parked: own.parked.map((c) => { const open = doorsLeftOpen(`own:${c.car}`); return open ? { ...c, open } : c; }) } } : {};
+    const me = { ...view.self, ...boardingOut, ...ownOut, ...(voiceChat.active ? { voiceOn: 1 } : {}), ...(armed || {}), ...(Number.isFinite(gy) ? { gy } : {}), ...(phoneShown ? { phone: phoneShown, ...(torch.lit ? { torch: 1 } : {}) } : {}) };
     if (carshow.talk && carshow.inside) return { ...me, carTalk: { car: carshow.talk.car, ago: Math.max(0, host.game.state.real - carshow.talk.since) } };
     if (!showroom.talk || !showroom.inside) return me;
     return { ...me, talk: { bike: showroom.talk.bike, ago: Math.max(0, host.game.state.real - showroom.talk.since) } };
@@ -61319,7 +61986,7 @@ function start(carried) {
       cam.lastDrag = clock;
     }
   });
-  let gunPinch = 1;
+  let gunPinch = 1, seatPinch = 1;
   function zoomBy(factor) {
     if (!Number.isFinite(factor) || factor <= 0) return;
     if (mode === 'gun' && gunPlay) {
@@ -61327,10 +61994,15 @@ function start(carried) {
       if (gunPinch > 1.35 && !gunPlay.overviewing) { act('overview', 'down'); gunPinch = 1; } else if (gunPinch < 0.74 && gunPlay.overviewing) { act('overview', 'down'); gunPinch = 1; }
       return;
     }
-    if (where() === 'vehicle') { cam.ride = Math.max(RIDE.nearest, Math.min(RIDE.farthest, (cam.ride || 1) * factor)); return; }
+    if (where() === 'vehicle') {
+      if (rig.view === 'cockpit') { seatPinch *= factor; if (seatPinch > 1.3) { rig.view = 'chase'; cam.ride = RIDE.nearest; seatPinch = 1; ui.toast({ type: 'note', text: `View: ${CAMERA_VIEW.chase.name.toLowerCase()}.` }); } return; }
+      if (factor < 1 && cockpitHad() && CAMERA_VIEW[rig.view] && CAMERA_VIEW[rig.view].zoom && (cam.ride || 1) <= RIDE.nearest + 1e-6) { seatPinch *= factor; if (seatPinch < 0.75) { rig.view = 'cockpit'; seatPinch = 1; ui.toast({ type: 'note', text: `View: ${CAMERA_VIEW.cockpit.name.toLowerCase()}.` }); } return; }
+      seatPinch = 1;
+      cam.ride = Math.max(RIDE.nearest, Math.min(RIDE.farthest, (cam.ride || 1) * factor)); return;
+    }
     cam.dist = Math.max(STREET.nearest, Math.min(STREET.farthest, cam.dist * factor)); cam.own = cam.dist; cam.back = false;
   }
-  const release = (event) => { pointers.delete(event.pointerId); pinch = 0; gunPinch = 1; };
+  const release = (event) => { pointers.delete(event.pointerId); pinch = 0; gunPinch = 1; seatPinch = 1; };
   canvas.addEventListener('pointerup', release);
   canvas.addEventListener('pointercancel', release);
   canvas.addEventListener('wheel', (event) => { event.preventDefault(); zoomBy(1 + Math.sign(event.deltaY) * 0.1); }, { passive: false });
@@ -61547,6 +62219,42 @@ function start(carried) {
     return 'walking';
   }
   const where = () => (view && (view.self.driving || view.self.astride || view.self.riding || view.self.incar) ? 'vehicle' : 'foot');
+  function cockpitHad() {
+    if (!view || !view.self.incar || !carView) return false;
+    const car = carView.driven();
+    return !!(car && car.driver && car.driver.seen);
+  }
+  const viewsAway = () => (cockpitHad() ? [] : ['cockpit']);
+  const cockpitAt = { eye: null, forward: null, up: null };
+  function cockpitNow() {
+    if (rig.view !== 'cockpit' || !cockpitHad() || boarding || (view && view.self.hijack)) return null;
+    const car = carView.driven();
+    car.group.updateMatrixWorld(true);
+    const q = car.cabin.getWorldQuaternion(new THREE.Quaternion());
+    const forward = (cockpitAt.forward || (cockpitAt.forward = new THREE.Vector3())).set(0, 0, 1).applyQuaternion(q);
+    const up = (cockpitAt.up || (cockpitAt.up = new THREE.Vector3())).set(0, 1, 0).applyQuaternion(q);
+    const sc = car.scale, d = car.driver, m = car.cabinMeasures;
+    let eyeY = d.hip[1] + 0.72 / sc;
+    const roof = m && Number.isFinite(m.roof) ? m.roof / sc : d.roof;
+    if (Number.isFinite(roof)) eyeY = Math.min(eyeY, roof - 0.11 / sc);
+    if (m && Number.isFinite(m.dashTop)) eyeY = Math.max(eyeY, (m.dashTop + 0.24) / sc);
+    const eye = cockpitAt.eye || (cockpitAt.eye = new THREE.Vector3());
+    car.cabin.localToWorld(eye.set(d.hip[0], eyeY, d.hip[2] - 0.08 / sc));
+    return cockpitAt;
+  }
+  let headOut = null;
+  function headShown(on) {
+    if (on) {
+      if (!headOut) return;
+      if (headOut.bone) { headOut.bone.scale.setScalar(1); headOut.bone.updateMatrixWorld(true); }
+      if (headOut.group) headOut.group.visible = true;
+      headOut = null;
+      return;
+    }
+    const bone = me && me.animated && me.bones ? bonesOf(me).get('head') : null;
+    if (bone) { bone.scale.setScalar(0.001); bone.updateMatrixWorld(true); headOut = { bone }; }
+    else if (me && me.head && me.head.group) { me.head.group.visible = false; headOut = { group: me.head.group }; }
+  }
 
   function gunTargets() {
     const out = [];
@@ -61700,7 +62408,7 @@ function start(carried) {
       controls.setRun(false);
       if (blocking) { blocking = false; }
       if (mode === 'gun') { if (was !== 'gun') viewBeforeGun = rig.view; }
-      else { if (was === 'gun' && viewBeforeGun) { rig.view = viewBeforeGun; cam.pitch = Math.max(STREET.low, Math.min(STREET.high, cam.pitch)); } rig.view = viewFor(rig.view, where()); if (document.pointerLockElement) document.exitPointerLock(); }
+      else { if (was === 'gun' && viewBeforeGun) { rig.view = viewBeforeGun; cam.pitch = Math.max(STREET.low, Math.min(STREET.high, cam.pitch)); } rig.view = viewFor(rig.view, where(), viewsAway()); if (document.pointerLockElement) document.exitPointerLock(); }
       $('touch').classList.toggle('armed', mode === 'gun');
     }
     skills.allow(mode === 'walking');
@@ -61762,7 +62470,7 @@ function start(carried) {
       case 'swim': { const r = said(server.send({ type: 'swim.in' }), 'You wade in and swim.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = 0; going.speed = 0; } break; }
       case 'climb': { const r = said(server.send({ type: 'swim.out' }), 'You climb out onto the bank.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = Math.PI; going.speed = 0; } break; }
       case 'horn': { if (ownBoat() || aboardShip() !== null) { audio.shipHorn(aboardShip() !== null); server.send({ type: 'moto.horn' }); break; } if (ownSport()) { if (SPORT_BELL.includes(ownSport())) { audio.cycleBell(); server.send({ type: 'moto.horn' }); } break; } if (view.self.incar) { audio.carHorn(ownCar() ? ownCar().id : null); server.send({ type: 'car.horn' }); break; } const bike = powerBike(); if (bike) audio.bikeHorn(bike.horn); else if (bikePreview) audio.bikeHorn('dual'); else audio.horn(); if (!bikePreview) server.send({ type: view.self.driving ? 'vehicle.horn' : 'moto.horn' }); break; }
-      case 'camera': rig.view = nextView(rig.view, where()); ui.toast({ type: 'note', text: `View: ${CAMERA_VIEW[rig.view].name.toLowerCase()}.` }); break;
+      case 'camera': rig.view = nextView(rig.view, where(), viewsAway()); ui.toast({ type: 'note', text: `View: ${CAMERA_VIEW[rig.view].name.toLowerCase()}.` }); break;
       case 'fight': if (near.fight) said(server.send({ type: 'combat.engage', target: { kind: near.fight.kind, id: near.fight.id } }), `You square up to ${near.fight.name}.`); break;
       case 'punch': case 'heavy': case 'kick': case 'shove': case 'grab': strike(id); break;
       case 'dodge': {
@@ -62239,6 +62947,19 @@ function start(carried) {
   }
   let boarding = null, tookStep = null;
   const BOARD = Object.freeze({ in: Object.freeze({ open: 0.05, go: [0.2, 0.7], slam: 0.85, end: 1.1 }), out: Object.freeze({ open: 0.05, go: [0.2, 0.75], slam: 0.95, end: 1.2 }) });
+  function cancelBoarding(why) {
+    const b = boarding;
+    if (!b || b.kind !== 'in') return false;
+    const r = server.send({ type: 'car.leave' });
+    if (!r.ok) return false;
+    carState.speed = 0; carState.steer = 0; predicted.x = r.x; predicted.z = r.z;
+    const B = b.B || BOARD.in;
+    openDoor(b.key, b.door, Math.min(clock, b.start + B.open), clock + 0.05);
+    boarding = null; boardingGivenUp = { why, at: clock };
+    refreshView();
+    return true;
+  }
+  let boardingGivenUp = null;
   function boardCar(kind, key, model, car, at) {
     if (!POWER_CARS[model]) return;
     const left = kind === 'in' ? toCar(car, at.x, at.z).across >= -0.2 : toCar(car, at.x, at.z).across >= 0;
@@ -62246,8 +62967,10 @@ function start(carried) {
     const slide = kind === 'out' && door === 'fr' ? 0.55 : 0;
     const moves = carSeen(model) && CAR_WINDOWS[model] && carMovesLoaded();
     const B = moves ? (() => { const t = boardTimes(kind); return { open: t.open, go: kind === 'in' ? [0.22 * t.length, 0.62 * t.length] : [0.2 * t.length, 0.72 * t.length], slam: t.shut - DOOR.shutting * 0.4, end: t.length + 0.1 }; })() : BOARD[kind];
-    boarding = { kind, key, model, car, at, door, start: clock + slide, slide, seen: carSeen(model), moves: !!moves, B };
-    openDoor(key, door, clock + slide + B.open, clock + slide + B.slam);
+    const fleeing = kind === 'out' && !!view && !!view.self && !!view.self.law && (view.self.law.state === 'pursuit' || view.self.law.state === 'wanted');
+    const BB = fleeing ? { ...B, end: Math.min(B.end, B.slam) } : B;
+    boarding = { kind, key, model, car, at, door, start: clock + slide, slide, seen: carSeen(model), moves: !!moves, B: BB, fleeing, health: view && view.self ? view.self.health : null };
+    openDoor(key, door, clock + slide + B.open, fleeing ? Infinity : clock + slide + B.slam);
   }
   function boardFigure(self, taking) {
     const car = carView.driven('drive');
@@ -62287,7 +63010,10 @@ function start(carried) {
     const B = b.B || BOARD[b.kind], t = clock - b.start;
     const on = !!self && (!!self.driving || (self.riding !== null && self.riding !== undefined) || (self.astride !== null && self.astride !== undefined));
     const left = b.kind === 'in' ? !(self && self.incar) : !!(self && self.incar) || on;
-    if (t > B.end || left || Math.hypot(predicted.x - b.car.x, predicted.z - b.car.z) > 8) { boarding = null; return null; }
+    if (t > B.end || left || Math.hypot(predicted.x - b.car.x, predicted.z - b.car.z) > 8) {
+      if (b.kind === 'in' && t > B.end && !left && !(b.rocked && b.rocked.started)) audio.carStart(b.car.x, b.car.z);
+      boarding = null; return null;
+    }
     const seat = toWorld(b.car, seatPlace(b.model, b.door === 'fl' || b.kind === 'out' ? 'driver' : 'front'));
     const door = toWorld(b.car, doorOut(b.model, b.door));
     const k = Math.max(0, Math.min(1, (t - B.go[0]) / (B.go[1] - B.go[0])));
@@ -62332,19 +63058,85 @@ function start(carried) {
   const localDoors = new Map();
   const doorHeard = new Map();
   function openDoor(key, d, o, sh) { const list = (localDoors.get(key) || []).filter((q) => q.s + DOOR.shutting > clock - 1 && q.d !== d); list.push({ d, o, s: sh }); localDoors.set(key, list); }
-  function doorsNow(key, times, x, z) {
+  const DOOR_BITS = Object.freeze({ fl: 1, fr: 2, rl: 4, rr: 8 });
+  function doorsLeftOpen(key) {
+    let mask = 0;
+    for (const q of localDoors.get(key) || []) if (clock > q.o + DOOR.opening && !Number.isFinite(q.s) && DOOR_BITS[q.d]) mask |= DOOR_BITS[q.d];
+    return mask;
+  }
+  const slammed = new Map();
+  const DOOR_GO = Object.freeze({ swing: 0.5, slam: 3.6 });
+  function doorsNow(key, times, x, z, speed = 0) {
     const list = [...(times || []), ...(localDoors.get(key) || [])];
     if (!list.length) return null;
     let out = null;
+    const going = Math.abs(speed || 0);
     for (const q of list) {
-      const a = doorAngle(clock, q.o, q.s);
+      const id0 = `${key}:${q.d}:${Math.round(q.o * 10)}`;
+      let sh = Math.min(q.s, slammed.has(id0) ? slammed.get(id0) : Infinity);
+      if (going > DOOR_GO.slam && clock > q.o + DOOR.opening && sh > clock + 0.5) { slammed.set(id0, clock); sh = clock; if (!Number.isFinite(q.s)) q.s = clock; }
+      let a = doorAngle(clock, q.o, sh);
+      if (going > DOOR_GO.swing && clock < sh && a > 0.3) a = Math.max(0.15, a * (1 - 0.45 * Math.min(1, going / DOOR_GO.slam)) + 0.07 * Math.sin(clock * 5.3 + q.o));
       const id = `${key}:${q.d}:${Math.round(q.o * 10)}`;
       const heard = doorHeard.get(id) || 0;
       if (clock >= q.o && clock < q.o + 1 && !(heard & 1)) { doorHeard.set(id, heard | 1); audio.carDoor('open', x, z); }
-      if (clock >= q.s + DOOR.shutting * 0.85 && clock < q.s + 1.5 && !(doorHeard.get(id) & 2)) { doorHeard.set(id, (doorHeard.get(id) || 0) | 2); audio.carDoor('slam', x, z); }
+      if (clock >= sh + DOOR.shutting * 0.85 && clock < sh + 1.5 && !(doorHeard.get(id) & 2)) { doorHeard.set(id, (doorHeard.get(id) || 0) | 2); audio.carDoor('slam', x, z); }
       if (a > 0.002) { if (!out) out = {}; out[q.d] = Math.max(out[q.d] || 0, a); }
     }
     if (doorHeard.size > 200) for (const k of [...doorHeard.keys()].slice(0, 100)) doorHeard.delete(k);
+    if (slammed.size > 100) for (const k of [...slammed.keys()].slice(0, 50)) slammed.delete(k);
+    return out;
+  }
+  const peerBoards = new Map();
+  let peerBoardsNow = new Map();
+  let inCarsNow = [];               // whoever sits in the town's cars near, as drawn this frame (for the tests)
+  function peerBoardOf(q) {
+    const b = q && q.boarding;
+    if (!b || !POWER_CARS[b.car] || !BOARD[b.kind]) { if (q) peerBoards.delete(q.id); return null; }
+    const tag = `${b.kind}:${b.car}:${b.door}`;
+    const start = viewAt - (Number.isFinite(b.ago) ? b.ago : 0);
+    let k = peerBoards.get(q.id);
+    if (!k || k.tag !== tag || Math.abs(k.start - start) > 0.8) {
+      const t = b.moves ? boardTimes(b.kind) : null;
+      const B0 = t ? { open: t.open, slam: t.shut - DOOR.shutting * 0.4, end: t.length + 0.1 } : BOARD[b.kind];
+      const B = b.kind === 'out' && b.open ? { ...B0, end: Math.min(B0.end, B0.slam) } : B0;
+      k = { tag, start, B };
+      peerBoards.set(q.id, k);
+      if (peerBoards.size > 40) peerBoards.delete(peerBoards.keys().next().value);
+    }
+    const out = { ...b, start: k.start, B: k.B, t: clock - k.start, times: [{ d: b.door, o: k.start + k.B.open, s: b.open ? Infinity : k.start + k.B.slam }] };
+    peerBoardsNow.set(q.id, out);
+    return out;
+  }
+  function peerBoardPosed(q, rig) {
+    const pb = peerBoardsNow.get(q.id);
+    if (!pb || !pb.moves || pb.t > pb.B.end || !rig.animated || !carMovesLoaded()) return false;
+    const car = carView.driven(pb.kind === 'in' ? `peer:${q.id}` : `cpark:${q.id}:${pb.car}`);
+    if (!car || !car.glazed) return false;
+    standCharacter(rig);
+    if (rig.blob) rig.blob.visible = pb.kind === 'in' ? pb.t < pb.B.end * 0.55 : pb.t > pb.B.end * 0.35;
+    rig.group.visible = true;
+    return poseBoarding(rig, car, { kind: pb.kind, door: pb.door, t: pb.t, from: pb.kind === 'in' ? pb.at : null, groundY: (x, z) => groundAt(x, z, q.gy) });
+  }
+  const GLINT = Object.freeze({ lamps: 5, cars: 3, near: 45, cars_near: 40, every: 0.3, lamp: 0xffc98a, head: 0xfff4e2 });
+  let glintLamps = [], glintLooked = -1, glintCount = 0;
+  function glintsNow(night) {
+    const eye = camera.position;
+    if (clock - glintLooked > GLINT.every || clock < glintLooked) {
+      glintLooked = clock;
+      const near = [];
+      if (streetLamps) for (const h of streetLamps.heads) { if (!h.lamp || !(h.lamp.on > 0.5) || h.lamp.down) continue; const d = Math.hypot(h.x - eye.x, h.z - eye.z); if (d < GLINT.near) near.push([d, h]); }
+      near.sort((a, b) => a[0] - b[0]);
+      glintLamps = near.slice(0, GLINT.lamps).map((e) => e[1]);
+    }
+    const out = glintLamps.map((h) => ({ x: h.x, y: h.y - 0.35, z: h.z, w: night * Math.min(1, h.lamp.on), colour: GLINT.lamp }));
+    const cars = [];
+    const front = (x, z, h, y, length) => ({ x: x + Math.sin(h) * (length / 2 - 0.1), z: z + Math.cos(h) * (length / 2 - 0.1), y: (Number.isFinite(y) ? y : zoneGroundY(x, z)) + 0.72 });
+    for (const e of trafficCars || []) { const spec = POWER_CARS[e.model]; if (!spec) continue; const d = Math.hypot(e.x - eye.x, e.z - eye.z); if (d < GLINT.cars_near) cars.push([d, front(e.x, e.z, e.h, e.y, spec.length)]); }
+    const mine = carView.driven('drive');
+    if (mine && mine.size) { mine.group.updateMatrixWorld(true); const p = mine.group.localToWorld(new THREE.Vector3(0, 0.72, mine.size.length / 2 - 0.1)); cars.push([Math.hypot(p.x - eye.x, p.z - eye.z), { x: p.x, y: p.y, z: p.z }]); }
+    cars.sort((a, b) => a[0] - b[0]);
+    for (const [, p] of cars.slice(0, GLINT.cars)) out.push({ ...p, w: night, colour: GLINT.head });
     return out;
   }
   let carsSent = null;
@@ -62470,7 +63262,15 @@ function start(carried) {
   const PACE = { gather: 9, shed: 13, turn: 9.5 };      // metres a second each second; radians a second
   let takenWas = null;
   function movePlayer(dt) {
-    if (boarding && clock - boarding.start < (boarding.B || BOARD[boarding.kind]).end) { going.speed = 0; carState.speed = 0; return 0; }
+    if (boarding && clock - boarding.start < (boarding.B || BOARD[boarding.kind]).end) {
+      const b = boarding, t = clock - b.start, B = b.B || BOARD[b.kind];
+      if (b.kind === 'in' && t < B.go[1] * 0.92) {
+        const a = uiBlocks() ? { forward: 0, strafe: 0 } : controls.axes();
+        const hurt = Number.isFinite(b.health) && Number.isFinite(view.self.health) && view.self.health < b.health - 0.5;
+        if (Math.hypot(a.forward, a.strafe) > 0.5 || hurt) cancelBoarding(hurt ? 'hurt' : 'moved');
+      }
+      going.speed = 0; carState.speed = 0; return 0;
+    }
     const taken = view.self.incar && Number.isInteger(view.self.incar.taken) ? view.self.incar.taken : null;
     if (taken !== null && taken !== takenWas) { predicted.x = view.self.x; predicted.z = view.self.z; predicted.heading = view.self.heading; cam.yaw = view.self.heading; carState.speed = 0; carState.steer = 0; }
     takenWas = taken;
@@ -62961,15 +63761,21 @@ function start(carried) {
       shipView.update(dt, { list: shipList, from: predicted, now: clock, night });
       const driveKey = incar && Number.isInteger(incar.taken) ? `traffic:${incar.taken}` : incar && ownCar() ? `own:${ownCar().id}` : null;
       const exiting = !incar && boarding && boarding.kind === 'out' ? boarding : null;
-      const ownDrive = incar && ownCar() ? { id: ownCar().id, x: predicted.x, z: predicted.z, y: myLevel, h: predicted.heading, speed: carState.speed, steer: carState.steer, throttle: carState.throttle, brake: carState.braking, doors: doorsNow(driveKey, null, predicted.x, predicted.z) }
-        : exiting ? { id: exiting.model, x: exiting.car.x, z: exiting.car.z, y: myLevel, h: exiting.car.h, speed: 0, steer: 0, throttle: 0, brake: false, doors: doorsNow(exiting.key, null, exiting.car.x, exiting.car.z) } : null;
+      const ownDrive = incar && ownCar() ? { id: ownCar().id, as: driveKey, engine: !(boarding && boarding.kind === 'in' && !(boarding.rocked && boarding.rocked.started)), x: predicted.x, z: predicted.z, y: myLevel, h: predicted.heading, speed: carState.speed, steer: carState.steer, throttle: carState.throttle, brake: carState.braking, doors: doorsNow(driveKey, null, predicted.x, predicted.z, carState.speed) }
+        : exiting ? { id: exiting.model, as: exiting.key, engine: false, x: exiting.car.x, z: exiting.car.z, y: myLevel, h: exiting.car.h, speed: 0, steer: 0, throttle: 0, brake: false, doors: doorsNow(exiting.key, null, exiting.car.x, exiting.car.z) } : null;
       const peerCars = [], parkedCars = ((self.ownCars && self.ownCars.parked) || []).filter((c) => !(exiting && exiting.key === `own:${c.car}`)).map((c) => ({ ...c, doors: doorsNow(`own:${c.car}`, null, c.x, c.z) }));
+      peerBoardsNow.clear();
       for (const q of shownPeers) {
-        if (q.car && POWER_CARS[q.car.car]) peerCars.push({ key: q.id, id: q.car.car, x: q.x, z: q.z, y: Number.isFinite(q.gy) ? q.gy : undefined, h: q.heading, speed: q.car.speed, steer: q.car.steer, throttle: q.car.throttle, brake: q.car.brake, rev: q.car.rev, lamps: q.car.lamps });
-        for (const c of q.cars || []) parkedCars.push({ ...c, key: `cpark:${q.id}:${c.car}` });
+        const pb = peerBoardOf(q);
+        if (q.car && POWER_CARS[q.car.car]) peerCars.push({ key: q.id, id: q.car.car, x: q.x, z: q.z, y: Number.isFinite(q.gy) ? q.gy : undefined, h: q.heading, speed: q.car.speed, steer: q.car.steer, throttle: q.car.throttle, brake: q.car.brake, rev: q.car.rev, lamps: q.car.lamps, doors: pb && pb.kind === 'in' && pb.car === q.car.car ? doorsNow(`peer:${q.id}`, pb.times, q.x, q.z, q.car.speed) : null });
+        for (const c of q.cars || []) {
+          const key = `cpark:${q.id}:${c.car}`;
+          const times = [...(pb && pb.kind === 'out' && pb.car === c.car ? pb.times : []), ...Object.entries(DOOR_BITS).filter(([, bit]) => (c.open || 0) & bit).map(([d]) => ({ d, o: -100, s: Infinity }))];
+          parkedCars.push({ ...c, key, doors: times.length ? doorsNow(key, times, c.x, c.z) : null });
+        }
       }
       trafficCars = trafficNow(dt);
-      const trafficDrawn = trafficCars.filter((e) => !(exiting && exiting.key === `traffic:${e.n}`)).map((e) => ({ key: e.n, id: e.model, x: e.x, z: e.z, y: e.y, h: e.h, speed: e.speed, steer: e.steer, brake: e.brake, held: e.held, doors: doorsNow(`traffic:${e.n}`, e.doorTimes, e.x, e.z) }));
+      const trafficDrawn = trafficCars.filter((e) => !(exiting && exiting.key === `traffic:${e.n}`)).map((e) => ({ key: e.n, id: e.model, x: e.x, z: e.z, y: e.y, h: e.h, speed: e.speed, steer: e.steer, brake: e.brake, held: e.held, doors: doorsNow(`traffic:${e.n}`, e.doorTimes, e.x, e.z, e.speed) }));
       const bodies = ownDrive || peerCars.length || trafficDrawn.length ? crowd.lying(predicted.x, predicted.z, 80) : [];
       carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, traffic: trafficDrawn, groundY: groundAt, from: predicted, night, bodies });
       const boardMoved = (boarding && boarding.moves) || (taking && taking.kind === 'car' && ['enter', 'shut', 'slide'].includes(taking.step)) ? boardFigure(self, taking) : false;
@@ -62982,14 +63788,20 @@ function start(carried) {
         cam.pitch += (0.34 - cam.pitch) * Math.min(1, dt * 1.6);
       }
       { const shut = !!ownDrive && !!incar && !!CAR_WINDOWS[ownDrive.id] && !(ownDrive.doors && Object.values(ownDrive.doors).some((v) => v > 0.05)) && !(boarding && boarding.kind === 'in'); audio.muffle(shut ? 1 : 0); }
-      if (boarding && boarding.moves) {
-        const t = clock - boarding.start, len = boarding.B.end - 0.1, side = boarding.door === 'fl' || boarding.door === 'rl' ? 1 : -1;
+      if (boarding) {
+        const t = clock - boarding.start, B = boarding.B || BOARD[boarding.kind], len = B.end - 0.1, side = boarding.door === 'fl' || boarding.door === 'rl' ? 1 : -1;
         const r = boarding.rocked || (boarding.rocked = {});
-        if (boarding.kind === 'in' && !r.sat && t > 0.5 * len) { r.sat = carView.rock('drive', { rise: -0.16, roll: -0.11 * side }); }
-        if (boarding.kind === 'out' && !r.up && t > 0.42 * len) { r.up = carView.rock('drive', { rise: 0.13, roll: 0.09 * side }); }
-        if (!r.slam && t > boarding.B.slam + DOOR.shutting * 0.4) { r.slam = carView.rock('drive', { rise: -0.04, roll: -0.06 * side }); }
+        if (boarding.moves) {
+          if (boarding.kind === 'in' && !r.sat && t > 0.5 * len) { r.sat = carView.rock('drive', { rise: -0.16, roll: -0.11 * side }); }
+          if (boarding.kind === 'out' && !r.up && t > 0.42 * len) { r.up = carView.rock('drive', { rise: 0.13, roll: 0.09 * side }); }
+          if (!r.slam && t > B.slam + DOOR.shutting * 0.4) { r.slam = carView.rock('drive', { rise: -0.04, roll: -0.06 * side }); }
+        }
+        if (boarding.kind === 'in' && !r.started && t > Math.min(B.slam + DOOR.shutting + 0.2, B.end - 0.05)) { r.started = true; audio.carStart(boarding.car.x, boarding.car.z); }
       }
-      if (!taking) takesRocked.clear();
+      if (!taking) {
+        if (takesRocked.size && incar && Number.isInteger(incar.taken)) for (const r of takesRocked.values()) if (!r.started) { r.started = true; audio.carStart(predicted.x, predicted.z); }
+        takesRocked.clear();
+      }
       if (taking && taking.kind === 'car' && taking.times && CAR_WINDOWS[taking.model]) {
         const key = carView.driven('drive') ? 'drive' : `traffic:${taking.id}`, side = taking.door === 'fl' ? 1 : -1;
         const tag = `${taking.id}:${taking.door}`;
@@ -62998,6 +63810,11 @@ function start(carried) {
         if (!r.out && taking.step === 'pull' && taking.progress > 0.55) r.out = carView.rock(key, { rise: 0.12, roll: 0.08 * side });
         if (!r.sat && taking.step === 'enter' && taking.progress > 0.5) r.sat = carView.rock(key, { rise: -0.16, roll: -0.11 * side });
         if (!r.slam && taking.step === 'shut' && taking.progress > 0.6) r.slam = carView.rock(key, { rise: -0.04, roll: -0.06 * side });
+      }
+      if (taking && taking.kind === 'car' && taking.car) {
+        const tag = `${taking.id}:${taking.door}`, r = takesRocked.get(tag) || {};
+        takesRocked.set(tag, r);
+        if (!r.started && ((taking.step === 'shut' && taking.progress > 0.8) || taking.step === 'slide')) { r.started = true; audio.carStart(taking.car.x, taking.car.z); }
       }
       const carSeated = boardMoved || (!!ownDrive && !!incar && carView.seat(me, ownDrive));
       carsHeard = peerCars.map((q) => ({ key: q.key, car: q.id, x: q.x, z: q.z, rev: q.rev || 0, throttle: q.throttle || 0 }));
@@ -63126,10 +63943,17 @@ blood.update(dt, view.blood || []);
               const took = taking && taking.kind === 'car' && taking.id === e.n && taking.times && taking.times.pull ? taking : null;
               for (const [i, seat] of e.who) {
                 const pulledNow = took && ((took.door === 'fl' && seat === 'driver') || (took.door === 'fr' && seat === 'front')) ? took.t + Math.max(0, clock - viewAt) - took.times.pull[0] : -1;
-                inCars.push({ i, key: `traffic:${e.n}`, seat, steer: e.steer || 0, d, pulled: pulledNow >= 0 ? { t: pulledNow, door: took.door } : null });
+                const afraid = took && pulledNow < 0 && seat !== 'driver' ? { side: took.door === 'fl' || took.door === 'rl' ? 1 : -1 } : null;
+                inCars.push({ i, key: `traffic:${e.n}`, seat, steer: e.steer || 0, d, pulled: pulledNow >= 0 ? { t: pulledNow, door: took.door } : null, afraid });
               }
             }
-            crowd.update({ dt, rows: view.people, okadas: view.okadas, players: peersNow(), known, eye: predicted, real: elapsed, clock, townTime: view.t, others: view.others, inCars, carOf: (key) => carView.driven(key),
+            const amb = view.ambulance && view.ambulance.mode !== 'parked' ? supplied.ambulanceCar() : null;
+            if (amb) {
+              const d = Math.hypot(amb.group.position.x - predicted.x, amb.group.position.z - predicted.z);
+              if (d <= IN_CARS) { if (!known.has(AMBULANCE_DRIVER.index)) known.set(AMBULANCE_DRIVER.index, AMBULANCE_DRIVER); inCars.push({ i: AMBULANCE_DRIVER.index, key: 'ambulance', seat: 'driver', steer: 0, d, pulled: null }); }
+            }
+            inCarsNow = inCars;
+            crowd.update({ dt, rows: view.people, okadas: view.okadas, players: peersNow(), known, eye: predicted, real: elapsed, clock, townTime: view.t, others: view.others, inCars, carOf: (key) => (key === 'ambulance' ? supplied.ambulanceCar() : carView.driven(key)),
         own: astride ? { n: astride.n, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: Math.abs(moto.speed) } : null,
         tug: taking && taking.kind === 'okada' && taking.step !== 'reach' ? { n: taking.id, amount: Math.min(1, Math.max(0, (taking.progress - 0.23) / 0.4)), side: taking.side } : null,
         maxRigs: MAX_RIGS[quality.detail], detail: FIGURE_DETAIL[quality.detail], crowd: CROWD[quality.detail], camera, riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, falls: view.falls, reacts: view.reacts, ahead: Math.max(0, clock - viewAt) });
@@ -63166,10 +63990,11 @@ blood.update(dt, view.blood || []);
       for (const q of shownPeers) {
         if (!q.car) continue;
         const rig = crowd.rigOf(`p:${q.id}`);
-        if (rig) { seatCharacter(rig); rig.group.visible = carView.seat(rig, { steer: q.car.steer }, `peer:${q.id}`); }
+        if (rig && !peerBoardPosed(q, rig)) { seatCharacter(rig); rig.group.visible = carView.seat(rig, { steer: q.car.steer }, `peer:${q.id}`); }
         if (!carView.driven(`peer:${q.id}`) && POWER_CARS[q.car.car] && Math.hypot(q.x - predicted.x, q.z - predicted.z) < PEER_STANDIN) standing.push({ key: `c:${q.id}`, kind: 'car', id: q.car.car, x: q.x, y: groundAt(q.x, q.z, q.gy), z: q.z, h: q.heading });
         if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.carHorn(q.car.car, q.x, q.z); }
       }
+      for (const q of shownPeers) if (!q.car && peerBoardsNow.has(q.id)) { const rig = crowd.rigOf(`p:${q.id}`); if (rig) peerBoardPosed(q, rig); }
       for (const e of trafficCars) if (!carView.driven(`traffic:${e.n}`) && !(exiting && exiting.key === `traffic:${e.n}`) && Math.hypot(e.x - predicted.x, e.z - predicted.z) < (LITE ? TRAFFIC_STANDIN.lite : TRAFFIC_STANDIN.full)) standing.push({ key: `t:${e.n}`, kind: 'car', id: e.model, x: e.x, y: groundAt(e.x, e.z, e.y), z: e.z, h: e.h, lamps: night > 0.25 && (e.mode === 'drive' || e.mode === 'stop') });
       updatePeerKekes(dt);
       sportRidersView.update(dt, { list: view.sportRiders || [], known, eye: predicted, ahead: Math.max(0, clock - viewAt), groundY: zoneGroundY, now: clock });
@@ -63223,8 +64048,12 @@ blood.update(dt, view.blood || []);
     if (playing && cam.back && !ui.isOpen() && !(showroom.talk && showroom.inside) && !(carshow.talk && carshow.inside)) { cam.dist += (cam.own - cam.dist) * Math.min(1, dt * 2.5); if (Math.abs(cam.dist - cam.own) < 0.05) { cam.dist = cam.own; cam.back = false; } }
     const astride = !!view && view.self.astride !== null && view.self.astride !== undefined;
     const rideSpeed = !sitting ? 0 : view.self.incar ? Math.abs(carState.speed) : astride && ownSurf() ? Math.abs(surfState.speed) : astride && (ownBoat() || aboardShip() !== null) ? Math.abs(boatState.speed) : astride && ownSport() ? Math.abs(sportState.speed) : astride && powerBike() ? Math.abs(bikeState.speed) : astride ? Math.abs(moto.speed) : view.self.driving ? Math.abs(car.speed) : 9;
+    if (playing && rig.view === 'cockpit' && !cockpitHad()) rig.view = viewFor('chase', where(), viewsAway());
+    const cockpit = playing ? cockpitNow() : null;
+    headShown(!(cockpit && rig.live.seat > 0.5));
     rig.update(dt, {
       moving: !sitting || rideSpeed > 0.8,
+      cockpit,
       sight: gunView ? gunPlay.sightCamera() : null,
       cam, target: cam.target, heading: playing ? predicted.heading : cam.yaw, running: runShare,
       indoors: hall ? HALL_VIEW : inside && playing ? { pitch: inside.church ? 0.88 : 1.0, dist: inside.church ? 15 : 11 } : null,
@@ -63277,7 +64106,8 @@ blood.update(dt, view.blood || []);
     night = skyState.night;
     setVehicleDaylight(1 - night);
     setCarDaylight(1 - night);
-    setGlassWeather({ wet: airLevel.wetTracks ? skyState.wetness : 0, daylight: 1 - night, t: clock });
+    setGlassWeather({ wet: airLevel.wetTracks ? skyState.wetness : 0, rain: skyState.wetness, daylight: 1 - night, t: clock });
+    glintCount = setGlassGlints(night > 0.2 && carView.count() > 0 && !inside && !showroom.inside && !carshow.inside && !sports.inside ? glintsNow(night) : null, camera);
     const groundWet = updateFinishes(dt, { daylight: 1 - night, wetness: skyState.wetness, dull: skyState.dull });
     { const a = airAt({ sunUp: skyState.sunUp, cover: skyState.cover, wet: groundWet, indoor: hall ? 1 : 0, hour, clear: playing ? wildAt(predicted.x, predicted.z) : 0 }); setWorldShading({ t: clock, clouds: a.clouds * airLevel.clouds, threshold: a.threshold, haze: a.haze * airLevel.haze, glint: airLevel.glint, mirage: a.mirage * airLevel.mirage, puddles: a.puddles * airLevel.puddles }); }
     setRiver({ waves: airLevel.waves, foam: airLevel.foam, t: clock });
@@ -63511,7 +64341,7 @@ blood.update(dt, view.blood || []);
     get powerbike() { return powerbike; }, salesman, get salesmanActor() { return salesmanActor; }, showroom, goShowroom: (way) => goShowroom(way), askAbout: (bike) => askAbout(POWERBIKE.displays.find((d) => d.bike === bike)), hallCustomers: () => hallCustomers(),
     get sportsView() { return sportsView; }, sports, goSports: (way) => goSports(way), askAboutSport: (item) => askAboutSport(SPORTS_MALL.displays.find((d) => d.item === item)),
     get carshowView() { return carshowView; }, get carSalesmen() { return carSalesmen; }, carshow, goCarshow: (way) => goCarshow(way), askAboutCar: (car) => askAboutCar(CARSHOW.displays.find((d) => d.car === car)), carHallCustomers: () => carHallCustomers(),
-    get carView() { return carView; }, carState, get standins() { return standins; }, peerPhones, get contextLost() { return contextLost; }, get pictureGone() { return pictureGone; }, get restored() { return restored; }, loading, get frameErrors() { return frameErrors; }, watch, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), driveTaken: (n) => enterTakenCar(n), get trafficCars() { return trafficCars; }, get near() { return near; }, refresh: () => { refreshView(); near = findNear(); prompt = findPrompt(); }, carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
+    get carView() { return carView; }, carState, get boarding() { return boarding; }, get boardingGivenUp() { return boardingGivenUp; }, get glintCount() { return glintCount; }, get inCars() { return inCarsNow; }, get peerBoards() { return [...peerBoardsNow.entries()].map(([id, b]) => ({ id, kind: b.kind, door: b.door, car: b.car, t: b.t, end: b.B.end, open: b.open })); }, get standins() { return standins; }, peerPhones, get contextLost() { return contextLost; }, get pictureGone() { return pictureGone; }, get restored() { return restored; }, loading, get frameErrors() { return frameErrors; }, watch, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), linkState: () => linkSelf(), leaveDoorOpen: (door) => { const c = ownCar(); if (!c || !view.self.incar) return false; openDoor(`own:${c.id}`, door, clock, Infinity); return true; }, driveTaken: (n) => enterTakenCar(n), get trafficCars() { return trafficCars; }, get near() { return near; }, refresh: () => { refreshView(); near = findNear(); prompt = findPrompt(); }, carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
     online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, exitGame: () => exitGame(), get exited() { return exited; }, get playing() { return playing; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },
@@ -63535,18 +64365,31 @@ blood.update(dt, view.blood || []);
     get clock() { return clock; },
     fetchWeather: () => fetchWeather(), get realWeather() { return realWeather; },
     setSky: (choice) => { prefs.skyTime = SKY_TIMES[choice.time] !== undefined ? choice.time : 'real'; prefs.skyWeather = SKY_WEATHERS[choice.weather] ? choice.weather : 'real'; writeStored(PREFS_KEY, prefs); return skyChoice(); },
-    twin(name = 'Second Player', x = null, z = null) {
+    twin(name = 'Second Player', x = null, z = null, look = null) {
       const hub = createLoopbackHub();
       const other = newHost();
-      const id = other.game.join({ name, look: { skin: 0x4f3019, top: 0x1f5c4d, body: 'f' } });
+      const id = other.game.join({ name, look: look || { skin: 0x4f3019, top: 0x1f5c4d, body: 'f' } });
       transport = { kind: 'twin', make: () => hub.join('first') };
       relink();
       const q = other.game.state.players[id];
       if (x !== null) { q.x = x; q.z = z; }
       let asking = null;            // the second player asking the showroom's salesman about a motorcycle
       let askingCar = null;         // or asking about one of the car showroom's cars
-      const selfOf = () => { const v = other.game.view(id).self; return asking ? { ...v, talk: { bike: asking.bike, ago: other.game.state.real - asking.since } } : askingCar ? { ...v, carTalk: { car: askingCar.car, ago: other.game.state.real - askingCar.since } } : v; };
-      twin = { host: other, id, link: createLink({ transport: hub.join('second'), game: other.game, zoneId: ZONE.id, self: selfOf }), place(px, pz) { q.x = px; q.z = pz; q.lastMoveAt = other.game.state.real; }, face(h) { q.heading = h; }, ask(bike) { asking = bike ? { bike, since: other.game.state.real } : null; }, askCar(car) { askingCar = car ? { car, since: other.game.state.real } : null; }, say: (text) => other.game.intent(id, { type: 'chat.say', text }), language: (lang) => other.game.intent(id, { type: 'settings.language', lang }), view: () => other.game.view(id) };
+      let boardingTwin = null;
+      const shotsTwin = [];
+      const selfOf = () => {
+        const v0 = other.game.view(id).self;
+        let v = v0;
+        const real = other.game.state.real;
+        if (shotsTwin.length) v = { ...v, gun: { out: true, equipped: 'rifle', aim: 1 }, gunShots: shotsTwin.filter((q) => real - q.t < 3).map((q) => ({ q: q.q, ago: real - q.t, o: q.o, e: q.e, what: q.what })) };
+        if (boardingTwin) {
+          const ago = other.game.state.real - boardingTwin.since;
+          if (ago < boardingTwin.lasts) v = { ...v, boarding: { ...boardingTwin, ago } };
+          if (boardingTwin.open && boardingTwin.kind === 'out' && v0.ownCars) v = { ...v, ownCars: { ...v0.ownCars, parked: (v0.ownCars.parked || []).map((c) => (c.car === boardingTwin.car ? { ...c, open: DOOR_BITS[boardingTwin.door] } : c)) } };
+        }
+        return asking ? { ...v, talk: { bike: asking.bike, ago: other.game.state.real - asking.since } } : askingCar ? { ...v, carTalk: { car: askingCar.car, ago: other.game.state.real - askingCar.since } } : v;
+      };
+      twin = { host: other, id, link: createLink({ transport: hub.join('second'), game: other.game, zoneId: ZONE.id, self: selfOf }), place(px, pz) { q.x = px; q.z = pz; q.lastMoveAt = other.game.state.real; }, face(h) { q.heading = h; }, ask(bike) { asking = bike ? { bike, since: other.game.state.real } : null; }, askCar(car) { askingCar = car ? { car, since: other.game.state.real } : null; }, fire(o, e, what = 'vehicle') { shotsTwin.push({ q: shotsTwin.length + 1, t: other.game.state.real, o, e, what }); if (shotsTwin.length > 12) shotsTwin.shift(); return shotsTwin.length; }, board(kind, car, door = 'fl', { at = null, open = false } = {}) { const t = kind ? boardTimes(kind) : null; boardingTwin = kind ? { kind, door, car: car.car || car.id, x: car.x, z: car.z, h: car.h, at, open: open ? 1 : 0, moves: 1, since: other.game.state.real, lasts: kind === 'out' && open ? t.shut - DOOR.shutting * 0.4 : t.length + 0.1 } : null; }, say: (text) => other.game.intent(id, { type: 'chat.say', text }), language: (lang) => other.game.intent(id, { type: 'settings.language', lang }), view: () => other.game.view(id) };
       return twin;
     },
     get second() { return twin; },

@@ -602,7 +602,7 @@ export function createCrowd(scene) {
       const move = carMove(rig, moveName);
       // (pulled out of the seat by a player taking the car: the owner's move for it, onto the road beside the car)
       const seated = s.pulled ? poseBoarding(rig, car, { kind: 'pulled', door: s.pulled.door, t: s.pulled.t, groundY: (x, z) => groundOf(x, z, car.group.position.y) })
-        : !!move && seatFigure(rig, car, s.seat, { steer: s.steer || 0, move, t: clockNow + (s.i % 17) * 0.37 });
+        : !!move && seatFigure(rig, car, s.seat, { steer: s.steer || 0, move, t: clockNow + (s.i % 17) * 0.37, afraid: s.afraid || null });
       rig.group.visible = seated;
       if (rig.blob) rig.blob.visible = false;
       if (rig.label) rig.label.visible = false;

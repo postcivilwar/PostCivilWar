@@ -132,6 +132,11 @@ class V3 {
   set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; }
   copy(v) { return this.set(v.x, v.y, v.z); }
   lerp(v, t) { return this.set(this.x + (v.x - this.x) * t, this.y + (v.y - this.y) * t, this.z + (v.z - this.z) * t); }
+  // (for the view from the driver's seat)
+  addScaledVector(v, k) { return this.set(this.x + v.x * k, this.y + v.y * k, this.z + v.z * k); }
+  normalize() { const l = Math.hypot(this.x, this.y, this.z) || 1; return this.set(this.x / l, this.y / l, this.z / l); }
+  crossVectors(a, b) { return this.set(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x); }
+  applyAxisAngle(k, a) { const c = Math.cos(a), s = Math.sin(a), d = k.x * this.x + k.y * this.y + k.z * this.z; const x = this.x * c + (k.y * this.z - k.z * this.y) * s + k.x * d * (1 - c), y = this.y * c + (k.z * this.x - k.x * this.z) * s + k.y * d * (1 - c), z = this.z * c + (k.x * this.y - k.y * this.x) * s + k.z * d * (1 - c); return this.set(x, y, z); }
 }
 globalThis.THREE = { Vector3: V3 };
 const { CAMERA_VIEWS, CAMERA_VIEW, STREET, nextView, viewFor, createCameraRig } = await import('../src/client/camera.js');
@@ -235,6 +240,32 @@ test('camera: from the bonnet, the eye is ahead of the vehicle looking on, and t
   assert.equal(rig.hidesPlayer, false);
   assert.ok(camera.position.x > 6, 'in front of the driver');
   assert.ok(camera.aim.x > camera.position.x + 3, 'looking the way the vehicle faces');
+});
+
+test('camera: from the driver\'s seat (6 November 2026), the eye is the driver\'s own, looking ahead along the car, a little down; a finger looks about; the driver is still drawn', () => {
+  const camera = fakeCamera();
+  const rig = createCameraRig(camera, { blocked: () => false });
+  const cam = { yaw: 0, pitch: 0.27, dist: 8 };
+  rig.snap(cam);
+  rig.view = 'cockpit';
+  const cockpit = { eye: new V3(5.3, 1.2, 5.1), forward: new V3(1, 0, 0), up: new V3(0, 1, 0) };
+  const frame = { cam, target: { x: 5, y: 1.4, z: 5 }, heading: Math.PI / 2, eyeHeight: 1.45, cockpit };
+  film(rig, 2, frame);
+  assert.equal(rig.hidesPlayer, false, 'the figure drawn, its hands on the wheel (only its head left out: main.js)');
+  const p = camera.position;
+  assert.ok(Math.hypot(p.x - 5.3, p.y - 1.2, p.z - 5.1) < 0.01, `the eye where the driver's eyes are: ${p.x.toFixed(3)} ${p.y.toFixed(3)} ${p.z.toFixed(3)}`);
+  assert.ok(camera.aim.x > p.x + 4, 'looking along the car');
+  assert.ok(camera.aim.y < p.y && camera.aim.y > p.y - 1, 'a little down, to the road beyond the bonnet');
+  assert.ok(Math.abs(camera.aim.z - p.z) < 0.05, 'straight ahead');
+  // (a finger looks to the side, and up and down)
+  rig.drag(0.7, 0.1);
+  film(rig, 0.3, { ...frame, dragged: 0, moving: false });
+  assert.ok(Math.abs(camera.aim.z - p.z) > 2, 'looking to the side');
+  // passed over where it cannot be had (a keke, a motorcycle, a car closed to the eye)
+  assert.equal(nextView('high', 'vehicle', ['cockpit']), 'bonnet');
+  assert.equal(nextView('high', 'vehicle'), 'cockpit');
+  assert.equal(viewFor('cockpit', 'vehicle', ['cockpit']), 'chase');
+  assert.equal(viewFor('cockpit', 'vehicle'), 'cockpit');
 });
 
 test('camera: someone under a low roof is looked at from under it, not through it', () => {

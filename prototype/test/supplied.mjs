@@ -63,6 +63,9 @@ const drawnOf = (which) => page.evaluate((id) => {
 }, which);
 const loaded = (id) => page.waitForFunction((which) => { const p = window.__nlw.supplied.state().parked.find((q) => q.id === which); return p.loaded || p.failed; }, id, { timeout: 180000 });
 const near = (a, b, tol) => Math.abs(a - b) <= tol;
+// (6 November 2026, Stage 3: real glass in its windows, where they were painted, and a cab of the game's inside:
+// supplied-glass.js; they come after the model, `glazed`)
+const glazedOf = (id) => page.waitForFunction((which) => { const p = window.__nlw.supplied.parked.find((q) => q.id === which); return p && p.glazed ? { pane: !!p.glazed.pane && p.glazed.pane.visible !== false, cab: !!p.glazed.cab, parts: p.glazed.cab ? p.glazed.cab.group.children.length : 0 } : null; }, id, { timeout: 120000 }).then((h) => h.jsonValue()).catch(() => null);
 
 // ---- the red box truck, beside the store ----
 const T = SUPPLIED_VEHICLES.boxTruck;
@@ -73,6 +76,8 @@ const tState = (await page.evaluate(() => window.__nlw.supplied.state())).parked
 // (facing west, -x: along x it is as long as it is meant to be, and its box, taller than its cab, is toward +x)
 check('the red box truck is the owner\'s model, every triangle, beside the store', tState.loaded && !tState.failed && truck.triangles === 9240 && !truck.standIn, { tState, triangles: truck && truck.triangles });
 check('it is drawn its length and height, square to the street, its cab toward the store (west)', near(truck.x[1] - truck.x[0], T.length, 0.05) && near(truck.y[1] - truck.y[0], T.height, 0.25) && near(truck.y[0], 0, 0.02) && truck.highX[0] > truck.x[0] + 1.2 && near((truck.x[0] + truck.x[1]) / 2, T.x, 0.05), truck);
+const tGlass = await glazedOf('boxTruck');
+check('its cab has real glass in its windows, and a cab inside (seats, dashboard, wheel)', !!tGlass && tGlass.pane && tGlass.cab && tGlass.parts > 0, tGlass);
 await page.waitForTimeout(1500);
 await shot('1-box-truck');
 // solid: walked into from the market side, the player stops at its side
@@ -91,6 +96,8 @@ const heavy = await drawnOf('heavyTruck');
 const hState = (await page.evaluate(() => window.__nlw.supplied.state())).parked.find((p) => p.id === 'heavyTruck');
 check('the heavy truck is the owner\'s model, every triangle, in Udeh Block Industry\'s yard', hState.loaded && heavy.triangles === 98697 && !heavy.standIn, { hState, triangles: heavy && heavy.triangles });
 check('it is drawn its length and height, along the yard, ready to go out to the road', near(heavy.z[1] - heavy.z[0], H.length, 0.05) && near(heavy.y[1] - heavy.y[0], H.height, 0.25) && near((heavy.z[0] + heavy.z[1]) / 2, H.z, 0.05), heavy);
+const hGlass = await glazedOf('heavyTruck');
+check('its cab has real glass in its windows, and a cab inside', !!hGlass && hGlass.pane && hGlass.cab && hGlass.parts > 0, hGlass);
 await page.waitForTimeout(1500);
 await shot('2-heavy-truck');
 
@@ -132,6 +139,9 @@ for (let i = 0; i < 24; i += 1) {
 }
 check('called out to someone badly hurt, it comes, the lamps on its roof flashing red and blue in turn', call.ok && flashes.some((f) => f === 'r') && flashes.some((f) => f === 'b') && !flashes.includes('rb'), { call: call.ok ? 'ok' : call, flashes: flashes.join(' ') });
 await page.waitForFunction(() => { const v = window.__nlw.view.ambulance; return v && Math.hypot(v.x + 168, v.z + 14) < 30; }, null, { timeout: 60000 }).catch(() => {});
+// (its glass and cab, and its driver, one of the hospital's crew in white, seated at its wheel while it is out)
+const crew = await page.waitForFunction(() => { const n = window.__nlw, car = n.supplied.ambulanceCar(); const seated = (n.inCars || []).some((q) => q.key === 'ambulance' && q.seat === 'driver'); return car && seated ? { glazed: !!car.glazed, cab: !!car.cabinMeasures } : null; }, null, { timeout: 90000 }).then((h) => h.jsonValue()).catch(() => null);
+check('out on its call, its glass and cab, and its driver at its wheel, seen through its windscreen', !!crew && crew.glazed && crew.cab, crew);
 await shot('6-ambulance-on-a-call');
 
 { const lost = await lostPictures(page); check('no picture was handed to the graphics card after the page had let it go of it (no vehicle or building drawn black)', lost === 0, lost); }

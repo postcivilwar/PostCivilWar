@@ -11,6 +11,8 @@
 // server the simulation holds every player directly, and this file goes.
 
 export const LINK_VERSION = 1;
+// a car's doors, in the order they travel (getting in or out of one, `bd`)
+const BOARD_DOORS = Object.freeze(['fl', 'fr', 'rl', 'rr']);
 
 // The few fields that travel. Short names, because presence is small.
 export function encodePlayer(self, zoneId) {
@@ -61,8 +63,16 @@ export function encodePlayer(self, zoneId) {
   // note follow it); and their own cars standing near them
   const c = self.incar;
   if (c && c.car) { const d = c.drive || {}; out.mc = { i: c.car, s: d.steer || 0, v: d.speed || 0, t: d.throttle || 0, k: d.brake ? 1 : 0, r: d.rev || 0, l: d.lamps ? 1 : 0, hn: c.horns || 0 }; }
+  // (with the doors left standing open on one, as a mask: fl 1, fr 2, rl 4, rr 8, 6 November 2026)
   const cars = near(self.ownCars && self.ownCars.parked).slice(0, 3);
-  if (cars.length) out.pc = cars.map((p) => [p.car, r2(p.x), r2(p.z), r2(p.h)]);
+  if (cars.length) out.pc = cars.map((p) => (Number.isInteger(p.open) && p.open > 0 ? [p.car, r2(p.x), r2(p.z), r2(p.h), p.open & 15] : [p.car, r2(p.x), r2(p.z), r2(p.h)]));
+  // getting into or out of one of their own cars (6 November 2026, the owner's brief: "Other players see all of it"):
+  // in (0) or out (1), by which door, how far into it (seconds), the car where it stands, where they stood, a door left
+  // open as they ran, and whether by the owner's moves (their timing)
+  const bd = self.boarding;
+  if (bd && typeof bd.car === 'string' && Number.isFinite(bd.ago) && Number.isFinite(bd.x) && Number.isFinite(bd.z)) {
+    out.bd = [bd.kind === 'out' ? 1 : 0, Math.max(0, BOARD_DOORS.indexOf(bd.door)), r2(bd.ago), bd.car, r2(bd.x), r2(bd.z), r2(bd.h || 0), bd.at && Number.isFinite(bd.at.x) ? r2(bd.at.x) : null, bd.at && Number.isFinite(bd.at.z) ? r2(bd.at.z) : null, bd.open ? 1 : 0, bd.moves ? 1 : 0];
+  }
   if (self.vel) out.vl = [r2(self.vel[0]), r2(self.vel[1])];
   // in the PostCivilWar PowerBike showroom, asking the salesman about one of its motorcycles: which, and for how long
   // (the salesman goes to whoever began first: salesman.js)
@@ -158,7 +168,10 @@ export function decodePlayer(state, zoneId) {
   const talk = Array.isArray(state.tk) ? { bike: state.tk[0], ago: state.tk[1] } : null;
   const mc = state.mc && typeof state.mc === 'object' ? state.mc : null;
   const car = mc ? { car: mc.i, steer: mc.s, speed: mc.v, throttle: mc.t, brake: mc.k, rev: mc.r, lamps: mc.l, horns: mc.hn } : null;
-  const cars = Array.isArray(state.pc) ? state.pc.map((p) => (Array.isArray(p) ? { car: p[0], x: p[1], z: p[2], h: p[3] } : null)) : [];
+  const cars = Array.isArray(state.pc) ? state.pc.map((p) => (Array.isArray(p) ? { car: p[0], x: p[1], z: p[2], h: p[3], ...(Number.isInteger(p[4]) ? { open: p[4] } : {}) } : null)) : [];
+  // (getting into or out of one of their own cars, 6 November 2026)
+  const bd = Array.isArray(state.bd) ? state.bd : null;
+  const boarding = bd ? { kind: bd[0] === 1 ? 'out' : 'in', door: BOARD_DOORS[bd[1]] || 'fl', ago: bd[2], car: bd[3], x: bd[4], z: bd[5], h: bd[6], at: Number.isFinite(bd[7]) && Number.isFinite(bd[8]) ? { x: bd[7], z: bd[8] } : null, open: bd[9] === 1, moves: bd[10] === 1 } : null;
   const carTalk = Array.isArray(state.tc) ? { car: state.tc[0], ago: state.tc[1] } : null;
   const phone = [1, 2, 3].includes(state.ph) ? state.ph : 0;
   const torch = phone && state.to === 1 ? 1 : 0;
@@ -171,7 +184,7 @@ export function decodePlayer(state, zoneId) {
   const shots = Array.isArray(state.sh) ? state.sh.filter(Array.isArray).map((s) => ({ q: s[0], ago: s[1], o: [s[2], s[3], s[4]], e: [s[5], s[6], s[7]], what: SHOT_KINDS[s[8]] || 'air' })) : [];
   const wounds = Array.isArray(state.wd) ? state.wd.filter(Array.isArray) : [];
   const knocked = Array.isArray(state.kl) ? state.kl.filter(Array.isArray).slice(0, 6).map((k) => ({ lamp: k[0], ago: k[1], dir: k[2] })) : [];
-  return { knocked, gy: Number.isFinite(state.gy) ? state.gy : null, down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, sport, sports, boat, boats, surf, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone, torch, jump, health: Number.isFinite(state.hp) ? state.hp : null, swimming: !!state.sw, held: !!state.hd, gun, shots, wounds };
+  return { knocked, gy: Number.isFinite(state.gy) ? state.gy : null, down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, sport, sports, boat, boats, surf, vehicle, parked, kekes, vel, talk, car, cars, boarding, carTalk, phone, torch, jump, health: Number.isFinite(state.hp) ? state.hp : null, swimming: !!state.sw, held: !!state.hd, gun, shots, wounds };
 }
 
 export function createLink({ transport, game, zoneId, self, interval = 0.15 }) {

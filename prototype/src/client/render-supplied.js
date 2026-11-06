@@ -14,6 +14,9 @@ import { loadSuppliedMesh } from './supplied-model.js';
 import { surface } from './render-kit.js';
 import { wantPicture } from './glb.js';
 import { standing } from './marks.js';
+import { glazeSupplied } from './supplied-glass.js';
+import { SUPPLIED_WINDOWS } from './supplied-windows.js';
+import { CABIN_SEEN } from './car-view.js';
 
 // The model turned so that its front is toward +z, its middle over the origin and its wheels on the ground, at the
 // scale that makes it `length` long. Returns the group to place, and its size.
@@ -107,9 +110,14 @@ export function createSupplied(scene, { lite = false, maxTexture = 4096, env = n
     p.want = thinFor(p.v, d, 0); p.wantAt = performance.now();
     p.loading = loadSuppliedMesh(p.v.file, { maxTexture: most, env, name: `supplied-${p.id}`, want: p.want })
       .then(({ mesh, triangles }) => {
-        const { fit } = fitVehicle(mesh, p.v);
+        const fitted = fitVehicle(mesh, p.v);
+        const { fit } = fitted;
         p.model = fit; p.triangles = triangles;
         p.holder.add(standing(fit)); p.standIn.visible = false;
+        // (its painted windows made glass, and a cab inside: supplied-glass.js)
+        glazeSupplied(p.id, mesh, fitted, { lite, env })
+          .then((glazed) => { if (!glazed) return; if (p.model === fit) { p.glazed = glazed; standing(fit); } else glazed.dispose(); })
+          .catch(() => {});
       })
       .catch((error) => { p.failed = String(error.message || error); p.failedAt = performance.now(); })
       .finally(() => { p.loading = null; });
@@ -117,6 +125,8 @@ export function createSupplied(scene, { lite = false, maxTexture = 4096, env = n
   }
   function release(p) {
     if (!p.model) return;
+    // (its glass and cab first: the cab's shapes are shared, not this model's to let go)
+    if (p.glazed) { p.glazed.dispose(); p.glazed = null; }
     p.holder.remove(p.model);
     p.model.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); for (const key of ['map', 'normalMap', 'roughnessMap']) if (o.material[key]) o.material[key].dispose(); o.material.dispose(); } });
     p.model = null; p.standIn.visible = true;
@@ -136,9 +146,14 @@ export function createSupplied(scene, { lite = false, maxTexture = 4096, env = n
     const want = THIN ? THIN.size : 0;
     ambulanceLoading = loadSuppliedMesh(v.file, { maxTexture: most, env, name: 'supplied-ambulance', want })
       .then(({ mesh, triangles }) => {
-        const { fit, frame } = fitVehicle(mesh, v);
+        const fitted = fitVehicle(mesh, v);
+        const { fit, frame } = fitted;
         const roof = roofFront(mesh, frame);
-        ambulance = { fit, roof, triangles, want, wantAt: performance.now() - 1e9, van: null };
+        ambulance = { fit, roof, triangles, want, wantAt: performance.now() - 1e9, van: null, glazed: null, scale: fitted.scale };
+        const mine = ambulance;
+        glazeSupplied('ambulance', mesh, fitted, { lite, env })
+          .then((glazed) => { if (!glazed) return; if (ambulance === mine) { mine.glazed = glazed; standing(fit); } else glazed.dispose(); })
+          .catch(() => {});
       })
       .catch((error) => { ambulance = { failed: String(error.message || error) }; ambulanceFailedAt = performance.now(); })
       .finally(() => { ambulanceLoading = null; });
@@ -163,9 +178,13 @@ export function createSupplied(scene, { lite = false, maxTexture = 4096, env = n
     return van.dressed;
   }
 
+  // (how much of a cab is drawn, by how far it is from the eye: as a car's, car-view.js)
+  const SEEN = CABIN_SEEN[lite ? 'lite' : 'full'];
+  const cabLevel = (d) => (d <= SEEN.near ? 2 : d <= SEEN.far ? 1 : 0);
   function tick(eye) {
     for (const p of parked) {
       const d = Math.hypot(eye.x - p.v.x, eye.z - p.v.z);
+      if (p.glazed) p.glazed.detail(cabLevel(d));
       // (one that could not be fetched is asked for again half a minute later; from the disk, never)
       if (d < p.v.reach && (!p.failed || (!ON_DISK && performance.now() - (p.failedAt || 0) > 30000))) load(p, d);
       else if (d > p.v.reach * 1.6) release(p);
@@ -173,12 +192,25 @@ export function createSupplied(scene, { lite = false, maxTexture = 4096, env = n
     }
     if (ambulance && ambulance.van && !ambulance.failed) {
       const at = ambulance.van.group.position;
-      thinOut(ambulance, ambulance.fit, SUPPLIED_VEHICLES.ambulance, Math.hypot(eye.x - at.x, eye.z - at.z));
+      const d = Math.hypot(eye.x - at.x, eye.z - at.z);
+      thinOut(ambulance, ambulance.fit, SUPPLIED_VEHICLES.ambulance, d);
+      if (ambulance.glazed) ambulance.glazed.detail(cabLevel(d));
     }
   }
   const state = () => ({
     parked: parked.map((p) => ({ id: p.id, loaded: !!p.model, loading: !!p.loading, failed: p.failed, triangles: p.triangles, standIn: p.standIn.visible, at: [p.holder.position.x, p.holder.position.z], heading: p.holder.rotation.y, want: p.want || 0, thinned: p.thinned || 0 })),
     ambulance: ambulance ? { loaded: !ambulance.failed, failed: ambulance.failed || null, triangles: ambulance.triangles || 0, want: ambulance.want || 0, thinned: ambulance.thinned || 0 } : { loaded: false, loading: !!ambulanceLoading },
   });
-  return { tick, load: (id) => load(parked.find((p) => p.id === id)), loadAmbulance, dressAmbulance, state, parked };
+  // The ambulance as a car is to its seats (car-seating.js), once its glass and cab have come: its driver's measures in
+  // its cab's frame, its body, its cab's measures in metres (render-crowd.js seats its driver by it while it is out)
+  function ambulanceCar() {
+    const a = ambulance;
+    if (!a || a.failed || !a.van || !a.glazed || !a.glazed.cab) return null;
+    if (!a.car) {
+      const w = SUPPLIED_WINDOWS.ambulance;
+      a.car = { glazed: true, driver: w.driver, group: a.van.group, cabin: a.glazed.holder, cabinMeasures: a.glazed.cab.measures, scale: a.scale, spec: { length: w.length, height: w.height } };
+    }
+    return a.car;
+  }
+  return { tick, load: (id) => load(parked.find((p) => p.id === id)), loadAmbulance, dressAmbulance, ambulanceCar, state, parked };
 }

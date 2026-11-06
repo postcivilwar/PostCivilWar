@@ -152,6 +152,49 @@ test('thrown from a motorcycle (19 October 2026): the fall, from where, and the 
   assert.equal(q.down.over, null);
 });
 
+test('getting into or out of one of their own cars travels with them, and a door left open on a car of theirs left standing; checked when heard (6 November 2026)', () => {
+  // (the owner's brief: "Other players see all of it": which door, how far into it, where the car stands, where they
+  // stood; "Running from the police, leave it open")
+  const a = town(['Driver Ada']);
+  ok(a.send(a.id, { type: 'cars.owned', cars: ['grey-saloon'] }));
+  const inside = ok(a.send(a.id, { type: 'cars.enter', car: 'grey-saloon' }));
+  const boarding = { kind: 'in', door: 'fl', ago: 0.8, car: 'grey-saloon', x: inside.x, z: inside.z, h: inside.h, at: { x: inside.x + 1.6, z: inside.z }, open: 0, moves: 1 };
+  const self = { ...a.g.view(a.id).self, boarding };
+  const state = encodePlayer(self, ZONE_ID);
+  assert.deepEqual(state.bd.slice(0, 4), [0, 0, 0.8, 'grey-saloon'], 'in, by the driver\'s door, 0.8 s into it, which car');
+  assert.ok(JSON.stringify(state).length < 1500, 'within what the server takes');
+  const b = town(['Watcher Bayo']);
+  b.place(b.p, a.p.x + 6, a.p.z);
+  const heard = (st) => { b.g.visitors.seen('peer-ada', decodePlayer(st, ZONE_ID)); return b.g.view(b.id).players.find((o) => o.name === state.n); };
+  let q = heard(state);
+  assert.ok(q && q.boarding, 'seen getting in');
+  assert.equal(q.boarding.kind, 'in'); assert.equal(q.boarding.door, 'fl'); assert.equal(q.boarding.car, 'grey-saloon');
+  assert.equal(q.boarding.moves, true); assert.equal(q.boarding.open, false);
+  assert.ok(Math.abs(q.boarding.ago - 0.8) < 0.05, `how far into it: ${q.boarding.ago}`);
+  assert.ok(Math.abs(q.boarding.x - inside.x) < 0.02 && Math.abs(q.boarding.at.x - (inside.x + 1.6)) < 0.02, 'the car where it stands, and where they stood');
+  // (heard again with the same: how far into it is kept from when it was first heard, not stepped back)
+  q = heard(state);
+  assert.ok(q.boarding.ago >= 0.8 - 0.01, 'not stepped back');
+  // a made-up car, or a car far from them: nothing taken (only the doors there are and in or out can travel at all)
+  for (const wrong of [{ car: 'no-such-car' }, { x: inside.x + 500 }]) {
+    q = heard(encodePlayer({ ...self, boarding: { ...boarding, ...wrong } }, ZONE_ID));
+    assert.equal(q.boarding, null, JSON.stringify(wrong));
+  }
+  // out again, running from the police: the door left standing open on the car left standing, and told no more
+  ok(a.send(a.id, { type: 'car.leave' }));
+  const v = a.g.view(a.id).self;
+  assert.ok(v.ownCars && v.ownCars.parked.length, 'their car left standing');
+  const left = encodePlayer({ ...v, ownCars: { ...v.ownCars, parked: v.ownCars.parked.map((c) => ({ ...c, open: 1 })) } }, ZONE_ID);
+  assert.equal(left.pc[0][4], 1, 'the driver\'s door open (fl 1, fr 2, rl 4, rr 8)');
+  assert.equal(left.bd, undefined);
+  q = heard(left);
+  assert.equal(q.boarding, null);
+  assert.equal(q.cars[0].car, 'grey-saloon'); assert.equal(q.cars[0].open, 1);
+  // (and shut again: nothing open)
+  q = heard(encodePlayer(v, ZONE_ID));
+  assert.equal(q.cars[0].open, 0);
+});
+
 test('a vehicle carried on between words is not shown through anything solid: held where it last stood clear', () => {
   const b = town(['Watcher Femi']);
   b.place(b.p, -236, 104);

@@ -102,7 +102,12 @@ const seen = await B.page.waitForFunction((name) => {
 const stillIn = seen ? null : await A.page.evaluate(() => { const n = window.__nlw, p = n.host.game.state.players[n.playerId]; return { incar: n.view.self.incar, custody: p.custody, law: p.law && p.law.state }; });
 check('the second player sees the first player\'s car, the Grey Saloon, drawn with its glass and cabin', !!seen && seen.model === MODEL && seen.glazed, seen || stillIn);
 await B.page.waitForTimeout(4000);
-const sitting = seen && await B.page.evaluate((id) => {
+// (6 November 2026: on this machine the second player's view lets the first's car or figure go now and then for a
+// moment, the page's word from the server late (the same on the build of Stage 2): each look waits until both are
+// drawn again, up to a minute, and tells how long it waited)
+const drawn = async (id) => { const t0 = Date.now(); const ok = await B.page.waitForFunction((q) => { const n = window.__nlw; return !!(n.carView.driven(`peer:${q}`) && n.crowd.rigOf(`p:${q}`)); }, id, { timeout: 60000 }).then(() => true).catch(() => false); return { ok, waited: Date.now() - t0 }; };
+const before1 = seen ? await drawn(seen.id) : null;
+const sitting = seen && before1.ok && await B.page.evaluate((id) => {
   const n = window.__nlw, THREE = n.THREE;
   const car = n.carView.driven(`peer:${id}`), rig = n.crowd.rigOf(`p:${id}`);
   car.group.updateMatrixWorld(true);
@@ -113,14 +118,18 @@ const sitting = seen && await B.page.evaluate((id) => {
   const at = (hips || rig.group).getWorldPosition(new THREE.Vector3());
   return { shown: rig.group.visible, gap: +at.distanceTo(seat).toFixed(3), seat: seat.toArray().map((v) => +v.toFixed(2)), hips: at.toArray().map((v) => +v.toFixed(2)) };
 }, seen.id);
-check('the first player is shown sitting in the driver\'s seat, as the second player sees it', !!sitting && sitting.shown && sitting.gap < 0.35, sitting);
+check('the first player is shown sitting in the driver\'s seat, as the second player sees it', !!sitting && sitting.shown && sitting.gap < 0.35, sitting ? { ...sitting, waited: before1.waited } : before1);
 await B.shot('seen-1-beside');
 // (every part of the figure one bright colour, lit by itself; found on the screen where the windows are)
-const painted = seen && await B.page.evaluate((id) => {
-  const n = window.__nlw, rig = n.crowd.rigOf(`p:${id}`); let k = 0;
+const before2 = seen ? await drawn(seen.id) : null;
+const paint = (id) => B.page.evaluate((q) => {
+  const n = window.__nlw, rig = n.crowd.rigOf(`p:${q}`); if (!rig) return 0; let k = 0;
   rig.group.traverse((o) => { if (o.isMesh && o.material) for (const m of (Array.isArray(o.material) ? o.material : [o.material])) { m.map = null; if (m.color) m.color.setRGB(1, 0, 1); if (m.emissive) m.emissive.setRGB(1, 0, 1); m.needsUpdate = true; k += 1; } });
   return k;
-}, seen.id);
+}, id);
+const painted = seen && before2.ok && await paint(seen.id);
+// (painted again just before the picture, should the figure have been made afresh meanwhile)
+if (painted) { await B.page.waitForTimeout(2000); await drawn(seen.id); await paint(seen.id); }
 await B.page.waitForTimeout(2000);
 const buf = await B.page.screenshot({ path: resolve(out, 'seen-2-painted.png') });
 const hit = await countMagenta(B.page, buf);

@@ -178,12 +178,15 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
     stats.streaks += 1;
   }
 
-  // Where a round stopped, and what it struck: 'wall', 'ground', 'vehicle', 'person' (`dir`: the way it was going).
+  // Where a round stopped, and what it struck: 'wall', 'ground', 'vehicle', 'glass' (a car's), 'person' (`dir`: the way it
+  // was going).
   function strike(what, at, dir, { calm = false } = {}) {
     stats.strikes += 1;
     const back = A.copy(dir).normalize().multiplyScalar(-1);
     if (what === 'person') { blood(at, dir, { calm }); return; }
     if (what === 'air') return;
+    // (a car's glass, 6 November 2026: a glitter of it, the round going on through)
+    if (what === 'glass') { puff(at, 0xe6eeec, { size: 0.035, grow: 3, life: 0.28, alpha: 0.55, rise: 0.02, v: back.clone().multiplyScalar(0.5) }); return; }
     if (what === 'vehicle') {
       // sparks off the metal, and a little grey dust
       const n = lite ? 5 : 10;

@@ -336,9 +336,13 @@ export function createGunPlay(deps) {
     const bore = t.sightDir.lengthSq() > 0 ? t.sightDir : to;
     fx.flash(o, bore, { near: true });
     fx.streak(o, end);
-    fx.strike(s.what, end, to, { calm: !!deps.calm() });
+    // (a car in its way as drawn here, 6 November 2026: struck where the path meets it, a hole in its paint or its glass,
+    // or a door's window broken, car-view.js `shot`; every player's game is told the same path and does the same)
+    const car = deps.carShot ? deps.carShot(o, end, s.what) : null;
+    const hitAt = car ? car.at : end, hitWhat = car ? (car.broke ? 'shatter' : car.glass ? 'glass' : 'vehicle') : s.what;
+    fx.strike(hitWhat === 'shatter' ? 'glass' : hitWhat, hitAt, to, { calm: !!deps.calm() });
     audio.gunShot(def.id, { x: o.x, y: o.y, z: o.z }, { own: true });
-    if (end.distanceTo(o) < 45) audio.gunStrike(s.what, { x: end.x, y: end.y, z: end.z });
+    if (hitAt.distanceTo(o) < 45) audio.gunStrike(hitWhat, { x: hitAt.x, y: hitAt.y, z: hitAt.z });
     if (S.gun) {
       const port = S.gun.point('port', t.b);
       t.right.set(0, 0, 1).applyQuaternion(S.gun.group.quaternion);
@@ -484,9 +488,12 @@ export function createGunPlay(deps) {
     const near = Math.hypot(muzzle.x - eye.x, muzzle.z - eye.z) < 25;
     fx.flash(muzzle, dir, { near });
     fx.streak(muzzle, end);
-    fx.strike(shot.what, end, dir, { calm: !!deps.calm() });
+    // (a car in its way as drawn here: struck as the one who fired saw it, 6 November 2026)
+    const car = deps.carShot ? deps.carShot(from, end, shot.what) : null;
+    const hitAt = car ? car.at : end, hitWhat = car ? (car.broke ? 'shatter' : car.glass ? 'glass' : 'vehicle') : shot.what;
+    fx.strike(hitWhat === 'shatter' ? 'glass' : hitWhat, hitAt, dir, { calm: !!deps.calm() });
     audio.gunShot(shot.gun || 'rifle', { x: from.x, y: from.y, z: from.z });
-    audio.gunStrike(shot.what, { x: end.x, y: end.y, z: end.z });
+    audio.gunStrike(hitWhat, { x: hitAt.x, y: hitAt.y, z: hitAt.z });
     // past the listener's head: the crack of it going by
     const ear = t.a.set(eye.x, eye.y, eye.z);
     const along = t.b.copy(ear).sub(from).dot(dir);

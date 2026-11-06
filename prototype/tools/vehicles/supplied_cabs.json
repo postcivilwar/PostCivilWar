@@ -1,0 +1,6 @@
+{
+ "_": "Where the driver sits in each of the owner's ambulance and trucks (6 November 2026), in the units of the shape tools/vehicles/supplied_cars.py writes (+z ahead, +x its left, y up from the ground; the ambulance's 0.1755 to a metre, the box truck's 0.1531, the heavy truck's 0.1423), measured on its looks from the side, in front and from above: the hips over the seat, the steering wheel's middle, its radius and how far it leans back from upright, the feet on the pedals, and the roof over the head. Their shells are hollow: the cab's floor is where a van's or a lorry's is, a step up from the road.",
+ "ambulance": {"hip": [0.068, 0.24, 0.15], "wheel": [0.068, 0.293, 0.222], "radius": 0.034, "tilt": 0.55, "feet": [[0.083, 0.147, 0.27], [0.053, 0.147, 0.265]], "roof": 0.47, "seen": false},
+ "boxTruck": {"hip": [0.062, 0.188, 0.312], "wheel": [0.062, 0.234, 0.37], "radius": 0.03, "tilt": 0.6, "feet": [[0.075, 0.122, 0.402], [0.048, 0.122, 0.398]], "roof": 0.327, "seen": false},
+ "heavyTruck": {"hip": [0.064, 0.235, 0.38], "wheel": [0.064, 0.278, 0.434], "radius": 0.031, "tilt": 0.75, "feet": [[0.077, 0.182, 0.46], [0.05, 0.182, 0.456]], "roof": 0.47, "seen": false}
+}

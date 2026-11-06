@@ -5438,6 +5438,20 @@ under its dashboard its shell is open to the wheels' arches, and the road under 
 The market's and Property's photographs and the showroom's and the traffic's far pictures of the twelve cars with
 glass (`car_turntables.mjs`, `car_impostors.mjs`).
 
+### Before and after (measured on this machine, 6 November 2026)
+
+The live build of Stage 2 against Stage 3's, each alone on the machine, by `tools/measure/places.mjs` (the sheets:
+`stage3-phone-medium.pdf`, `stage3-computer.pdf`, with the pictures):
+- a phone at Medium, the graphics card's memory: the motor park 91.4 → 90.1 MB by day and 96.0 → 89.7 at night, the
+  market 118.1 → 117.0 and 126.7 → 127.1, the PowerBike showroom 134.8 → 133.9 and 120.4 → 121.1, the car showroom's
+  hall 125.5 → 124.0 and 122.4 → 122.4, Peace Interchange 73.7 and 74.5 both, downtown 75.6 → 75.6 and 81.7 → 84.7,
+  video 1's spot 77.2 → 76.2 and 77.6 → 76.6: the busiest under 135 MB, as before (a phone draws the lighter cabin,
+  and its smaller windows pictures);
+- a computer: 20 to 45 MB more where cars are near (the market 916.7 → 959.4 by day, 1150.8 → 1193.5 at night; the car
+  showroom's hall 1167.6 → 1173.3), and in the hall, its twenty cars near, 1.16 to 1.90 million triangles drawn (the
+  cabins of the twelve cars with glass, at full detail within 30 m); the time of a frame drawn in software on this
+  machine there 2.4 → 3.6 seconds, elsewhere within a tenth.
+
 ### Tested
 
 On the release build (page `2aaad646da784610`): 617 headless tests (new: `test/car-doors-cut.test.mjs` 5: cutting the
@@ -5450,10 +5464,124 @@ traffic 17/17; who sits in a car seen by another player 4 of its 5 (its last, th
 found through the glass, not reached: the second player's view of the first's car, or of their figure in it, gone a few
 seconds after it was seen, its next look finding nothing; the same on the live build's site, run in turn).
 
+## The ambulance, the trucks and what the sample lacked (Stage 3), cars shot and the view from the driver's seat (Stage 4) (6 November 2026)
+
+The rest of the owner's brief's third stage ("Every other car: the other 17 showroom cars, the ambulance and the two
+trucks ...", with what his sample of the cars still lacked), and its fourth, approved in advance: "bullet holes and
+breaking glass when a car is shot; a view from the driver's seat as a camera choice."
+
+### The ambulance and the two trucks (`tools/vehicles/supplied_cars.py`, `src/client/supplied-glass.js`, `render-supplied.js`)
+
+The owner's ambulance and his box truck and heavy truck are drawn from his files as before, unchanged. Beside each now:
+its windows picture and the list of its file's triangles that carry glass (`supplied_cars.py` turns each file into the
+car tools' form, measured as a car is; `windows.py` finds its windows, `windows.json` giving their panes as shapes), its
+body drawn without its painted glass and real glass in its place, clear; and in its cab a cabin of the game's own, a
+van's or a lorry's (`car-cabin.js` `cab`: two seats, a dashboard, a wheel and a wall behind the seats, no back seat),
+fitted to the room in its shell where its driver sits (`supplied_cabs.json`): nothing out past its sides, ahead of its
+front or over its roof (`test/supplied-glass.test.mjs`). The ambulance's driver is one of the hospital's crew, in white,
+seen at its wheel while it is out on a call or coming back.
+
+### What the brief's sample lacked (`main.js`, `link.js`, `talk.js`, `car-seating.js`, `car-glass.js`, `audio.js`)
+
+- Other players see a player get into and out of their own car (`link.js` `bd`: in or out, which door, how far into it,
+  where the car stands, where they stood; checked when heard, `talk.js`): its door opened and shut on their car as it
+  is drawn here, and their figure posed by the owner's moves from where they stood into the driver's seat, or from the
+  seat out beside it, as far into it as their game says. A door they left standing open travels with the car they left
+  standing (`link.js` `pc`, a door mask).
+- Getting in given up: the stick pushed before the seat is reached, or the player hurt meanwhile: out again beside the
+  car at once, the door pushed shut.
+- Out of a car while the police are after them (wanted or chased), the player is off as soon as they are clear of the
+  door, which is left standing open.
+- A door standing open on a car going along swings, the faster the more, and at a run (3.6 m/s) the rush of air slams
+  it shut.
+- In, the door shut: the dials light up and the engine is heard starting (a starter's whirr, a cough and a rev; in every
+  car, and after taking one); out, the dials go dark.
+- The driver leans in turns, is pushed back speeding up and forward braking, and is jolted by bumps and crashes (the
+  body's own pitch, roll and jolt on its springs, `car-seating.js` `sway`); whoever rides with the driver of a car being
+  taken shrinks away from the door it is taken by, hands to their face.
+- In the rain the wipers sweep the windscreen of every car being driven, each at its own moment, about forty times a
+  minute, clearing the drops where they pass, at every setting (`car-glass.js` `glassRain`; the drops themselves are
+  drawn from Medium up).
+- At night the cars' glass gives back the street lamps and the head lamps near the eye: each a small bright spot where
+  the line from the eye, turned off the glass, meets it, with a faint halo (`setGlassGlints`: the five lit lamps nearest
+  the eye and the head lamps of the three cars nearest it; not indoors).
+
+### Holes and broken windows (`src/client/car-damage.js`, `car-model.js` `hitBy`, `struck`, `car-view.js` `shot`)
+
+Each round's path, the one every player's game is told (`gun-play.js`: the player's own, and those of the others and
+the officers as they are heard), is followed through the cars drawn here, and the first car it meets is struck there.
+The town stops a round at a box it keeps round each car, which stands out past its bonnet, its boot and its mirrors: a
+round the town says struck a vehicle is followed on past that box to the car as it is drawn.
+- In the paint: a dark hole with a ragged ring of bare metal and a little soot round it, on the body or on a door (where
+  it goes with the door as it opens).
+- In the windscreen or the back window, which hold together: a hole with a star of cracks and the rings of a spider's
+  web round it, about 20 cm across, the round going on through.
+- In a door's window, toughened glass: the window breaks whole at the first round, its bits fall onto the road and lie
+  there a while, and the window is open from then on.
+- Glass is told from paint by the car's windows picture (a small copy of it fetched the first time a round strikes a
+  car of that model). Each part is tried quickly (`castOn`: a triangle passed over unless the path comes within its
+  reach of its middle; the game's own three.js has no ray of its own). A car keeps its last 24 holes; its marks are kept
+  for it by which car it is (the player's own, another player's, one of the town's), so that it keeps them when it is
+  got into or out of, taken, or fetched again after it was out of sight.
+- The sounds: a round through glass a sharp crack and a crunch; a window breaking, the crack and its bits showering down.
+
+### The view from the driver's seat (`camera.js` `cockpit`, `main.js`)
+
+In a car whose cabin is seen into (glass and a cabin of the game's, or an open car's own), at its wheel: the eye where a
+seated driver's eyes are (about 0.72 m over the hips and a little behind them, a hand's width under the lining at most,
+well over the dashboard's top), in the car's own frame, so that the view pitches and leans with the body; looking ahead
+along the car and a little down. A finger looks about to either side and up and down, and lets go once the car moves
+off. The figure is drawn, its hands on the wheel; only its head is left out (its bones shrunk while the view is there).
+On a phone: two fingers spread apart behind the car, past the nearest view, take the view into the driver's seat, and
+brought together take it out again; on a computer the mouse's wheel the same, and C goes round it with the other
+views. It is passed over in a keke, on a motorcycle and in a car closed to the eye.
+
+### A car just fetched (`car-view.js`)
+
+A car just come (fetched to be drawn) is unseen until it is first put where it stands: it had been drawn for a frame
+where it was made, and handed out (`driven`) before it was put anywhere; the one drawn in its place meanwhile is handed
+out until then.
+
+### Tested
+
+On the release build (page `d703f84fd4439847`, `game.js?v=ddefc39a23411459`): 632 headless (new: `car-damage.test.mjs`
+4, a round's path through a car's own triangles, glass told from paint, the holes kept by which car it is, a door window
+broken whole; `supplied-glass.test.mjs` 3, the ambulance's and the trucks' glass and cabs inside their shells; the view
+from the driver's seat in `client.test.mjs`; getting in and out, and a door left open, told and checked in
+`vehicle-sync.test.mjs`), server 119. In a browser, one at a time:
+
+- **cars shot** (`test/car-shot.mjs`, new) 16/16: a round into the Grey Saloon's driver's window breaks it whole, its 70
+  bits on the road; three into its windscreen, holes with their cracks, the windscreen whole; two into its back door
+  below the window, holes in the paint; put out of sight and fetched again, the same marks; a second player's round as
+  their game tells it breaks the front passenger's window; at its wheel, in past the nearest view, the driver's seat
+  (the eye 0.11 m from where the figure's own eyes are, looking along the car, the head left out), out again the same
+  way, and C going round the views; at night six lamps given back by the glass; nothing handed to the graphics card
+  after it was let go;
+- **getting in and out seen by another player** (`test/car-boarding-seen.mjs`, new) 24/24: getting out, the player's
+  game tells the others which door, how far into it and where the car stands, and stops telling once they are out;
+  getting back in the same; the engine heard starting; the stick pushed while getting in, given up, out beside the car
+  and the door shut; out with the police after them, off as soon as they are clear of the door, left open, and told; in
+  the rain the wipers; a door left open swinging as the car moves off and slammed at a run; on the second player's
+  screen, the first's door opening and shutting, their figure drawn from beside the car into the driver's seat and from
+  the seat out beside it, and the door left open after they are gone;
+- the owner's vehicles 14/14 (the ambulance's, the box truck's and the heavy truck's glass and cabs, the hospital's crew
+  at the ambulance's wheel on a call); taking a car 17/17, and with a phone's settings 17/17 (whoever rides with the
+  driver shrinking from the door, the engine heard starting once the thief is in); the seats 17/17; who sits in a car
+  seen by another player 5/5; the car showroom 42/42; the street camera 18/18; the sound (a shut Grey Saloon: its own
+  engine heard inside, the town's sounds muffled, -57 dB inside against -51 beside it); vehicle sync 12/12; the graphics
+  levels 29/29; the phone's memory 12/12; traffic 17/17; the guns 54/54.
+
+Their first runs: getting in and out seen by another player 22/24, both the test's: the door's swing read in one frame
+(the car driven off faster than this machine draws frames: now at a walking pace), and the first moments of getting out
+not seen here (heard a second or so late on this machine: now the figure is looked for as far into it as their game
+says); then 22 of 24 again, a name lost in that mending stopping it at its 23rd; now 24/24. The guns stopped at 45
+minutes, the time its batch had given it, with 40 of its 54 passed and none failed: it takes an hour and ten minutes
+here, and passed 54/54 given an hour and a half.
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 617 headless tests
+node --test test/*.test.mjs                        # 632 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 119 tests against a real PostgreSQL (accounts, the market and its cars and the sports mall's things, the bank with starter and earned TR, the character and its upgrade, play, the guns, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/phone-memory.mjs out/           # a phone's memory and its buttons (29 October 2026): the car's buttons on a page shorter than the screen, the empty layers hidden, the town far off resting and coming back, the habitation's pictures let go and made again, nothing drawn without its pictures, and only the colour pictures of the cars, motorcycles and figures fetched (a phone draws no others)
@@ -5484,6 +5612,8 @@ node test/stars.mjs out/                           # the police's stars: none wh
 ../server/with-postgres.sh node test/traffic.mjs out/ [phone]    # the town's traffic in the showroom's cars: near the player, the nearest as their models and the rest as their pictures, drawn smoothly; a car taken (the stars), driven, left and taken up again, never the player's, all given back on arrest; lamps at night
 ../server/with-postgres.sh node test/car-taking.mjs out/ [phone]  # taking a car of the town's as the owner's videos show it (4 November 2026): offered from in front of it, round to the driver's door, the door opened, the driver pulled out and down, the riders out of their own doors and away, in, the door slammed; out again by the door, slammed behind; nothing in the console
 ../server/with-postgres.sh node test/car-seen-sync.mjs out/        # who sits in a car seen by another player (5 November 2026, Stage 2): one takes a Grey Saloon, the other beside it sees them at the wheel, seated, through the glass (their figure painted bright magenta, found on the screen)
+../server/with-postgres.sh node test/car-boarding-seen.mjs out/    # getting in and out seen by another player, given up, the door left open running from the police, the wipers in the rain, a door left open swinging and slammed at speed (6 November 2026)
+../server/with-postgres.sh node test/car-shot.mjs out/             # cars shot: a door's window broken whole and its bits, holes in the windscreen and the paint, kept when fetched again, another player's round; the view from the driver's seat, and the lamps given back by the glass at night (6 November 2026, Stage 4)
 ../server/with-postgres.sh node test/feet-surface.mjs out/ [phone]   # feet and tyres on the surface (5 November 2026): the marks on the ground drawn before whoever stands on them, each foot on flat ground, across a kerb and on a ramp, on the town's tar, a car's tyres on a ramp driven and left standing; pictures by night
 ../server/with-postgres.sh node test/surface-sweep.mjs out/ computer map   # the height people and vehicles stand at against the surface drawn there, on a grid over the whole map (130 areas, about an hour: give it two); an area or areas by name instead of map; SWEEP_PROBE='[[x, z, y, px, pz], ...]' every mesh over a point, the player at (px, pz)
 ../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs

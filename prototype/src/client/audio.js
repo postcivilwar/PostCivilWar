@@ -225,6 +225,8 @@ const KINDS = Object.freeze({
   footstep: { limit: 2, rank: 1 }, knock: { limit: 1, rank: 0 }, bird: { limit: 1, rank: 0 }, beep: { limit: 1, rank: 0 }, bell: { limit: 1, rank: 1 },
   horn: { limit: 2, rank: 2 }, blow: { limit: 3, rank: 2 }, whistle: { limit: 1, rank: 3 }, shout: { limit: 2, rank: 2 }, door: { limit: 2, rank: 1 }, ui: { limit: 2, rank: 3 },
   shutter: { limit: 2, rank: 3 }, choose: { limit: 1, rank: 3 },
+  // a car's engine started (6 November 2026): the player's own matters more than the town's chatter
+  carstart: { limit: 2, rank: 2 },
   // the habitation's birds, frogs and crickets (bird-songs.js)
   birdsong: { limit: 3, rank: 0 }, frog: { limit: 2, rank: 0 }, cricket: { limit: 2, rank: 0 },
   // the boiling river's bubbles (21 October 2026)
@@ -249,7 +251,7 @@ export function createAudio() {
   const ducks = { panel: false, focusUntil: 0 };
   let since = 1;
   let birdAt = 0, knockAt = 0, beepAt = 0, hornAt = 0, stepAt = 0;
-  const stats = { started: 0, refused: 0, tooFar: 0 };
+  const stats = { started: 0, refused: 0, tooFar: 0, kinds: {} };
 
   function looped(buffer, filterType, freq, q = 0.7) {
     const src = ctx.createBufferSource();
@@ -397,6 +399,8 @@ export function createAudio() {
     }
     playing.push({ kind, until: now + seconds });
     stats.started += 1;
+    // (each kind's count, for the tests: a car's engine started, a door slammed)
+    stats.kinds[kind] = (stats.kinds[kind] || 0) + 1;
     return true;
   }
 
@@ -799,6 +803,29 @@ export function createAudio() {
     return at(x, z, kind === 'slam' ? 45 : 25, 'door', kind === 'slam' ? 0.6 : 0.4, 'effects', play);
   }
 
+  // A car's engine started (6 November 2026, the owner's brief: "the dials light up and the engine starts"): the starter
+  // turning the engine over, a few beats of its whirr rising, and the engine catching with a cough and a short rev
+  // before it settles (its running is the car's own engine voice). Made here, as every sound of a machine in the game
+  // is: no recording.
+  function carStart(x, z) {
+    const play = (out, t) => {
+      const osc = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(105, t); osc.frequency.linearRampToValueAtTime(140, t + 0.55);
+      f.type = 'lowpass'; f.frequency.value = 900;
+      g.gain.setValueAtTime(0.0001, t);
+      for (let k = 0; k < 5; k += 1) { const s = t + k * 0.11; g.gain.exponentialRampToValueAtTime(0.08, s + 0.03); g.gain.exponentialRampToValueAtTime(0.022, s + 0.09); }
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.62);
+      osc.connect(f); f.connect(g); g.connect(out); osc.start(t); osc.stop(t + 0.66);
+      thump(ctx, out, t + 0.58, 0.32, 85, 45, 0.18);
+      const r = ctx.createOscillator(), rg = ctx.createGain(), rf = ctx.createBiquadFilter();
+      r.type = 'sawtooth'; r.frequency.setValueAtTime(45, t + 0.6); r.frequency.exponentialRampToValueAtTime(95, t + 0.85); r.frequency.exponentialRampToValueAtTime(38, t + 1.4);
+      rf.type = 'lowpass'; rf.frequency.value = 600;
+      rg.gain.setValueAtTime(0.0001, t + 0.6); rg.gain.exponentialRampToValueAtTime(0.11, t + 0.7); rg.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
+      r.connect(rf); rf.connect(rg); rg.connect(out); r.start(t + 0.6); r.stop(t + 1.55);
+    };
+    return at(x, z, 35, 'carstart', 1.6, 'vehicles', play);
+  }
+
   // A street lamp's pole (render-lamps.js, 31 October 2026): 'hit', knocked gently (it rings, and stands); 'snap', knocked
   // over (a crunch at its foot as it goes); 'down', on the road (the clang of it, once and a bounce, its glass breaking,
   // and a crackle of sparks). Made here, as every knock in the game is: no recording.
@@ -1191,7 +1218,7 @@ export function createAudio() {
   return {
     supported: !!Ctx,
     voiceLine, decode, voiceStats: () => ({ ...voiceStats }), playerVoice, micPipe,
-    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, shipHorn, surfBreak, previewBike, stopPreview, previewing: () => !!preview, blow, streetLamp, carDoor, whistle, shout, door, chime, shutter, choose, focus, level, muffle, get muffled() { return muffledNow; },
+    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, shipHorn, surfBreak, previewBike, stopPreview, previewing: () => !!preview, blow, streetLamp, carDoor, carStart, whistle, shout, door, chime, shutter, choose, focus, level, muffle, get muffled() { return muffledNow; },
     player,
     // the guns (gun-audio.js): each does nothing with the sound off or not started
     gunLoad: (gun) => { const v = guns(); return v ? v.load(gun) : Promise.resolve(); },

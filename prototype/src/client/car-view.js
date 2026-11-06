@@ -20,6 +20,8 @@
 //   const cars = createCarView(scene, { lite, onBump });
 //   cars.update(dt, { driven, drives, parked, groundY, from, night, bodies });       each frame
 //   cars.seat(figure, driven, key)        after the driver's figure is posed for the frame (seated): false if not drawn
+//   cars.shot(from, to)                   a round's path (two points in the town): the first car drawn it meets struck
+//                                         there (car-damage.js), or null
 import { loadCar } from './car-model.js';
 import { reach } from './animated.js';
 import { bonesOf } from './own-bike-view.js';
@@ -28,6 +30,8 @@ import { wheelLifts, bodyOn, kickBody } from './wheel-bumps.js';
 import { seatFigure } from './car-seating.js';
 import { loadCarMoves, carMove } from './car-moves.js';
 import { fetchKept } from './glb.js';
+import { glassRain } from './car-glass.js';
+import { createGlassBits } from './car-damage.js';
 
 const SIGHT = 120;                  // metres within which a parked car is drawn
 const PEER_SIGHT = 220, PEER_MOST = 4;     // another player's car being driven: drawn within this, the nearest few
@@ -41,6 +45,8 @@ export const SPRINGS = Object.freeze({ pitch: 0.012, most: 0.05, roll: 0.0045 })
 // A car's fitted cabin (5 November 2026, the owner's brief: "full detail only near (about 15 m on a phone, 30 m on a
 // computer), simpler beyond, nothing far off"): all of it within `near` of the player, its seats, dashboard and the rest
 // as one shape within `far`, nothing beyond
+// (the wipers of the car the player drives: how far up the screen they sweep, radians, and how fast)
+const WIPERS = Object.freeze({ sweep: 1.75, pace: 4.4 });
 export const CABIN_SEEN = Object.freeze({ lite: Object.freeze({ near: 15, far: 45 }), full: Object.freeze({ near: 30, far: 90 }) });
 // How a driver sits (radians, metres): leaning back in the seat, less if the wheel is further than the arms reach,
 // more if the roof asks it (never past `mostRecline`), sunk into the cushion if that is still not enough, and further
@@ -93,13 +99,19 @@ const w = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3
 
 export function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}, onBump = () => {} } = {}) {
   const shown = new Map();          // key -> { id, car, loading, travelled, failed, fx }
+  // (shot, 6 November 2026: each car's marks, by which car it is rather than how it is drawn just now, so that a car
+  // drawn under another name a moment later (got into, got out of, taken) or fetched again keeps them; and the bits of
+  // its windows broken, falling and lying on the road)
+  const harmed = new Map();         // which car -> [entries (car-model.js `struck`)]
+  const bits = createGlassBits(scene, { lite });
+  const ray = { origin: new THREE.Vector3(), dir: new THREE.Vector3(), near: 0, far: 0 };
   const frozen = new Set();         // figures whose bones seat() set by hand this frame
 
   function entry(key, id, tier = null) {
     let e = shown.get(key);
     if (e && e.id !== id) { if (e.car) e.car.dispose(); shown.delete(key); e = null; }
     if (!e) {
-      e = { id, car: null, loading: true, travelled: 0, failed: false, fx: null };
+      e = { id, key, car: null, loading: true, travelled: 0, failed: false, fx: null };
       shown.set(key, e);
       const spec = POWER_CARS[id];
       // (another player's car, or one of the town's, is asked for after the small picture that stands in for it
@@ -107,13 +119,39 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
       const later = String(key).startsWith('peer:') || String(key).startsWith('traffic:');
       loadCar(id, { base, lite, length: spec ? spec.length : 4.6, priority: later ? 'low' : undefined, tier }).then((car) => {
         if (shown.get(key) !== e) { car.dispose(); return; }
-        e.car = car; e.loading = false; scene.add(car.group);
+        // (6 November 2026: unseen until it is first put where it stands, `sitOn`: a car just come was drawn for a frame
+        // where it was made, and handed out by `driven` before it was put anywhere)
+        e.car = car; e.loading = false; e.placed = false; car.group.visible = false; scene.add(car.group);
         // (a car whose people are seen: the owner's seated moves fetched, the first time, to pose them by: car-moves.js)
         if (car.glazed) loadCarMoves((path) => fetchKept(path)).catch(() => {});
       }, (error) => { e.loading = false; e.failed = true; onError(error); });
     }
     return e;
   }
+
+  // Which car an entry is, whatever it is drawn as just now: the player's own (`own:` and its model; `as`, given with
+  // the car driven, says which), another player's (`peer:` theirs and the model), one of the town's (`traffic:` its
+  // number).
+  const whichCar = (key, e) => {
+    const k = String(key);
+    if (k === 'drive') return e.as || `own:${e.id}`;
+    if (k.startsWith('park:')) return `own:${k.slice(5)}`;
+    if (k.startsWith('peer:')) return `peer:${k.slice(5)}:${e.id}`;
+    if (k.startsWith('cpark:')) return `peer:${k.slice(6)}`;
+    return k;
+  };
+  // (its marks put on it, those it has not got yet: made afresh, it gets them all again)
+  const markOn = (key, e) => {
+    if (!e.car || !e.car.harmed) return;
+    const which = whichCar(key, e), list = harmed.get(which) || null;
+    // (the same drawing now standing for another car: its marks taken off first)
+    if (e.marked === e.car && e.markedAs !== which) { e.car.unharmed(); e.markedCount = 0; e.markedAs = which; }
+    if (!list) { if (e.marked !== e.car) { e.marked = e.car; e.markedCount = 0; e.markedAs = which; } return; }
+    if (e.marked === e.car && e.markedCount === list.length) return;
+    if (e.marked !== e.car) { e.marked = e.car; e.markedCount = 0; e.markedAs = which; }
+    e.car.harmed(list.slice(e.markedCount));
+    e.markedCount = list.length;
+  };
 
   // How the body sits on its springs, from what the car is doing: the nose down under the brake, up a little under
   // the throttle, the body leaning out of a turn (the faster and the tighter, the more), eased so that it settles.
@@ -141,12 +179,14 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     g.position.set(d.x, on.y, d.z);
     g.rotation.set(on.pitch, d.h, on.roll, 'YXZ');
     g.visible = true;
+    e.placed = true;
     return on;
   };
   const place = (e, d, groundY, dt, night, bodies = []) => {
     const fx = springs(e, d, dt);
     // (on a slope, a ramp up to a flyover among them, a road's camber or a kerb: on its four wheels, `settle`)
     const on = sitOn(e, d, groundY);
+    markOn(e.key, e);
     // the wheels over whoever lies in the way, and the body on its springs over them
     const bars = bodies.length ? barsNear(bodies, d.x, d.z, e.car.size.length / 2 + 2) : NONE;
     const lifts = e.lifts || (e.lifts = []);
@@ -170,7 +210,12 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     e.state = { head: night > 0.25 || d.lamps ? 1 : 0, tail: night > 0.25 || d.lamps ? 1 : 0, brake: (d.brake && (d.speed || 0) > 0.2) || d.held ? 1 : 0, reverse: (d.speed || 0) < -0.2 ? 1 : 0 };
     e.car.lamps(e.state);
     // (its cabin's dials and screen lit, the engine running; the lamp over the doors while one is open at night)
-    e.car.cabinLight({ night, on: true, door: !!(d.doors && Object.values(d.doors).some((a) => a > 0.05)) });
+    // (its engine running: not yet while it is being got into, `engine` false, until the door is shut: "the dials light up
+    // and the engine starts")
+    e.car.cabinLight({ night, on: d.engine !== false, door: !!(d.doors && Object.values(d.doors).some((a) => a > 0.05)) });
+    // (its wipers sweeping in the rain, about forty times a minute, each car's at its own moment: car-glass.js; the
+    // others' cars too, as the player's own, "Other players see all of it")
+    if (e.car.wipe) e.car.wipe(glassRain() > 0.12 && d.engine !== false ? WIPERS.sweep * (0.5 - 0.5 * Math.cos(performance.now() / 1000 * WIPERS.pace + (e.phase || (e.phase = 1 + Math.random() * 5)))) : null);
     e.car.cabinDetail(cabinLevel(d));
   };
   const C = CABIN_SEEN[lite ? 'lite' : 'full'];
@@ -184,6 +229,7 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
   // bodies: [{ ax, az, bx, bz, r }] (wheel-bumps.js bodyBars: whoever lies on the road near, as bars on the ground)
   function update(dt, { driven = null, drives = [], parked = [], parkedMost = 4, traffic = [], groundY = () => 0, from = { x: 0, z: 0 }, night = 0, bodies = [] }) {
     fromNow = from;
+    bits.update(dt, groundY);
     for (const f of frozen) f.freeze = false;
     frozen.clear();
     const wanted = new Set();
@@ -194,9 +240,11 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     if (driven && POWER_CARS[driven.id]) {
       wanted.add('drive');
       const e = entry('drive', driven.id);
+      if (driven.as) e.as = driven.as;
       e.travelled += (driven.speed || 0) * dt;
-      if (e.car) place(e, driven, groundY, dt, night, bodies);
-      else wait(e, driven);
+      if (e.car) {
+        place(e, driven, groundY, dt, night, bodies);
+      } else wait(e, driven);
     }
     const dist = (q) => Math.hypot(q.x - from.x, q.z - from.z);
     for (const r of drives.filter((q) => POWER_CARS[q.id] && dist(q) <= PEER_SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, PEER_MOST)) {
@@ -220,6 +268,7 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     const stand = (e, p) => {
       // (left standing on a slope, a ramp or a kerb: on its four wheels too)
       const on = sitOn(e, p, groundY);
+      markOn(e.key, e);
       e.car.pose({ travelled: e.travelled, steerAngle: 0, pitch: 0, roll: 0, lifts: on.lifts, doors: p.doors || null });
       e.car.lamps({});
       e.car.cabinLight({ night, on: false, door: !!(p.doors && Object.values(p.doors).some((a) => a > 0.05)) });
@@ -241,6 +290,43 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
       for (const [key, o] of shown) if (!wanted.has(key) && o.id === w.e.id && o.car) { wanted.add(key); w.put(o); w.e.by = key; break; }
     }
     for (const [key, e] of shown) if (!wanted.has(key)) { if (e.car) e.car.dispose(); shown.delete(key); }
+  }
+
+  // A round's path (6 November 2026, the owner's brief, Stage 4: "bullet holes and breaking glass when a car is shot"):
+  // `from` and `to` in the town (THREE.Vector3). The first car drawn here that it meets is struck there (car-model.js
+  // `hitBy`, `struck`): a hole, or a door's window broken and its bits falling; kept for that car (`harmed`). Every
+  // player's game is told the same path (gun-play.js), and so sees the same. Gives { glass, broke, at } or null.
+  // (`told`: what the town said it struck: a vehicle, the round stopped at the box the town keeps round each car, which stands
+  // out past its bonnet, its boot and its mirrors: followed on past there through the car as it is drawn)
+  function shot(from, to, told = null) {
+    const dir = to.clone().sub(from);
+    const len = dir.length();
+    if (!(len > 0.05)) return null;
+    dir.divideScalar(len);
+    ray.origin.copy(from); ray.dir.copy(dir); ray.near = 0; ray.far = len + (told === 'vehicle' ? 6 : 0.6);
+    let best = null;
+    for (const [key, e] of shown) {
+      if (!e.car || !e.car.hitBy || !e.car.group.visible) continue;
+      // (only a car the path comes near: within its own length of its middle)
+      const c = e.car.group.position, reachOf = e.car.size.length * 0.6 + 0.5;
+      const t = Math.max(0, Math.min(ray.far, (c.x - from.x) * dir.x + (c.y - from.y) * dir.y + (c.z - from.z) * dir.z));
+      if ((from.x + dir.x * t - c.x) ** 2 + (from.y + dir.y * t - c.y) ** 2 + (from.z + dir.z * t - c.z) ** 2 > reachOf * reachOf) continue;
+      const found = e.car.hitBy(ray);
+      if (found && (!best || found.hit.distance < best.found.hit.distance)) best = { key, e, found };
+    }
+    if (!best) return null;
+    // (its marks so far on it first, should any not be yet)
+    markOn(best.key, best.e);
+    const what = best.e.car.struck(best.found, dir);
+    const which = whichCar(best.key, best.e);
+    const list = harmed.get(which) || [];
+    list.push(what.entry);
+    harmed.delete(which); harmed.set(which, list);
+    if (harmed.size > 60) harmed.delete(harmed.keys().next().value);
+    // (put on the car struck already: counted as on it)
+    best.e.marked = best.e.car; best.e.markedCount = list.length; best.e.markedAs = which;
+    if (what.box) bits.burst(what.box, dir);
+    return { glass: what.entry.kind !== 'metal', broke: what.entry.kind === 'break', at: what.at, key: best.key };
   }
 
   // The driver in their seat. Called after the figure has been posed for the frame (seated): the figure is turned
@@ -365,11 +451,16 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     rules: DRIVE,
     // is the car being driven drawn yet (it is fetched the first time it is driven)
     ready: () => { const e = shown.get('drive'); return !!(e && e.car); },
-    driven: (key = 'drive') => { const e = shown.get(key); if (!e) return null; if (e.car) return e.car; const by = e.by ? shown.get(e.by) : null; return by && by.car ? by.car : null; },
+    // (a car just come, not yet put where it stands: the one drawn in its place meanwhile, if there is one)
+    driven: (key = 'drive') => { const e = shown.get(key); if (!e) return null; const by = e.by ? shown.get(e.by) : null; if (e.car && (e.placed !== false || !(by && by.car))) return e.car; return by && by.car ? by.car : e.car || null; },
+    shot,
+    // (for the tests) the marks kept on each car, and the bits of glass lying about
+    harmOf: (key = 'drive') => { const e = shown.get(key); return e ? { kept: (harmed.get(whichCar(key, e)) || []).length, car: e.car && e.car.harmNow ? e.car.harmNow() : null } : null; },
+    glassBits: () => bits.count(),
     stateOf: (key = 'drive') => { const e = shown.get(key); return e ? e.state || null : null; },
     failed: () => { const e = shown.get('drive'); return !!(e && e.failed); },
     count: () => shown.size,
     keys: () => [...shown.keys()],
-    dispose() { for (const e of shown.values()) if (e.car) e.car.dispose(); shown.clear(); },
+    dispose() { for (const e of shown.values()) if (e.car) e.car.dispose(); shown.clear(); bits.dispose(); },
   };
 }

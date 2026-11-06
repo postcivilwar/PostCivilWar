@@ -22,10 +22,33 @@
 //   glass.body(material)          the body's own material, made to leave its glass out and to show its inside dark
 //   glass.pane(geometry)          a mesh of glass for one part of the body (the whole body's, the body's without its
 //                                 doors', a door's), to be put beside that part's own mesh
-//   setGlassWeather({ wet, daylight, t })   each frame: how wet the cars are, how light the sky is, the time
+//   setGlassWeather({ wet, rain, daylight, t })   each frame: how wet the cars are, how hard it rains, how light the sky
+//                                 is, the time
+//   glass.wipers(screen)          a copy of the glass for one car's own panes, with its wipers (6 November 2026): drawn
+//                                 on its windscreen (`screen`: its foot, top and half width there, the model's units),
+//                                 swept by `.wipe(angle)`, off with `.wipe(null)`
+//   glassWet()                    how wet the cars are now (0 to 1)
+//   glassRain()                   how hard it is raining now (0 to 1), whatever the setting: the wipers
+//   setGlassGlints(points, camera)   each frame, at night: the street lamps and head lamps near, given back by the
+//                                 glass (6 November 2026)
 //   glass.dispose()
 
 const weather = { uWet: { value: 0 }, uTime: { value: 0 }, uDay: { value: 1 } };
+export const glassWet = () => weather.uWet.value;
+// (how hard it is raining, at every setting: the wipers go whether or not the drops are drawn, 6 November 2026)
+let rainNow = 0;
+export const glassRain = () => rainNow;
+// (at night, the street lamps and head lamps near the eye given back by the glass, 6 November 2026, the brief: "street
+// lamps and headlights reflected at night": where each is, as the eye sees it, how bright, and its colour; shared by
+// every car's glass, set each frame by setGlassGlints; made when first wanted, as three.js is not there yet when this
+// file is read by the tests)
+const GLINTS = 8;
+let glintU = null;
+const glintUniforms = () => glintU || (glintU = { uGlints: { value: Array.from({ length: GLINTS }, () => new THREE.Vector4()) }, uGlintColour: { value: Array.from({ length: GLINTS }, () => new THREE.Color()) }, uGlintCount: { value: 0 } });
+// (the wipers, off: every glass's own until a car's copy is given its own, `wipers`)
+// (made when first wanted: three.js is not there yet when this file is read by the tests)
+let noWipers = null;
+const NO_WIPERS = () => noWipers || (noWipers = Object.freeze({ uWipe: { value: new THREE.Vector4(0, 0, 0, 0) }, uWipeAt: { value: new THREE.Vector3(0, 0, 0) } }));
 const live = new Set();
 
 // The tint, and how much of what is behind the glass it lets through (its opacity: the less, the clearer): face on,
@@ -84,24 +107,45 @@ export function carGlass(spec, picture, { lite = false, privacy = false, belt = 
   const uniforms = {
     uSlant: { value: GLASS.slant }, uBelt: { value: belt === null ? -1 : belt }, uDust: { value: GLASS.dust }, uEdge: { value: GLASS.edge * spec.length },
     uClear: { value: GLASS.clear }, uPrivate: { value: privacy ? GLASS.privacy : GLASS.clear }, uBehind: { value: behind },
-    uDrops: { value: drops() }, ...weather,
+    uDrops: { value: drops() }, ...weather, ...glintUniforms(),
   };
   const options = {
     color: GLASS.tint, transparent: true, opacity: 1, depthWrite: false, side: THREE.DoubleSide,
     roughness: GLASS.roughness, metalness: 0, alphaMap: picture, ...(envMap ? { envMap, envMapIntensity: 1.1 * weather.uDay.value } : {}),
   };
   const material = env ? new THREE.MeshPhysicalMaterial({ ...options, clearcoat: 0, ior: 1.5, specularIntensity: 1 }) : new THREE.MeshStandardMaterial(options);
-  material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
+  material.onBeforeCompile = function compile(shader) {
+    // (`this`: the material compiled; a car's own copy carries its own wipers, `wipers`)
+    Object.assign(shader.uniforms, uniforms, (this && this.userData && this.userData.wipers) || NO_WIPERS());
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vGlassAt;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlassAt = position;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGlassAt; varying vec3 vGlassFacing;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGlassAt = position; vGlassFacing = objectNormal;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
-varying vec3 vGlassAt;
+varying vec3 vGlassAt; varying vec3 vGlassFacing;
 uniform float uSlant; uniform float uBelt; uniform float uDust; uniform float uEdge; uniform float uWet; uniform float uTime; uniform float uDay;
 uniform float uClear; uniform float uPrivate; uniform float uBehind;
-uniform sampler2D uDrops;`)
+uniform sampler2D uDrops;
+uniform vec4 uWipe; uniform vec3 uWipeAt;
+uniform vec4 uGlints[8]; uniform vec3 uGlintColour[8]; uniform int uGlintCount;
+/* (the wipers: on the windscreen (glass facing forward), each blade from its pivot at the screen's foot, both at the same
+   angle from lying along the foot toward the car's right, up over the glass; the glass they have swept clear of drops.
+   uWipe: the foot's height, the pivots' places across, the blades' length, on (1) or off; uWipeAt: the blades' angle,
+   how wide a blade is, how far the screen goes forward of its foot) */
+float wiper(out float swept) {
+  swept = 0.0;
+  if (uWipe.w < 0.5 || normalize(vGlassFacing).z < 0.3) return 0.0;
+  float blade = 0.0;
+  vec2 b = vec2(-cos(uWipeAt.x), sin(uWipeAt.x));
+  for (int k = 0; k < 2; k++) {
+    vec2 d = vGlassAt.xy - vec2(k == 0 ? uWipe.y : uWipe.y - uWipe.z * 1.11, uWipe.x);
+    float along = dot(d, b), across = abs(d.x * b.y - d.y * b.x);
+    blade = max(blade, step(0.0, along) * step(along, uWipe.z) * (1.0 - smoothstep(uWipeAt.y * 0.5, uWipeAt.y, across)));
+    float r = length(d), a = atan(d.y, -d.x);
+    swept = max(swept, step(r, uWipe.z) * step(-0.05, a) * step(a, uWipeAt.x + 0.05));
+  }
+  return blade;
+}`)
       // (only where the windows picture marks glass: elsewhere these triangles are the body's)
       .replace('#include <alphamap_fragment>', `float glassMask = texture2D( alphaMap, vAlphaMapUv ).r;
 if ( glassMask < 0.45 ) discard;`)
@@ -119,11 +163,32 @@ roughnessFactor = mix(roughnessFactor, 0.6, glassDust);`)
 float glassFace = abs(dot(normalize(normal), normalize(vViewPosition)));
 float glassSlant = pow(1.0 - glassFace, 3.0) * uSlant;
 vec2 dropAt = vec2(vGlassAt.x * 14.0 + vGlassAt.y * 3.0, vGlassAt.z * 14.0 + uTime * 0.6);
-float glassDrops = uWet * texture2D(uDrops, dropAt).a;
+float wiped = 0.0;
+float wiperBlade = wiper(wiped);
+float glassDrops = uWet * texture2D(uDrops, dropAt).a * (1.0 - 0.75 * wiped);
 float glassBase = vGlassAt.z < uBehind ? uPrivate : uClear;
 outgoingLight = mix(outgoingLight, vec3(0.62, 0.64, 0.62) * (0.35 + 0.65 * uDay), glassDust * 0.5);
 outgoingLight += glassDrops * vec3(0.55) * (0.3 + 0.7 * uDay);
 diffuseColor.a = clamp(max(glassBase, glassSlant) + glassDust * 0.35 + glassDrops * 0.25, 0.0, 0.97) * smoothstep(0.45, 0.6, glassMask);
+outgoingLight = mix(outgoingLight, vec3(0.012), wiperBlade);
+diffuseColor.a = max(diffuseColor.a, wiperBlade * 0.97 * smoothstep(0.45, 0.6, glassMask));
+/* (at night, the street lamps and head lamps near given back: each a small bright spot where the line from the eye,
+   turned off the glass, points at it, with a faint halo; the further, the smaller and fainter) */
+if (uGlintCount > 0) {
+  vec3 glassHere = -vViewPosition;
+  vec3 glassTurned = reflect(normalize(glassHere), normalize(normal));
+  vec3 glassGlint = vec3(0.0);
+  for (int k = 0; k < 8; k++) {
+    if (k >= uGlintCount) break;
+    vec3 toLamp = uGlints[k].xyz - glassHere;
+    float far = length(toLamp);
+    float c = max(dot(glassTurned, toLamp / far), 0.0);
+    glassGlint += uGlintColour[k] * uGlints[k].w * (pow(c, 900.0) * 7.0 + pow(c, 70.0) * 0.12) / (1.0 + far * far * 0.0025);
+  }
+  glassGlint *= (1.0 - wiperBlade) * smoothstep(0.45, 0.6, glassMask);
+  outgoingLight += glassGlint;
+  diffuseColor.a = max(diffuseColor.a, min(0.95, dot(glassGlint, vec3(0.3))));
+}
 #include <opaque_fragment>`);
   };
   material.customProgramCacheKey = () => `pcw-car-glass-${env ? 'p' : 's'}`;
@@ -170,14 +235,52 @@ diffuseColor.a = clamp(max(glassBase, glassSlant) + glassDust * 0.35 + glassDrop
       mesh.renderOrder = 3;
       return mesh;
     },
+    // a copy of the glass for one car's own panes, with its own wipers (the car the player drives)
+    wipers(screen) {
+      const own = material.clone();
+      own.onBeforeCompile = material.onBeforeCompile;
+      own.customProgramCacheKey = material.customProgramCacheKey;
+      own.userData = { ...material.userData, wipers: { uWipe: { value: new THREE.Vector4(screen.foot, screen.half * 0.55, screen.half * 0.72, 0) }, uWipeAt: { value: new THREE.Vector3(0, screen.blade, 0) } } };
+      live.add(own);
+      return {
+        material: own,
+        // (the blades' angle up from the foot, radians, or null for the wipers off)
+        wipe(angle) { const w = own.userData.wipers; w.uWipe.value.w = angle === null ? 0 : 1; w.uWipeAt.value.x = angle || 0; },
+        dispose() { live.delete(own); own.dispose(); },
+      };
+    },
     dispose() { live.delete(material); material.dispose(); },
   };
 }
 
-// Each frame: how wet the cars are (0 to 1; the drops shown from Medium up, by whoever calls), how light the sky (0 at
-// night: the reflections fade), and the time (the drops slide back).
-export function setGlassWeather({ wet = 0, daylight = 1, t = 0 } = {}) {
+// Each frame, at night: the street lamps and head lamps near the eye, for the glass to give back (`points`: [{ x, y, z,
+// w (how bright, 0 to 1), colour }] where they are in the town; at most eight, the nearest first), and the camera the
+// frame is drawn from. None by day.
+const glintAt = () => (glintAt.v || (glintAt.v = new THREE.Vector3()));
+export function setGlassGlints(points, camera) {
+  const u = glintUniforms();
+  let n = 0;
+  if (points && points.length && camera) {
+    camera.updateMatrixWorld();
+    const view = camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+    for (const p of points) {
+      if (n >= GLINTS) break;
+      if (!(p.w > 0.01)) continue;
+      const v = glintAt().set(p.x, p.y, p.z).applyMatrix4(view);
+      u.uGlints.value[n].set(v.x, v.y, v.z, p.w);
+      u.uGlintColour.value[n].set(p.colour === undefined ? 0xffffff : p.colour);
+      n += 1;
+    }
+  }
+  u.uGlintCount.value = n;
+  return n;
+}
+
+// Each frame: how wet the cars are (0 to 1; the drops shown from Medium up, by whoever calls), how hard it is raining
+// (the wipers), how light the sky (0 at night: the reflections fade), and the time (the drops slide back).
+export function setGlassWeather({ wet = 0, rain = wet, daylight = 1, t = 0 } = {}) {
   weather.uWet.value = wet;
+  rainNow = rain;
   weather.uDay.value = Math.max(0.05, Math.min(1, daylight));
   weather.uTime.value = t % 1000;
   for (const m of live) m.envMapIntensity = 1.1 * weather.uDay.value;

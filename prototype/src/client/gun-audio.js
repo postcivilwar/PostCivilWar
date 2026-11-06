@@ -207,6 +207,17 @@ export function createGunVoice(ctx, { out, fetchBytes, urls = {}, indoors = () =
     if (!r) return;
     const t = ctx.currentTime + 0.005 + r.delay;
     if (what === 'vehicle') { ring(r.node, t, [[2350, 1], [3720, 0.7], [5100, 0.35]], 0.08, 0.22); burst(r.node, t, { freq: 4000, q: 1, level: 0.1, length: 0.03 }); }
+    // (a car's glass, 6 November 2026: a round through its windscreen, a sharp crack and a crunch; a door's window
+    // broken whole, the crack and then its bits showering down)
+    else if (what === 'glass' || what === 'shatter') {
+      burst(r.node, t, { type: 'highpass', freq: 3200, level: 0.24, length: 0.03 });
+      ring(r.node, t, [[4300, 1], [6150, 0.6]], 0.03, 0.1);
+      burst(r.node, t + 0.006, { freq: 2400, q: 1.1, level: 0.09, length: 0.07 });
+      if (what === 'shatter') {
+        burst(r.node, t + 0.02, { type: 'highpass', freq: 1800, level: 0.16, length: 0.55, attack: 0.01 });
+        for (let k = 0; k < 16; k += 1) ring(r.node, t + 0.03 + k * 0.035 + Math.random() * 0.03, [[2800 + Math.random() * 4200, 1]], 0.016 * (1 - k / 20), 0.06);
+      }
+    }
     else if (what === 'person') { burst(r.node, t, { type: 'lowpass', freq: 380, level: 0.35, length: 0.07 }); burst(r.node, t, { freq: 1400, q: 0.8, level: 0.07, length: 0.04 }); }
     else if (what === 'wall') { burst(r.node, t, { freq: 1900, q: 0.9, level: 0.22, length: 0.06 }); burst(r.node, t + 0.01, { type: 'lowpass', freq: 500, level: 0.12, length: 0.08 }); }
     else if (what === 'ground') burst(r.node, t, { type: 'lowpass', freq: 700, level: 0.2, length: 0.09 });

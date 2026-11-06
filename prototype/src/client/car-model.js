@@ -26,6 +26,7 @@ import { CAR_WINDOWS } from './car-windows.js';
 import { carGlass, windowsPicture } from './car-glass.js';
 import { makeCabin, makeDials, TRIMS, PLAIN } from './car-cabin.js';
 import { CAR_DIALS } from './car-dials.js';
+import { holeDecal, glassMaskAt, castOn, HOLES } from './car-damage.js';
 
 // Whether the people in a car of this model are seen (5 November 2026, the owner's brief: real glass, a real cabin):
 // one whose windows are glass now, or one whose cabin is open (the convertibles and the rest measured as `seen`).
@@ -108,7 +109,7 @@ async function buildShape(base, spec, priority, id = null, glassOf = id) {
     // the glass: the whole of it, the body's without its doors', and each door's, from one list of its own
     const glassIndex = new THREE.BufferAttribute(glass.list, 1);
     const part = (from, count) => { const q = new THREE.BufferGeometry(); for (const [name, a] of Object.entries(attrs)) q.setAttribute(name, a); q.setIndex(glassIndex); q.setDrawRange(from * 3, count * 3); bound(q, glass.list.subarray(from * 3, (from + count) * 3), position); return q; };
-    const set = { whole: part(0, glass.count), rest: doors ? part(glass.rest.from, glass.rest.count) : null, doors: new Map(), pillar: doors ? doors.pillar : null };
+    const set = { whole: part(0, glass.count), rest: doors ? part(glass.rest.from, glass.rest.count) : null, doors: new Map(), pillar: doors ? doors.pillar : null, screen: screenOf(glass.list, position, normal) };
     for (const d of glass.doors) if (d.count) set.doors.set(d.key, part(d.from, d.count));
     geometries.glass = set;
     geometries.push(set.whole, ...(set.rest ? [set.rest] : []), ...set.doors.values());
@@ -155,6 +156,18 @@ function jambsOf(list, plan) {
   g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
   g.computeBoundingSphere();
   return g;
+}
+// Its windscreen, for its wipers (6 November 2026): of its glass's triangles, those facing forward, their lowest point
+// (its foot), their highest, and how far across they reach (the model's units); null if it has none.
+function screenOf(list, position, normal) {
+  let foot = Infinity, top = -Infinity, half = 0, n = 0;
+  for (let i = 0; i < list.length; i += 1) {
+    const v = list[i];
+    if (normal[v * 3 + 2] / 32767 < 0.5) continue;
+    const x = position[v * 3], y = position[v * 3 + 1];
+    if (y < foot) foot = y; if (y > top) top = y; if (Math.abs(x) > half) half = Math.abs(x); n += 1;
+  }
+  return n >= 6 && top > foot ? { foot, top, half } : null;
 }
 // The glass of a car whose windows are glass (5 November 2026): of the body's triangles (as `index` has them now, its
 // doors' after the rest), those any of whose glass is drawn (`bits`: a bit for each of the shape's own triangles, in its
@@ -399,36 +412,45 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
   // little above its middle; the wheels stay on the ground
   const springs = new THREE.Group(); springs.position.set(0, spec.height * 0.35, 0); frame.add(springs);
   const body = mesh(geometries[0]); body.position.set(0, -spec.height * 0.35, 0); springs.add(body);
+  // (every part a round can strike, named: the body, a door's skin, its glass: `hitBy`, 6 November 2026)
+  body.userData.shot = 'body';
   // its doors (4 November 2026): drawn only while one is open (the body without them then, and each door on its hinge,
   // its inside dark; a closed shell's cabin dark through the opening); shut, the body is drawn whole, as before
   const doorSet = geometries.doors || null;
   const doorParts = new Map();
   let rest = null, liner = null, inner = null, jambs = null, opened = false;
+  // (shot, 6 November 2026: its holes, by the part they are in, and its doors' windows broken; `split` once a door has
+  // been struck: `hitBy`, `struck`)
+  const harm = { split: false, holes: [], broken: new Set(), holders: new Map() };
   // its glass (5 November 2026, car-glass.js): drawn whole while every door is shut, otherwise the body's without its
   // doors' and each door's on its hinge; its cabin the same (car-cabin.js)
   const glassSet = glass ? geometries.glass : null;
   const panes = { whole: null, rest: null };
+  // (every pane of its glass: given a copy with its wipers when it is the car the player drives, `wipe`)
+  const paneList = [];
+  let ownWipers = null;
   if (glassSet) {
-    panes.whole = glass.pane(glassSet.whole); panes.whole.position.copy(body.position); springs.add(panes.whole);
-    if (glassSet.rest) { panes.rest = glass.pane(glassSet.rest); panes.rest.position.copy(body.position); panes.rest.visible = false; springs.add(panes.rest); }
+    panes.whole = glass.pane(glassSet.whole); panes.whole.position.copy(body.position); springs.add(panes.whole); paneList.push(panes.whole); panes.whole.userData.shot = 'glass';
+    if (glassSet.rest) { panes.rest = glass.pane(glassSet.rest); panes.rest.position.copy(body.position); panes.rest.visible = false; springs.add(panes.rest); paneList.push(panes.rest); panes.rest.userData.shot = 'glass-rest'; }
   }
   // (a car with a cabin of its own, the Peach Luxury SUV's and the White Square SUV's, keeps it: its painted panes are
   // glass, and no cabin of ours is put in it, 6 November 2026)
   const fitted = glassSet && spec.driver && !spec.driver.seen ? makeCabin(id, spec, { scale, lite: lite || isLite(), fit: CAR_WINDOWS[id].fit, doors: doorSet ? doorSet.list.map((d) => ({ key: d.key, side: d.side, front: d.hinge[1], rear: d.rear, bottom: d.bottom })) : [] }) : null;
   if (doorSet) {
-    rest = mesh(doorSet.rest); rest.position.copy(body.position); rest.visible = false; springs.add(rest);
+    rest = mesh(doorSet.rest); rest.position.copy(body.position); rest.visible = false; springs.add(rest); rest.userData.shot = 'rest';
     // (the opening closed round its edges while a door is open: `jambsOf`)
     if (doorSet.jambs) { jambs = new THREE.Mesh(doorSet.jambs, JAMB()); jambs.position.copy(body.position); jambs.visible = false; jambs.castShadow = false; springs.add(jambs); }
     if (!glassSet) inner = new THREE.MeshStandardMaterial({ color: 0x1d1d1f, roughness: 0.85, metalness: 0, side: THREE.BackSide });
     for (const d of doorSet.list) {
       const hinge = new THREE.Group(); hinge.position.set(d.hinge[0], -spec.height * 0.35, d.hinge[1]); hinge.visible = false; springs.add(hinge);
-      const skin = mesh(d.geometry); skin.position.set(-d.hinge[0], 0, -d.hinge[1]); hinge.add(skin);
+      const skin = mesh(d.geometry); skin.position.set(-d.hinge[0], 0, -d.hinge[1]); hinge.add(skin); skin.userData.shot = `door:${d.key}`;
       // (a car with glass draws its body from inside as well: its door's inside is the body's own, dark trim)
       if (inner) { const back = new THREE.Mesh(d.geometry, inner); back.position.copy(skin.position); hinge.add(back); }
-      if (glassSet && glassSet.doors.has(d.key)) { const pane = glass.pane(glassSet.doors.get(d.key)); pane.position.copy(skin.position); hinge.add(pane); }
+      let pane = null;
+      if (glassSet && glassSet.doors.has(d.key)) { pane = glass.pane(glassSet.doors.get(d.key)); pane.position.copy(skin.position); hinge.add(pane); paneList.push(pane); pane.userData.shot = `glass:${d.key}`; }
       // (the inside of the door, its armrest, handle, speaker and window switches, swings with it: car-cabin.js)
       if (fitted && fitted.doors.has(d.key)) { const panel = fitted.doors.get(d.key); const holder = new THREE.Group(); holder.position.copy(skin.position); holder.scale.setScalar(1 / scale); holder.add(panel); hinge.add(holder); }
-      doorParts.set(d.key, { hinge, side: d.side, angle: 0 });
+      doorParts.set(d.key, { hinge, side: d.side, angle: 0, skin, pane, from: d.from, count: d.count });
     }
     // (a closed shell has nothing inside: a dark cabin is seen through an open door, not the far side's skin from within.
     // The body's own inside, its faces turned away from the eye drawn dark: hidden by the body everywhere but through
@@ -450,17 +472,20 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
       part.hinge.rotation.y = -part.side * a;
       if (a > 0.002) any = true;
     }
-    if (any !== opened) {
-      opened = any;
-      body.visible = !any; rest.visible = any;
-      if (jambs) jambs.visible = any;
-      if (liner) liner.visible = any;
-      if (panes.whole) { panes.whole.visible = !any; if (panes.rest) panes.rest.visible = any; }
-      if (fitted) fitted.open(any);
+    // (shot, 6 November 2026: a door with a hole in it, or its window broken, is drawn on its hinge from then on, shut
+    // or open, so that its holes go with it and its window stays open: `harm.split`)
+    const layout = any || harm.split;
+    if (layout !== opened) {
+      opened = layout;
+      body.visible = !layout; rest.visible = layout;
+      if (panes.whole) { panes.whole.visible = !layout; if (panes.rest) panes.rest.visible = layout; }
+      if (fitted) fitted.open(layout);
     }
+    if (jambs) jambs.visible = any;
+    if (liner) liner.visible = any;
     // (one open, every door drawn on its hinge, the shut ones where they are, the body without them; all shut, every
     // door drawn as part of the body)
-    for (const part of doorParts.values()) part.hinge.visible = any;
+    for (const part of doorParts.values()) part.hinge.visible = layout;
   };
   // the wheels: each turns about its own axle; the front two also turn about their upright with the steering. A wheel
   // is first put straight (`axle`: which way its own axle points in the file; some cars' front wheels were turned
@@ -492,6 +517,48 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
   // (every part of it drawn after the marks on the ground under it: its own soft patch, a lamp's pool of light, tracks:
   // marks.js, so that none of them lies over its tyres)
   standing(group);
+  const motion = { pitch: 0, roll: 0, rise: 0, jolt: 0 };
+  // Shot (6 November 2026, the owner's brief, Stage 4: "bullet holes and breaking glass when a car is shot",
+  // car-damage.js). The parts a round can strike as the car is drawn now (its body whole, or without its doors and each
+  // door on its hinge; its glass the same), and which door a stretch of the body's list or of its glass's belongs to.
+  const shotParts = [body, rest, panes.whole, panes.rest, ...[...doorParts.values()].flatMap((d) => [d.skin, d.pane])].filter(Boolean);
+  const drawnNow = (o) => { for (let q = o; q; q = q.parent) { if (!q.visible) return false; if (q === group) return true; } return false; };
+  const doorOfBody = (fi) => { if (!doorSet) return null; for (const d of doorSet.list) if (fi >= d.from && fi < d.from + d.count) return d.key; return null; };
+  const doorOfGlass = (fi) => { if (!glassSet) return null; for (const [key, g] of glassSet.doors) { const a = g.drawRange.start / 3; if (fi >= a && fi < a + g.drawRange.count / 3) return key; } return null; };
+  const maskUrl = glassSet && CAR_WINDOWS[id] ? `${base}${CAR_WINDOWS[id].masks['512']}` : null;
+  const Z = new THREE.Vector3(0, 0, 1);
+  const holderOf = (part) => {
+    let h = harm.holders.get(part);
+    if (h) return h;
+    h = new THREE.Group();
+    if (part === 'body') { h.position.copy(body.position); springs.add(h); } else { const dp = doorParts.get(part); if (!dp) return null; h.position.copy(dp.skin.position); dp.hinge.add(h); }
+    harm.holders.set(part, h);
+    return h;
+  };
+  // one round's mark put on it: a hole (in the paint, or in glass that holds together), or a door's window broken
+  // whole; gives the broken window's box in the town (for its bits to fall from), or null
+  const harmWith = (entry) => {
+    if (entry.kind === 'break') {
+      const dp = doorParts.get(entry.part);
+      if (!dp || !dp.pane || harm.broken.has(entry.part)) return null;
+      harm.broken.add(entry.part); harm.split = true;
+      group.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(dp.pane);
+      dp.pane.visible = false;
+      return box;
+    }
+    if (entry.part !== 'body') harm.split = true;
+    const holder = holderOf(entry.part);
+    if (!holder) return null;
+    const hole = holeDecal(entry.kind, (entry.kind === 'glass' ? HOLES.glass : HOLES.metal) / scale);
+    const n = new THREE.Vector3(entry.n[0], entry.n[1], entry.n[2]).normalize();
+    hole.position.set(entry.p[0], entry.p[1], entry.p[2]).addScaledVector(n, 0.0015 / scale);
+    hole.quaternion.setFromUnitVectors(Z, n); hole.rotateZ(entry.spin || 0);
+    holder.add(hole);
+    harm.holes.push(hole);
+    if (harm.holes.length > HOLES.most) { const old = harm.holes.shift(); if (old.parent) old.parent.remove(old); }
+    return null;
+  };
   return {
     id, group, scale, spec, frame, toBody, cabin,
     // { hip, wheel, radius, tilt, feet, roof, seen } in the model's units, or null (car-view.js seats the driver by it)
@@ -515,9 +582,79 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
       });
       springs.rotation.set(pitch, 0, roll);
       springs.position.y = springsY + rise / scale;
+      // (how the body moves on its springs, for whoever sits in it: car-seating.js sways them with it)
+      motion.jolt = motion.jolt * 0.8 + (rise - motion.rise); motion.pitch = pitch; motion.roll = roll; motion.rise = rise;
     },
+    // the body's pitch and roll on its springs as last posed, its rise, and a bump's jolt just felt (metres, fading)
+    motion,
+    // (shot, 6 November 2026) where a round's path ({ origin, dir, near, far }, in the town) first meets the car as it is
+    // drawn now:
+    // { hit, glass, door } (`door`: the door it is in, or null), or null. Glass where the car's windows picture says
+    // so; a window already broken is gone through.
+    hitBy(path) {
+      group.updateMatrixWorld(true);
+      const all = [];
+      for (const m of shotParts) if (drawnNow(m)) castOn(m, path, all);
+      if (!all.length) return null;
+      all.sort((a, b) => a.distance - b.distance);
+      for (const h of all) {
+        const tag = h.object.userData.shot;
+        if (tag.startsWith('glass')) {
+          const door = tag.startsWith('glass:') ? tag.slice(6) : tag === 'glass' ? doorOfGlass(h.faceIndex) : null;
+          // (where its picture says it is not glass after all: the frame round a window, the paint's own hit beside it)
+          const mask = maskUrl && h.uv ? glassMaskAt(maskUrl, h.uv.x, h.uv.y) : null;
+          if (mask === false) continue;
+          if (door && harm.broken.has(door)) continue;
+          return { hit: h, glass: true, door };
+        }
+        const door = tag.startsWith('door:') ? tag.slice(5) : tag === 'body' ? doorOfBody(h.faceIndex) : null;
+        // (the paint's own triangles go on under the glass, left out where it is: glass there, by its picture, or the
+        // glass's own hit at the same place while the picture is still on its way)
+        const mask = glassSet && maskUrl && h.uv ? glassMaskAt(maskUrl, h.uv.x, h.uv.y) : null;
+        const pane = glassSet ? all.find((g) => g.object.userData.shot.startsWith('glass') && Math.abs(g.distance - h.distance) < 0.012) : null;
+        if (mask === true || (mask === null && pane)) {
+          if (door && harm.broken.has(door)) continue;
+          return { hit: pane || h, glass: true, door };
+        }
+        return { hit: h, glass: false, door };
+      }
+      return null;
+    },
+    // struck there (`found` from hitBy, `dir` the way the round went, a unit vector in the town): its mark put on it.
+    // Gives { entry (to keep, and put on the car again should it be made afresh: `harmed`), box (a window broken: its
+    // box, for its bits), at (where in the town) }
+    struck(found, dir) {
+      const h = found.hit, o = h.object;
+      const local = o.worldToLocal(h.point.clone());
+      const n = h.face ? h.face.normal.clone() : new THREE.Vector3(0, 1, 0);
+      if (n.clone().transformDirection(o.matrixWorld).dot(dir) > 0) n.negate();
+      const doorGlass = found.glass && found.door && doorParts.has(found.door) && !!doorParts.get(found.door).pane;
+      const entry = { part: found.door && doorParts.has(found.door) ? found.door : 'body', kind: found.glass ? (doorGlass ? 'break' : 'glass') : 'metal', p: [local.x, local.y, local.z], n: [n.x, n.y, n.z], spin: Math.random() * Math.PI * 2 };
+      const box = harmWith(entry);
+      return { entry, box, at: h.point.clone() };
+    },
+    // the marks kept for it put on it again (made afresh: fetched again after it was out of sight)
+    harmed(list) { for (const entry of list || []) harmWith(entry); },
+    // ...and all of them taken off again (the same drawing standing for another car of its kind)
+    unharmed() {
+      for (const h of harm.holders.values()) if (h.parent) h.parent.remove(h);
+      harm.holders.clear(); harm.holes.length = 0;
+      for (const k of harm.broken) { const dp = doorParts.get(k); if (dp && dp.pane) dp.pane.visible = true; }
+      harm.broken.clear(); harm.split = false;
+    },
+    // (for the tests) its holes and its doors' windows broken now
+    harmNow: () => ({ holes: harm.holes.length, glass: harm.holes.filter((m) => m.userData.hole === 'glass').length, broken: [...harm.broken], split: harm.split }),
     // head and tail lamps (0..1), the brake lamps and the reversing lamps (on or off)
     lamps(state) { fx.set(state); },
+    // its wipers (6 November 2026, the brief: "in the rain ... the wipers sweeping on the car you drive"): the blades'
+    // angle up from the windscreen's foot (radians), or null for them off; its glass made its own the first time
+    wipe(angle) {
+      if (!glass || !glassSet || !glassSet.screen) return false;
+      if (angle === null && !ownWipers) return false;
+      if (!ownWipers) { ownWipers = glass.wipers({ ...glassSet.screen, blade: 0.03 / scale }); for (const m of paneList) m.material = ownWipers.material; }
+      ownWipers.wipe(angle);
+      return true;
+    },
     // its cabin's dials and screen lit (the engine running; brighter at night), the lamp over the doors while one is open
     // at night (car-cabin.js); a car with a cabin of its own, its dials lit; nothing for the rest
     cabinLight(state) { if (fitted) fitted.light(state); else if (dials) dials.light(state); },
@@ -541,7 +678,7 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
     // (for the tests) drawn whole: the body as one while every door is shut, otherwise the body without its doors and
     // every door on its hinge (nothing of it left out, nothing to see through)
     whole: () => (!doorSet ? body.visible : opened ? rest.visible && !body.visible && [...doorParts.values()].every((part) => part.hinge.visible) : body.visible && !rest.visible),
-    dispose() { fx.dispose(); if (inner) inner.dispose(); if (liner) liner.material.dispose(); if (fitted) fitted.dispose(); if (dials) dials.dispose(); if (group.parent) group.parent.remove(group); if (held) { held = false; if (own) free(parts); else { users.set(key, users.get(key) - 1); trim(); } } },
+    dispose() { for (const h of harm.holders.values()) if (h.parent) h.parent.remove(h); harm.holders.clear(); harm.holes.length = 0; if (ownWipers) { ownWipers.dispose(); ownWipers = null; } fx.dispose(); if (inner) inner.dispose(); if (liner) liner.material.dispose(); if (fitted) fitted.dispose(); if (dials) dials.dispose(); if (group.parent) group.parent.remove(group); if (held) { held = false; if (own) free(parts); else { users.set(key, users.get(key) - 1); trim(); } } },
   };
 }
 

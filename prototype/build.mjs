@@ -471,6 +471,8 @@ for (const name of readdirSync(resolve(root, 'assets/market')).filter((n) => /^b
 // photographs of each and the pictures from all round that stand in for those across the hall. The supplied car
 // files themselves are in assets/vehicles/cars/ and are not sent.
 for (const name of readdirSync(resolve(root, 'assets/vehicles/cars/game')).sort()) put(`cars/${name}`, readFileSync(resolve(root, 'assets/vehicles/cars/game', name)));
+// (the owner's ambulance and trucks: their windows pictures and their glass's triangles, 6 November 2026, supplied-glass.js)
+if (existsSync(resolve(root, 'assets/vehicles/supplied'))) for (const name of readdirSync(resolve(root, 'assets/vehicles/supplied')).sort()) put(`supplied/${name}`, readFileSync(resolve(root, 'assets/vehicles/supplied', name)));
 // The owner's Mixamo moves for cars (5 November 2026: getting in, getting out, driving, sitting, talking, pulled from the
 // seat), the game's copy of them (tools/characters/car-moves.mjs; his files in assets/characters/animations/mixamo/ are
 // not sent), fetched the first time someone is seen in a car or gets into one (car-moves.js).
