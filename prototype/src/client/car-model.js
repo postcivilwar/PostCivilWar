@@ -19,11 +19,13 @@ import { surface, isLite } from './render-kit.js';
 import { fetchKept, letGoOnceDrawn, decodeAtMost } from './glb.js';
 import { vehicleEnvironment } from './vehicle-models.js';
 import { deviceKind, PICTURES } from './budget.js';
-import { TWO_DOORS, DOOR, DOORS_UP } from '../sim/car-doors.js';
+import { DOOR } from '../sim/car-doors.js';
+import { doorPlan, clipDoors, sortDoors } from './car-door-cut.js';
 import { standing } from './marks.js';
 import { CAR_WINDOWS } from './car-windows.js';
 import { carGlass, windowsPicture } from './car-glass.js';
-import { makeCabin, TRIMS, PLAIN } from './car-cabin.js';
+import { makeCabin, makeDials, TRIMS, PLAIN } from './car-cabin.js';
+import { CAR_DIALS } from './car-dials.js';
 
 // Whether the people in a car of this model are seen (5 November 2026, the owner's brief: real glass, a real cabin):
 // one whose windows are glass now, or one whose cabin is open (the convertibles and the rest measured as `seen`).
@@ -66,10 +68,14 @@ async function buildShape(base, spec, priority, id = null, glassOf = id) {
   const buf = await response.arrayBuffer();
   const n = spec.vertices;
   let at = 0;
-  const position = new Float32Array(buf, at, n * 3); at += n * 12;
-  const normal = new Int16Array(buf, at, n * 3); at += n * 6 + (n % 2) * 2;
-  const uv = new Float32Array(buf, at, n * 2); at += n * 8;
+  let position = new Float32Array(buf, at, n * 3); at += n * 12;
+  let normal = new Int16Array(buf, at, n * 3); at += n * 6 + (n % 2) * 2;
+  let uv = new Float32Array(buf, at, n * 2); at += n * 8;
   const index = new Uint32Array(buf, at, spec.triangles * 3);
+  // (its doors' edges cut straight through the skin first, 6 November 2026: `clipDoors`)
+  const plan = id ? doorPlan(id, spec, position, index.subarray(0, spec.parts[0] * 3)) : null;
+  const clipped = plan ? clipDoors(plan, position, normal, uv, index.subarray(0, spec.parts[0] * 3)) : null;
+  if (clipped) ({ position, normal, uv } = clipped);
   const attrs = { position: new THREE.BufferAttribute(position, 3), normal: new THREE.BufferAttribute(normal, 3, true), uv: new THREE.BufferAttribute(uv, 2) };
   const bits = glassBits ? new Uint8Array(await glassBits) : null;
   const geometries = [];
@@ -77,11 +83,11 @@ async function buildShape(base, spec, priority, id = null, glassOf = id) {
   for (const count of spec.parts) {
     const g = new THREE.BufferGeometry();
     for (const [name, a] of Object.entries(attrs)) g.setAttribute(name, a);
-    const own = index.subarray(first * 3, (first + count) * 3);
+    const own = !geometries.length && clipped ? clipped.index : index.subarray(first * 3, (first + count) * 3);
     // (the body's triangles put in order: all but its doors, then each door's: so that the body is drawn whole, or
     // without its doors while one is open, each door then drawn on its hinge, all from the one list: `doorsOf`)
-    if (!geometries.length && id) doors = sortDoors(id, spec, position, own);
-    if (!geometries.length && bits) glass = sortGlass(bits, own, doors);
+    if (!geometries.length && plan) doors = sortDoors(plan, position, normal, own, clipped ? clipped.parent : null);
+    if (!geometries.length && bits) glass = sortGlass(bits, own, doors, clipped ? clipped.parent : null);
     const indexAttr = new THREE.BufferAttribute(own, 1);
     g.setIndex(indexAttr);
     bound(g, own, position);
@@ -94,7 +100,10 @@ async function buildShape(base, spec, priority, id = null, glassOf = id) {
     }
     first += count;
   }
-  if (doors) { geometries.doors = doors; geometries.push(doors.rest, ...doors.list.map((d) => d.geometry)); }
+  if (doors) {
+    geometries.doors = doors; geometries.push(doors.rest, ...doors.list.map((d) => d.geometry));
+    doors.jambs = jambsOf(doors.list, plan); if (doors.jambs) geometries.push(doors.jambs);
+  }
   if (glass && glass.count) {
     // the glass: the whole of it, the body's without its doors', and each door's, from one list of its own
     const glassIndex = new THREE.BufferAttribute(glass.list, 1);
@@ -107,78 +116,55 @@ async function buildShape(base, spec, priority, id = null, glassOf = id) {
   return geometries;
 }
 
-// A car's doors in its model (4 November 2026: the owner, "the open of the door and banging of the door"): the triangles
-// of its sides between the arches of its wheels, from the sill up to the roof, cut at the middle pillar into a front and
-// a back door on each side (a car of two doors: one long door a side). Each opens on a hinge at its front edge. What is
-// cut out is the model's own skin, the same triangles drawn in the same place while the door is shut; open, the body
-// is drawn without them and they swing out. The model's units: facing +z, its left at +x, from the ground up.
-function sortDoors(id, spec, position, index) {
-  if (!spec.wheels || spec.wheels.length < 4 || DOORS_UP.has(id)) return null;
-  const wf = spec.wheels[0], wr = spec.wheels[2];
-  const fz = (wf.c ? wf.c[2] : wf.z), rz = (wr.c ? wr.c[2] : wr.z), wy = (wf.c ? wf.c[1] : wf.y);
-  const frontArch = fz - wf.r * 1.18, rearArch = rz + wr.r * 1.18;
-  if (!(frontArch > rearArch + 0.1 * spec.length)) return null;
-  const two = TWO_DOORS.has(id);
-  const pillar = two ? frontArch - (frontArch - rearArch) * 0.62 : (frontArch + rearArch) / 2 + (frontArch - rearArch) * 0.02;
-  const half = (spec.body || spec.width) / 2;
-  const sill = wy * 0.82, top = spec.height * 0.985;
-  const regions = (two ? [['fl', 1, pillar, frontArch], ['fr', -1, pillar, frontArch]] : [['fl', 1, pillar, frontArch], ['fr', -1, pillar, frontArch], ['rl', 1, rearArch, pillar], ['rr', -1, rearArch, pillar]]);
-  const tris = index.length / 3;
-  const tag = new Int8Array(tris).fill(-1);
-  const counts = regions.map(() => 0);
-  const outer = regions.map(() => 0);
-  for (let t = 0; t < tris; t += 1) {
-    const a = index[t * 3] * 3, b = index[t * 3 + 1] * 3, c = index[t * 3 + 2] * 3;
-    const cx = (position[a] + position[b] + position[c]) / 3, cy = (position[a + 1] + position[b + 1] + position[c + 1]) / 3, cz = (position[a + 2] + position[b + 2] + position[c + 2]) / 3;
-    if (cy < sill || cy > top) continue;
-    const ux = position[b] - position[a], uy = position[b + 1] - position[a + 1], uz = position[b + 2] - position[a + 2];
-    const vx = position[c] - position[a], vy = position[c + 1] - position[a + 1], vz = position[c + 2] - position[a + 2];
-    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
-    const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
-    if (Math.abs(ny) > 0.78) continue;
-    // (all of a triangle within the door, not only its middle: a long one reaching from the door's edge to the pillar
-    // or the mirror, swung open with the door, would be drawn stretched out across the road)
-    const zLo = Math.min(position[a + 2], position[b + 2], position[c + 2]), zHi = Math.max(position[a + 2], position[b + 2], position[c + 2]);
-    const yLo = Math.min(position[a + 1], position[b + 1], position[c + 1]), yHi = Math.max(position[a + 1], position[b + 1], position[c + 1]);
-    const slack = 0.012 * spec.length;
-    if (yLo < sill - slack || yHi > top + slack) continue;
-    for (let k = 0; k < regions.length; k += 1) {
-      const [, side, z0, z1] = regions[k];
-      if (cz < z0 || cz > z1 || zLo < z0 - slack || zHi > z1 + slack) continue;
-      const out = side * cx;
-      if (!((out > half * 0.55 && side * nx > 0.2) || (out > half * 0.74 && side * nx < -0.2))) continue;
-      tag[t] = k; counts[k] += 1;
-      if (out > outer[k]) outer[k] = out;
-      break;
+// The faces that close a door's opening while it is open (6 November 2026, the owner's brief: "the opening shows the
+// cabin ..., never a hollow shell"): along its front and back edges and its foot, from the skin in by a door's depth,
+// dark as a door's seals and its sill are, so that what is seen through the opening is the cabin, not the inside of the
+// shell round it. The model's units, as the body; one shape for all its doors (car-door-cut.js gives their edges).
+let jambMaterial = null;
+const JAMB = () => jambMaterial || (jambMaterial = new THREE.MeshStandardMaterial({ color: 0x1b1b1d, roughness: 0.85, metalness: 0, side: THREE.DoubleSide }));
+function jambsOf(list, plan) {
+  const depth = 0.22 * plan.unit, skin = 0.004 * plan.unit;
+  const P = [], N = [];
+  const quad = (a, b, c, d, n) => { for (const p of [a, b, c, a, c, d]) { P.push(...p); N.push(...n); } };
+  for (const door of list) {
+    const { side, jambs } = door; if (!jambs) continue;
+    const z1 = door.hinge[1], z0 = door.rear, y0 = door.bottom;
+    // (up an edge at z: its points [y, out], from the foot to the top of its side)
+    const up = (pts, z, n) => {
+      if (pts.length < 2) return;
+      const list = [[y0, pts[0][1]], ...pts];
+      for (let i = 0; i + 1 < list.length; i += 1) {
+        const [ya, oa] = list[i], [yb, ob] = list[i + 1];
+        quad([side * (oa - skin), ya, z], [side * (oa - depth), ya, z], [side * (ob - depth), yb, z], [side * (ob - skin), yb, z], n);
+      }
+    };
+    up(jambs.front, z1, [0, 0, -1]);
+    up(jambs.back, z0, [0, 0, 1]);
+    // (along its foot, the sill)
+    if (jambs.foot.length >= 2) {
+      const f = [[z0, jambs.foot[0][1]], ...jambs.foot, [z1, jambs.foot[jambs.foot.length - 1][1]]];
+      for (let i = 0; i + 1 < f.length; i += 1) {
+        const [za, oa] = f[i], [zb, ob] = f[i + 1];
+        quad([side * (oa - skin), y0, za], [side * (ob - skin), y0, zb], [side * (ob - depth), y0, zb], [side * (oa - depth), y0, za], [0, 1, 0]);
+      }
     }
   }
-  // (too few to be a door: none cut there)
-  for (let k = 0; k < regions.length; k += 1) if (counts[k] < 40) { for (let t = 0; t < tris; t += 1) if (tag[t] === k) tag[t] = -1; counts[k] = 0; }
-  if (!counts.some((c) => c > 0)) return null;
-  // the list in order: the rest, then each door's (and, for the glass, which of the shape's own triangles each now is)
-  const copy = index.slice();
-  const order = new Int32Array(tris);
-  let w = 0;
-  for (let t = 0; t < tris; t += 1) if (tag[t] < 0) { index[w * 3] = copy[t * 3]; index[w * 3 + 1] = copy[t * 3 + 1]; index[w * 3 + 2] = copy[t * 3 + 2]; order[w] = t; w += 1; }
-  const restCount = w;
-  const list = [];
-  for (let k = 0; k < regions.length; k += 1) {
-    if (!counts[k]) continue;
-    const from = w;
-    for (let t = 0; t < tris; t += 1) if (tag[t] === k) { index[w * 3] = copy[t * 3]; index[w * 3 + 1] = copy[t * 3 + 1]; index[w * 3 + 2] = copy[t * 3 + 2]; order[w] = t; w += 1; }
-    const [key, side, z0, z1] = regions[k];
-    list.push({ key, side, from, count: counts[k], hinge: [side * outer[k], z1], rear: z0 });
-  }
-  return { restCount, list, order, pillar };
+  if (!P.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+  g.computeBoundingSphere();
+  return g;
 }
 // The glass of a car whose windows are glass (5 November 2026): of the body's triangles (as `index` has them now, its
 // doors' after the rest), those any of whose glass is drawn (`bits`: a bit for each of the shape's own triangles, in its
-// file's order; `order`: which of those each now is, when its doors were sorted), gathered into a list of their own in
-// the same order, the rest's first and then each door's: so that the glass is drawn whole, or without its doors' while
-// one is open and each door's on its hinge, all from the one list.
-function sortGlass(bits, index, doors) {
+// file's order; `order`: which of those each now is, when its doors were sorted; `parent`: which each came from, when
+// its doors' edges were cut through it), gathered into a list of their own in the same order, the rest's first and
+// then each door's: so that the glass is drawn whole, or without its doors' while one is open and each door's on its
+// hinge, all from the one list.
+function sortGlass(bits, index, doors, parent = null) {
   const tris = index.length / 3;
-  const isGlass = (w) => { const t = doors ? doors.order[w] : w; return (bits[t >> 3] >> (t & 7)) & 1; };
+  const isGlass = (w) => { const t = doors ? doors.order[w] : parent ? parent[w] : w; return (bits[t >> 3] >> (t & 7)) & 1; };
   let n = 0;
   for (let w = 0; w < tris; w += 1) if (isGlass(w)) n += 1;
   const list = new Uint32Array(n * 3);
@@ -417,7 +403,7 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
   // its inside dark; a closed shell's cabin dark through the opening); shut, the body is drawn whole, as before
   const doorSet = geometries.doors || null;
   const doorParts = new Map();
-  let rest = null, liner = null, inner = null, opened = false;
+  let rest = null, liner = null, inner = null, jambs = null, opened = false;
   // its glass (5 November 2026, car-glass.js): drawn whole while every door is shut, otherwise the body's without its
   // doors' and each door's on its hinge; its cabin the same (car-cabin.js)
   const glassSet = glass ? geometries.glass : null;
@@ -426,9 +412,13 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
     panes.whole = glass.pane(glassSet.whole); panes.whole.position.copy(body.position); springs.add(panes.whole);
     if (glassSet.rest) { panes.rest = glass.pane(glassSet.rest); panes.rest.position.copy(body.position); panes.rest.visible = false; springs.add(panes.rest); }
   }
-  const fitted = glassSet && spec.driver ? makeCabin(id, spec, { scale, lite: lite || isLite(), fit: CAR_WINDOWS[id].fit, doors: doorSet ? doorSet.list.map((d) => ({ key: d.key, side: d.side, front: d.hinge[1], rear: d.rear })) : [] }) : null;
+  // (a car with a cabin of its own, the Peach Luxury SUV's and the White Square SUV's, keeps it: its painted panes are
+  // glass, and no cabin of ours is put in it, 6 November 2026)
+  const fitted = glassSet && spec.driver && !spec.driver.seen ? makeCabin(id, spec, { scale, lite: lite || isLite(), fit: CAR_WINDOWS[id].fit, doors: doorSet ? doorSet.list.map((d) => ({ key: d.key, side: d.side, front: d.hinge[1], rear: d.rear, bottom: d.bottom })) : [] }) : null;
   if (doorSet) {
     rest = mesh(doorSet.rest); rest.position.copy(body.position); rest.visible = false; springs.add(rest);
+    // (the opening closed round its edges while a door is open: `jambsOf`)
+    if (doorSet.jambs) { jambs = new THREE.Mesh(doorSet.jambs, JAMB()); jambs.position.copy(body.position); jambs.visible = false; jambs.castShadow = false; springs.add(jambs); }
     if (!glassSet) inner = new THREE.MeshStandardMaterial({ color: 0x1d1d1f, roughness: 0.85, metalness: 0, side: THREE.BackSide });
     for (const d of doorSet.list) {
       const hinge = new THREE.Group(); hinge.position.set(d.hinge[0], -spec.height * 0.35, d.hinge[1]); hinge.visible = false; springs.add(hinge);
@@ -443,7 +433,9 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
     // (a closed shell has nothing inside: a dark cabin is seen through an open door, not the far side's skin from within.
     // The body's own inside, its faces turned away from the eye drawn dark: hidden by the body everywhere but through
     // the opening, and never out past its outline (a box for it, tried first, stood out over the sloping glass))
-    if (!(spec.driver && spec.driver.seen) && !glassSet) {
+    // (6 November 2026: a car with a cabin of its own too, whose shell round its cabin is open under its dashboard to
+    // the wheels' arches: seen through an open door, that is dark, not the road under the far side)
+    if (!glassSet) {
       liner = new THREE.Mesh(doorSet.rest, new THREE.MeshBasicMaterial({ color: 0x0e0e10, side: THREE.BackSide }));
       liner.position.copy(body.position); liner.visible = false; springs.add(liner);
     }
@@ -461,6 +453,7 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
     if (any !== opened) {
       opened = any;
       body.visible = !any; rest.visible = any;
+      if (jambs) jambs.visible = any;
       if (liner) liner.visible = any;
       if (panes.whole) { panes.whole.visible = !any; if (panes.rest) panes.rest.visible = any; }
       if (fitted) fitted.open(any);
@@ -493,6 +486,9 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
   const cabin = new THREE.Group(); cabin.position.set(0, -spec.height * 0.35, 0); springs.add(cabin);
   // (its fitted cabin, 5 November 2026: seats, dashboard, wheel, console, the doors' insides, in the same frame)
   if (fitted) cabin.add(fitted.group);
+  // (a car with a cabin of its own: lit dials on its own dashboard, 6 November 2026)
+  const dials = !fitted && spec.driver && spec.driver.seen && CAR_DIALS[id] ? makeDials(id, CAR_DIALS[id]) : null;
+  if (dials) cabin.add(dials.mesh);
   // (every part of it drawn after the marks on the ground under it: its own soft patch, a lamp's pool of light, tracks:
   // marks.js, so that none of them lies over its tyres)
   standing(group);
@@ -523,10 +519,10 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
     // head and tail lamps (0..1), the brake lamps and the reversing lamps (on or off)
     lamps(state) { fx.set(state); },
     // its cabin's dials and screen lit (the engine running; brighter at night), the lamp over the doors while one is open
-    // at night (car-cabin.js): nothing for a car with no fitted cabin
-    cabinLight(state) { if (fitted) fitted.light(state); },
+    // at night (car-cabin.js); a car with a cabin of its own, its dials lit; nothing for the rest
+    cabinLight(state) { if (fitted) fitted.light(state); else if (dials) dials.light(state); },
     // how much of its cabin is drawn (car-cabin.js `detail`: 2 near, 1 further, 0 far off)
-    cabinDetail(level) { if (fitted) fitted.detail(level); },
+    cabinDetail(level) { if (fitted) fitted.detail(level); else if (dials) dials.detail(level); },
     // whether it has real glass and a fitted cabin (5 November 2026), and where its cabin's seats, floor and roof are
     // (metres, car-cabin.js `measures`; car-seating.js seats people by them)
     glazed: !!glassSet,
@@ -545,7 +541,7 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
     // (for the tests) drawn whole: the body as one while every door is shut, otherwise the body without its doors and
     // every door on its hinge (nothing of it left out, nothing to see through)
     whole: () => (!doorSet ? body.visible : opened ? rest.visible && !body.visible && [...doorParts.values()].every((part) => part.hinge.visible) : body.visible && !rest.visible),
-    dispose() { fx.dispose(); if (inner) inner.dispose(); if (liner) liner.material.dispose(); if (fitted) fitted.dispose(); if (group.parent) group.parent.remove(group); if (held) { held = false; if (own) free(parts); else { users.set(key, users.get(key) - 1); trim(); } } },
+    dispose() { fx.dispose(); if (inner) inner.dispose(); if (liner) liner.material.dispose(); if (fitted) fitted.dispose(); if (dials) dials.dispose(); if (group.parent) group.parent.remove(group); if (held) { held = false; if (own) free(parts); else { users.set(key, users.get(key) - 1); trim(); } } },
   };
 }
 

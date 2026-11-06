@@ -14,7 +14,9 @@ import { POWER_CARS } from './power-cars.js';
 
 // The cars with two doors (the coupés, the convertibles, the roadsters and the supercars), read from the models (each
 // drawn from the side with its doors marked, 4 November 2026: the grand tourer and the off-roader have four)
-export const TWO_DOORS = Object.freeze(new Set(['mint-sports-coupe', 'white-roadster', 'yellow-classic-roadster', 'bronze-spyder', 'red-winged-supercar', 'gold-hypercar', 'black-grand-convertible', 'pearl-convertible']));
+// (6 November 2026: the Grey Grand Tourer and the Midnight Saloon are coupés, a long door each side and a quarter
+// window behind it, as their glass shows now; they had opened a back door that was not there)
+export const TWO_DOORS = Object.freeze(new Set(['mint-sports-coupe', 'white-roadster', 'yellow-classic-roadster', 'bronze-spyder', 'red-winged-supercar', 'gold-hypercar', 'black-grand-convertible', 'pearl-convertible', 'grey-grand-tourer', 'midnight-saloon']));
 // The cars whose doors are not cut from their sides to swing open (car-model.js): the hypercar's are up already, as made
 export const DOORS_UP = Object.freeze(new Set(['gold-hypercar']));
 export const doorsOf = (model) => (TWO_DOORS.has(model) ? ['fl', 'fr'] : ['fl', 'fr', 'rl', 'rr']);

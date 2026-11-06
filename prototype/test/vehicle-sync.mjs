@@ -7,9 +7,9 @@
 //   - someone on an okada, and on the back of one, is seen on it (from a visitor's word, as the link gives it), while the
 //     town has okadas (since 22 October 2026 it has none: nobody can be on one, and that is not looked for);
 //   - another player on their own motorcycle is seen on it, its bars turned as theirs are, their phone in their left
-//     hand; another in their open car is seen at its wheel with the phone in their right; one in a closed car (one not
-//     yet given glass) is not seen through it; more motorcycles about than are drawn as models are their pictures,
-//     each with its rider on it;
+//     hand; another in their open car is seen at its wheel with the phone in their right; one in a car whose windows
+//     were painted on is seen through its glass (until 6 November 2026, not seen in it); more motorcycles about than
+//     are drawn as models are their pictures, each with its rider on it;
 //   - nothing goes wrong in either page.
 //   ../server/with-postgres.sh node test/vehicle-sync.mjs [shots folder]
 import { createRequire } from 'node:module';
@@ -208,9 +208,8 @@ await B.page.evaluate(() => {
   const peers = [
     ['bike-phone', { name: 'Bike_Phone', look: { figure: 'W1' }, x: at.x + 5, z: at.z + 4, heading: 0.5, ride: { bike: 'red-superbike', lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0, steer: 0.45 }, phone: 1 }],
     ['open-car', { name: 'Open_Car', look: { figure: 'M1' }, x: at.x - 7, z: at.z + 6, heading: 2.2, car: { car: 'white-roadster', steer: 0.3, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 }, phone: 1 }],
-    // (a car not yet given glass, its windows painted on: since 5 November 2026 the Grey Saloon, a sample of the cars
-    // brief's Stage 2, has glass and whoever sits in it is seen, as test/car-seen-sync.mjs checks; once every car has
-    // glass, Stage 3, there is no closed car left to look for)
+    // (a car whose windows were painted on: since the cars brief's Stage 3, 6 November 2026, every one has glass, and
+    // whoever sits in it is seen through it)
     ['closed-car', { name: 'Closed_Car', look: { figure: 'W1' }, x: at.x + 9, z: at.z - 7, heading: -1, car: { car: 'midnight-saloon', steer: 0, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 } }],
     // more motorcycles than are drawn as models: the furthest stand in as their pictures
     ...['streetfighter', 'chopper', 'cafe-racer', 'gold-tourer'].map((bike, k) => [`bike-${k}`, { name: `Bike_${k}`, x: at.x - 14 - k * 4, z: at.z - 12 - k * 3, heading: 0.3 * k, ride: { bike, lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0, steer: 0 } }]),
@@ -224,7 +223,7 @@ await B.page.waitForFunction(() => {
   const n = window.__nlw; const id = (name) => (n.shownPeers.find((q) => q.name === name) || {}).id;
   // (and their own figures come, with the bones that hold the bars, the wheel and the phone)
   const ready = (name) => { const r = n.crowd.rigOf(`p:${id(name)}`); return !!(r && r.animated && r.bones && typeof r.bones.get === 'function'); };
-  return n.peerBikeView.ridden(`peer:${id('Bike_Phone')}`) && n.carView.driven(`peer:${id('Open_Car')}`) && n.carView.driven(`peer:${id('Closed_Car')}`) && ready('Bike_Phone') && ready('Open_Car');
+  return n.peerBikeView.ridden(`peer:${id('Bike_Phone')}`) && n.carView.driven(`peer:${id('Open_Car')}`) && (n.carView.driven(`peer:${id('Closed_Car')}`) || {}).glazed && ready('Bike_Phone') && ready('Open_Car');
 }, null, { timeout: 300000 }).catch(() => {});
 {
   // (if not all came: which did not)
@@ -250,7 +249,7 @@ const peerVehicles = await B.page.evaluate(() => {
   const phoneC = oc && n.peerPhones.get(oc.id);
   out.openCar = car ? { visible: rigC.group.visible, hips: +pos(rigC, 'pelvis').distanceTo(car.cabin.localToWorld(new THREE.Vector3(...car.driver.hip))).toFixed(2) } : null;
   out.carPhone = phoneC ? { out: +phoneC.hold.out.toFixed(2), side: phoneC.hold.side, toRight: +phoneC.hold.prop.getWorldPosition(new THREE.Vector3()).distanceTo(pos(rigC, 'middle_01_r')).toFixed(2) } : null;
-  // the closed car: drawn, with no one seen in it
+  // the car whose windows were painted on: drawn, with them seen in it through its glass
   const cc = P('Closed_Car'), closed = cc && n.carView.driven(`peer:${cc.id}`), rigX = cc && n.crowd.rigOf(`p:${cc.id}`);
   out.closedCar = { drawn: !!closed, driverSeen: rigX ? rigX.group.visible : null };
   // the motorcycles beyond the nearest few: their pictures, with their riders on them
@@ -263,7 +262,7 @@ const peerVehicles = await B.page.evaluate(() => {
 check('another player on their motorcycle: its bars turned as theirs are, them in its saddle (as far forward as its bars ask) with a hand on the right grip', !!peerVehicles.bike && Math.abs(peerVehicles.bike.steer - 0.45) < 0.01 && peerVehicles.bike.seat < 0.45 && peerVehicles.bike.rightGrip < 0.1 && peerVehicles.bike.visible, peerVehicles.bike);
 check('and their phone out: held in their left hand, off the grip', !!peerVehicles.bikePhone && peerVehicles.bikePhone.out > 0.97 && peerVehicles.bikePhone.side === 'l' && peerVehicles.bikePhone.shown && peerVehicles.bikePhone.toLeft < 0.12, peerVehicles.bikePhone);
 check('another player in their open car: the car drawn, them seen at its wheel, the phone in their right hand', !!peerVehicles.openCar && peerVehicles.openCar.visible && peerVehicles.openCar.hips < 0.15 && !!peerVehicles.carPhone && peerVehicles.carPhone.out > 0.97 && peerVehicles.carPhone.side === 'r' && peerVehicles.carPhone.toRight < 0.12, { car: peerVehicles.openCar, phone: peerVehicles.carPhone });
-check('another in a closed car: the car drawn, no one floating beside it or showing through it', peerVehicles.closedCar.drawn && peerVehicles.closedCar.driverSeen === false, peerVehicles.closedCar);
+check('another in a car whose windows were painted on, the Midnight Saloon: the car drawn with its glass, them seen in it', peerVehicles.closedCar.drawn && peerVehicles.closedCar.driverSeen === true, peerVehicles.closedCar);
 check('with more motorcycles about than are drawn as models, the rest are their pictures, each with its rider on it: no one rides nothing',
   peerVehicles.many.models <= 4 && peerVehicles.many.pictures >= 1 && peerVehicles.many.riders.every((r) => r && r.visible && (r.model || r.picture)) && peerVehicles.many.drawn === peerVehicles.many.pictures, peerVehicles.many);
 await B.page.evaluate(() => { const n = window.__nlw, q = n.shownPeers.find((o) => o.name === 'Bike_Phone'); n.cam.yaw = Math.atan2(q.x - n.view.self.x, q.z - n.view.self.z) + Math.PI; n.cam.dist = 6; n.cam.pitch = 0.22; });

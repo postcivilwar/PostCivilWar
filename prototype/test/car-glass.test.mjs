@@ -27,10 +27,22 @@ const { CAR_TAKING } = await import('../src/sim/hijack.js');
 const { POWER_CARS } = await import('../src/sim/power-cars.js');
 const { ANIMATED } = await import('../src/client/animated.js');
 const GAME = new URL('../assets/vehicles/cars/game/', import.meta.url);
-const SAMPLE = ['mint-sports-coupe', 'grey-saloon', 'black-luxury-suv'];
+// (Stage 2, 5 November 2026, the three sample cars; Stage 3, 6 November: every car whose windows are painted on. The
+// ten shells with nothing inside, as the brief names them, are given a cabin of ours; the cars with cabins of their
+// own keep them, the Peach Luxury SUV's and the White Square SUV's painted panes made glass)
+const SHELLS = ['black-luxury-suv', 'black-pickup', 'black-square-suv', 'blue-off-roader', 'camo-expedition', 'grey-grand-tourer', 'grey-saloon', 'midnight-saloon', 'mint-sports-coupe', 'state-limousine'];
+const GLASS = Object.keys(CAR_WINDOWS);
+const SAMPLE = GLASS.filter((id) => !(CAR_PARTS[id].driver && CAR_PARTS[id].driver.seen));
+const PRIVACY = new Set(['black-luxury-suv', 'white-square-suv', 'black-square-suv', 'peach-suv', 'state-limousine', 'camo-expedition', 'grey-grand-tourer', 'midnight-saloon']);
 
-test('the three sample cars have glass: their windows pictures and their glass triangles beside their files, the glass a part of each', () => {
-  for (const id of SAMPLE) {
+test('every shell the brief names has glass and is given a cabin; the cars with cabins of their own keep theirs', () => {
+  for (const id of SHELLS) assert.ok(SAMPLE.includes(id), `${id}: glass and a cabin of ours`);
+  for (const id of GLASS) if (!SHELLS.includes(id)) assert.ok(CAR_PARTS[id].driver.seen, `${id}: has a cabin of its own`);
+  assert.deepEqual(GLASS.filter((id) => !SHELLS.includes(id)).sort(), ['peach-suv', 'white-square-suv']);
+});
+
+test('every car with glass has its windows pictures and its glass triangles beside its files, the glass a part of each', () => {
+  for (const id of GLASS) {
     const w = CAR_WINDOWS[id];
     assert.ok(w, `${id} has glass`);
     const spec = CAR_PARTS[id];
@@ -44,7 +56,7 @@ test('the three sample cars have glass: their windows pictures and their glass t
     // (each picture a PNG of its size: 1024 and 512)
     for (const [k, f] of Object.entries(w.masks)) { const png = readFileSync(new URL(f, GAME)); assert.equal(png.readUInt32BE(16), k === '1k' ? 1024 : 512, `${id}: ${f} wide`); }
     assert.ok(w.belt > 0 && w.belt < spec.height, `${id}: its side glass's foot ${w.belt}`);
-    assert.equal(w.privacy, id === 'black-luxury-suv', `${id}: privacy glass behind the front doors on the SUV only`);
+    assert.equal(w.privacy, PRIVACY.has(id), `${id}: privacy glass behind the front doors on the SUVs, the limousine and the luxury cars only`);
   }
 });
 
@@ -57,10 +69,10 @@ function shell(fit, scale) {
   };
 }
 
-test('each sample car\'s cabin is inside its shell: nothing out past its sides, the dashboard under the windscreen, the lining under the roof', () => {
-  for (const id of SAMPLE) {
+test('each car\'s cabin (and a phone\'s plainer one) is inside its shell: nothing out past its sides, the dashboard under the windscreen, the lining under the roof', () => {
+  for (const id of SAMPLE) for (const lite of [false, true]) {
     const spec = CAR_PARTS[id], w = CAR_WINDOWS[id], scale = POWER_CARS[id].length / spec.length;
-    const cabin = makeCabin(id, spec, { scale, fit: w.fit, doors: [] });
+    const cabin = makeCabin(id, spec, { scale, fit: w.fit, doors: [], lite });
     const S = shell(w.fit, scale);
     const m = cabin.measures;
     // every point of it (metres, from the car's middle and its ground) within the shell's side where it was measured
@@ -78,7 +90,7 @@ test('each sample car\'s cabin is inside its shell: nothing out past its sides, 
         if (over > 0.005) { out += 1; if (over > worst) { worst = over; at = [v.x, v.y, v.z].map((q) => +q.toFixed(3)); } }
       }
     });
-    assert.equal(out, 0, `${id}: ${out} points of its cabin out past its shell's side, the most ${worst.toFixed(3)} m at ${JSON.stringify(at)}`);
+    assert.equal(out, 0, `${id}${lite ? ' (a phone\'s)' : ''}: ${out} points of its cabin out past its shell's side, the most ${worst.toFixed(3)} m at ${JSON.stringify(at)}`);
     for (let z = m.dashZ; z <= m.dashZ + m.dashDeep; z += 0.05) { const t = S.top(z); if (t !== null) assert.ok(m.dashTop < t - 0.01, `${id}: the dashboard (${m.dashTop.toFixed(3)} m) under the windscreen (${t.toFixed(3)} m) at ${z.toFixed(2)} m along`); }
     assert.ok(m.roof <= spec.driver.roof * scale + 1e-6, `${id}: the lining under the roof`);
     cabin.dispose();
@@ -137,11 +149,11 @@ function surfaceOf(id, spec, scale) {
   };
 }
 
-test('each sample car\'s cabin is inside its own surface: no point of it out through the body, the glass or the roof where the car is drawn', () => {
-  for (const id of SAMPLE) {
+test('each car\'s cabin (and a phone\'s plainer one) is inside its own surface: no point of it out through the body, the glass or the roof where the car is drawn', () => {
+  for (const id of SAMPLE) for (const lite of [false, true]) {
     const spec = CAR_PARTS[id], w = CAR_WINDOWS[id], scale = POWER_CARS[id].length / spec.length;
     const S = surfaceOf(id, spec, scale);
-    const cabin = makeCabin(id, spec, { scale, fit: w.fit, doors: [] });
+    const cabin = makeCabin(id, spec, { scale, fit: w.fit, doors: [], lite });
     cabin.group.updateMatrixWorld(true);
     let side = 0, over = 0, worst = 0, at = null, what = null;
     const tol = 0.004 / scale;
@@ -159,12 +171,12 @@ test('each sample car\'s cabin is inside its own surface: no point of it out thr
         if (s !== null && Math.abs(v.x) < s - 0.05 / scale && t !== null && v.y > t + tol) { over += 1; const e = (v.y - t) * scale; if (e > worst) { worst = e; at = [v.x, v.y, v.z].map((q) => +(q * scale).toFixed(3)); what = `${o.name} top`; } }
       }
     });
-    assert.equal(side + over, 0, `${id}: ${side} points of its cabin out through its sides and ${over} through its top, the most ${worst.toFixed(3)} m (${what}) at ${JSON.stringify(at)} (metres)`);
+    assert.equal(side + over, 0, `${id}${lite ? ' (a phone\'s)' : ''}: ${side} points of its cabin out through its sides and ${over} through its top, the most ${worst.toFixed(3)} m (${what}) at ${JSON.stringify(at)} (metres)`);
     cabin.dispose();
   }
 });
 
-test('every figure fits every seat of the sample cars: room over the head, sat as far back as the seat allows, and the wheel within the driver\'s reach', () => {
+test('every figure fits every seat of every car given a cabin: room over the head, sat as far back as the seat allows, and the wheel within the driver\'s reach', () => {
   // the tallest and the shortest of everyone who can sit in a car: the players' characters and the townspeople
   const heights = Object.values(ANIMATED).map((f) => f.height).filter(Number.isFinite);
   const tall = Math.max(...heights), short = Math.min(...heights);

@@ -205,6 +205,8 @@ def find(car, cfg, sheet=None):
     covered = ~np.isnan(P[..., 0])
     L, H, B = spec['length'], spec['height'], spec['body']
     d = spec['driver']; hip, roof, wheel = d['hip'], d['roof'], d['wheel']
+    # (an open car has no roof: its windscreen's top, as its settings give it, or the car's height)
+    if roof is None: roof = cfg.get('roof', spec['height'])
     # the paint: the commonest colour of the sides at the doors' height
     side = covered & (np.abs(N[..., 0]) > 0.75) & (P[..., 1] > 0.3 * H) & (P[..., 1] < 0.5 * H)
     q = (tex[side] // 16).astype(np.int32); key = q[:, 0] * 256 + q[:, 1] * 16 + q[:, 2]
@@ -250,7 +252,11 @@ def find(car, cfg, sheet=None):
         kept = 0
         if name == 'top':
             fwd_ok = lambda f: (nz * f > (0.2 if f > 0 else 0.15)) & (ny < 0.99)
-        for p3 in (seeds[name] if cfg.get('grow', True) else []) + [tuple(s) for s in cfg.get('seeds', {}).get(name, [])]:
+        # (`grow`: false where the glass is found by no colour at all, the panes alone; or the looks it is found by
+        # colour in, the rest given as panes)
+        growing = cfg.get('grow', True)
+        growing = (name in growing) if isinstance(growing, list) else bool(growing)
+        for p3 in (seeds[name] if growing else []) + [tuple(s) for s in cfg.get('seeds', {}).get(name, [])]:
             sx, sy_, _ = project(np.array([p3], float), frame)
             sx, sy_ = int(sx[0]), int(sy_[0])
             if not (0 <= sy_ < depth.shape[0] and 0 <= sx < depth.shape[1]) or depth[sy_, sx] == -np.inf or tried[sy_, sx]: continue
@@ -437,13 +443,15 @@ def belt_of(spec, P, glass):
 
 
 def write_js(entries):
-    body = {k: entries[k] for k in sorted(entries)}
+    # (a car a line, its numbers close together: twelve cars' room inside, laid out a number a line, was 230 KB of the
+    # game's script, 6 November 2026)
+    lines = ',\n'.join(f' {json.dumps(k)}: {json.dumps(entries[k], separators=(",", ":"))}' for k in sorted(entries))
     open(JS, 'w').write(
         '// Written by tools/vehicles/windows.py from the game\'s own copies of the cars (5 November 2026). Do not edit by hand.\n'
         '// For each car whose windows are glass: its pictures of where the glass is (white), the list of the body\'s triangles\n'
         '// any of whose glass is drawn (a bit each), how low its side glass comes (the model\'s units), whether its glass behind\n'
-        '// the front doors is privacy glass.\n'
-        f'export const CAR_WINDOWS = Object.freeze({json.dumps(body, indent=1)});\n')
+        '// the front doors is privacy glass; and for a car given a cabin of the game\'s, the room inside its shell (`fit`).\n'
+        f'export const CAR_WINDOWS = Object.freeze({{\n{lines}\n}});\n')
 
 
 def main():
@@ -463,7 +471,9 @@ def main():
         spec, pos, uv, body, P, N, T, tex, covered, glass, found = find(car, cfg)
         count = write(car, spec, uv, body, T, covered, glass)
         made[car] = {'masks': {k: f'{car}-windows-{k}.png' for k in OUT}, 'tris': f'{car}-glass.bin', 'count': count,
-                     'belt': belt_of(spec, P, glass), 'privacy': car in PRIVACY, 'fit': fit_of(spec, pos, body)}
+                     'belt': belt_of(spec, P, glass), 'privacy': car in PRIVACY}
+        # (a car with a cabin of its own keeps it: no room measured for one of ours)
+        if not spec['driver'].get('seen'): made[car]['fit'] = fit_of(spec, pos, body)
         if folder: sheet(car, P, N, tex, glass, found, folder)
     write_js(made)
 
