@@ -5371,6 +5371,85 @@ car's cabin is about 17,000 triangles: the coupé's 16,046, the saloon's and the
 1,295 → 1,343 MB on the card by day (the cabins' and windows' pictures at a computer's size); elsewhere within a few per
 cent.
 
+## Cars with real glass, a fitted cabin and the people inside seen: Stage 3, every other car (6 November 2026)
+
+The owner's brief's third stage: "Every other car: the other 17 showroom cars, the ambulance and the two trucks; the
+town's traffic with its drivers and passengers seen; the showroom's, the market's and Property's pictures made again."
+Here, the cars; the ambulance and the two trucks follow.
+
+### Glass on every car whose windows were painted on (`tools/vehicles/windows.py`, `windows.json`, `src/client/car-windows.js`)
+
+Twelve cars have glass now: the three of the sample, the other seven shells (the Black Pickup, the Black Square SUV,
+the Blue Off-Roader, the Camo Expedition SUV, the Grey Grand Tourer, the Midnight Saloon and the State Limousine), and
+the two cars with cabins of their own whose windows were painted on (the Peach Luxury SUV and the White Square SUV).
+The rest's windows are open in their models: the two convertibles, the two roadsters and the Bronze Spyder have no
+roof, and the Classic Two-Tone's, the Gold Hypercar's and the Red Winged Supercar's windows are holes in their bodies
+with nothing painted in them (their cabins are seen through them as they were). Many of these cars' windows are
+painted nearly their own colour (black on black, dark blue on dark blue), and their panes are given in `windows.json`
+as shapes on the looks the tool draws (`panes`, in the look's own measures, one car a line), with `grow` for the
+looks a colour can be grown in and `roof` for an open car's windscreen's top. The Grey Grand Tourer and the Midnight
+Saloon are coupés (a long door each side and a quarter window behind it, as their glass shows): `TWO_DOORS`.
+Privacy glass behind the front doors: the SUVs, the limousine, the grand tourer and the Midnight Saloon.
+
+### A cabin in every shell, and a lighter one on a phone (`src/client/car-cabin.js`)
+
+Each of the ten shells is given the fitted cabin of Stage 2, fitted to its own room inside (the Black Square SUV's
+dashboard kept under its upright windscreen all across, the Blue Off-Roader's mats and door panels where its lower body
+tucks in, the Camo Expedition's mirror under its windscreen's top). A phone draws a lighter cabin of the same layout,
+its soft parts plain boxes: about 4,000 triangles against about 17,000.
+
+### The cars with cabins of their own: lit dials (`tools/vehicles/dials.py`, `src/client/car-dials.js`)
+
+Their seats and wheels are as made. Their dashboards are the models' own, painted: the game puts the same picture of
+two dials as its own cabins' where the driver sees the dashboard through the wheel (`dials.py`: lines from the eyes
+through the wheel's upper half, the one nearest halfway up whose view is clear of the wheel, its hub and spokes for a
+hand's width either side, followed on to the dashboard within a third of a metre; a car's glass looked through), adding
+their light over the model's paint: lit with the engine running, brighter at night, nothing with it off, drawn near
+only. Eight cars have them; the Peach Luxury SUV and the Yellow Classic Roadster none (no clear view of a dashboard
+behind their wheels was found).
+
+### Doors cut straight (`src/client/car-door-cut.js`)
+
+The brief: "an open door shows its inside panel and its window glass; the opening shows the cabin ..., never a hollow
+shell or ragged edges". A door was the body's triangles wholly within its stretch: its edges the model's own
+triangles' teeth, and on the cars with cabins of their own the inside of the door left behind in the air. Now:
+- the body's triangles crossing a door's front and back edges, or its sill, are cut along them (`clipDoors`): each new
+  point on the old edge (its place, the way it faces and its picture's place drawn between the edge's ends), shared by
+  the triangles either side, so that nothing changes while the door is shut and no crack opens; out at the car's sides
+  only (4 to 6% more triangles on the detailed models, 12 to 21% on the plain ones of 7,000 to 9,000);
+- a door is whatever lies within a door's depth of its outer skin there (`sortDoors`, the skin read on a grid about 5 cm
+  a square along and up the door): its skin, window and creases within 14 cm, the panel inside it facing the seats
+  within 36, what lies along it within 20; its mirror standing out from it; not the end of a dashboard or a seat;
+- a car with a step along its side under its doors (the Black Pickup, the Black and the White Square SUVs, the Camo
+  Expedition) has its doors cut off just over the step's tread (`stepTop`): the step stays;
+- an open car's doors are cut along their own tops, a few centimetres over where their sides turn over (`doorTops`):
+  the windscreen's frame stays; a closed car's roof and its lining are the body's;
+- the door's hinge on its skin, not out at its mirror; the cabin's door panels down to the door's own bottom.
+
+### The opening closed round its edges (`car-model.js` `jambsOf`)
+
+While a door is open, its opening's front and back edges and its sill are closed by dark faces from the skin in by a
+door's depth, as a door's seals and sill are: through the opening the cabin is seen, not the inside of the shell. A car
+with a cabin of its own (no glass) has the inside of its shell drawn dark while a door is open, as the shells' were:
+under its dashboard its shell is open to the wheels' arches, and the road under the far side was seen through it.
+
+### Pictures made again
+
+The market's and Property's photographs and the showroom's and the traffic's far pictures of the twelve cars with
+glass (`car_turntables.mjs`, `car_impostors.mjs`).
+
+### Tested
+
+On the release build (page `2aaad646da784610`): 617 headless tests (new: `test/car-doors-cut.test.mjs` 5: cutting the
+doors' edges keeps every car's body's surface as it was and leaves nothing across a cut at its sides, each door within
+its own stretch, over its sill and out at the side, a door's size, its opening's edges found; the cars with steps cut
+over them; the lit dials inside their cars facing the driver; `test/car-glass.test.mjs` now over the twelve cars with
+glass, each shell's cabin and a phone's lighter one inside its shell), server 119. In a browser, one at a time: taking a
+car 15/15, the car showroom 42/42, who sits where in every seat 17/17, taking a car on a phone 15/15, a phone's memory 12/12, the town's
+traffic 17/17; who sits in a car seen by another player 4 of its 5 (its last, the first player's figure painted and
+found through the glass, not reached: the second player's view of the first's car, or of their figure in it, gone a few
+seconds after it was seen, its next look finding nothing; the same on the live build's site, run in turn).
+
 ## Tests
 
 ```
