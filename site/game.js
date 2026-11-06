@@ -35592,23 +35592,28 @@ function createAudio() {
   }
 
   const MUFFLED = Object.freeze({ ambient: 1, voice: 1, effects: 1, vehicles: 0.5 });
+  const HUSH = 0.5;   // how much of a muffled group is still heard shut in (the vehicles' half as much taken off)
   function group(name, master) {
     const input = ctx.createGain(), duck = ctx.createGain(), user = ctx.createGain(), meter = ctx.createAnalyser();
     input.gain.value = TRIM[name]; duck.gain.value = 1; user.gain.value = volumes[name];
     meter.fftSize = 1024;
-    let muffle = null;
-    if (MUFFLED[name]) { muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 20000; muffle.Q.value = 0.5; }
+    let muffle = null, hush = null;
+    if (MUFFLED[name]) { muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 20000; muffle.Q.value = 0.5; hush = ctx.createGain(); hush.gain.value = 1; }
     input.connect(duck);
-    if (muffle) { duck.connect(muffle); muffle.connect(user); } else duck.connect(user);
+    if (muffle) { duck.connect(muffle); muffle.connect(hush); hush.connect(user); } else duck.connect(user);
     user.connect(master); user.connect(meter);
-    return { input, duck, user, meter, muffle, share: MUFFLED[name] || 0 };
+    return { input, duck, user, meter, muffle, hush, share: MUFFLED[name] || 0 };
   }
   let muffledNow = 0;
   function muffle(amount = 0) {
     const a = Math.max(0, Math.min(1, Number(amount) || 0));
     if (!ctx || !nodes || Math.abs(a - muffledNow) < 0.01) return;
     muffledNow = a;
-    for (const g of Object.values(nodes.groups)) if (g.muffle) g.muffle.frequency.setTargetAtTime(20000 * Math.pow(650 / 20000, a * g.share), ctx.currentTime, 0.08);
+    for (const g of Object.values(nodes.groups)) {
+      if (!g.muffle) continue;
+      g.muffle.frequency.setTargetAtTime(20000 * Math.pow(650 / 20000, a * g.share), ctx.currentTime, 0.08);
+      g.hush.gain.setTargetAtTime(1 - (1 - HUSH) * a * g.share, ctx.currentTime, 0.08);
+    }
   }
 
   function start() {

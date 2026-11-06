@@ -305,19 +305,22 @@ export function createAudio() {
   // One group of the mix: what is played into `input` passes its fixed trim,
   // whatever is ducking it at the moment, and the player's own volume.
   // (5 November 2026, the owner's brief: "inside a shut car the town's sounds muffled, clearer with a door open": the town
-  // heard through the car's body, its high sounds taken off: `muffle`; the car's own engine a little, the phone and the
-  // music not at all)
+  // heard through the car's body, its high sounds taken off and the whole of it quieter (`muffle`, `HUSH`); the car's own
+  // engine a little, the phone and the music not at all. 6 November: with only its high sounds taken off, the town's
+  // background, mostly the wind's low rush, was as loud inside a shut Grey Saloon as beside it, -51 dB and -52, as
+  // test/sound.mjs measured it)
   const MUFFLED = Object.freeze({ ambient: 1, voice: 1, effects: 1, vehicles: 0.5 });
+  const HUSH = 0.5;   // how much of a muffled group is still heard shut in (the vehicles' half as much taken off)
   function group(name, master) {
     const input = ctx.createGain(), duck = ctx.createGain(), user = ctx.createGain(), meter = ctx.createAnalyser();
     input.gain.value = TRIM[name]; duck.gain.value = 1; user.gain.value = volumes[name];
     meter.fftSize = 1024;
-    let muffle = null;
-    if (MUFFLED[name]) { muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 20000; muffle.Q.value = 0.5; }
+    let muffle = null, hush = null;
+    if (MUFFLED[name]) { muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 20000; muffle.Q.value = 0.5; hush = ctx.createGain(); hush.gain.value = 1; }
     input.connect(duck);
-    if (muffle) { duck.connect(muffle); muffle.connect(user); } else duck.connect(user);
+    if (muffle) { duck.connect(muffle); muffle.connect(hush); hush.connect(user); } else duck.connect(user);
     user.connect(master); user.connect(meter);
-    return { input, duck, user, meter, muffle, share: MUFFLED[name] || 0 };
+    return { input, duck, user, meter, muffle, hush, share: MUFFLED[name] || 0 };
   }
   // how far inside a shut car the listener is (0 out, or with a door open; 1 shut in): the sounds of the town muffled so
   let muffledNow = 0;
@@ -325,7 +328,11 @@ export function createAudio() {
     const a = Math.max(0, Math.min(1, Number(amount) || 0));
     if (!ctx || !nodes || Math.abs(a - muffledNow) < 0.01) return;
     muffledNow = a;
-    for (const g of Object.values(nodes.groups)) if (g.muffle) g.muffle.frequency.setTargetAtTime(20000 * Math.pow(650 / 20000, a * g.share), ctx.currentTime, 0.08);
+    for (const g of Object.values(nodes.groups)) {
+      if (!g.muffle) continue;
+      g.muffle.frequency.setTargetAtTime(20000 * Math.pow(650 / 20000, a * g.share), ctx.currentTime, 0.08);
+      g.hush.gain.setTargetAtTime(1 - (1 - HUSH) * a * g.share, ctx.currentTime, 0.08);
+    }
   }
 
   function start() {

@@ -7,8 +7,9 @@
 //   - someone on an okada, and on the back of one, is seen on it (from a visitor's word, as the link gives it), while the
 //     town has okadas (since 22 October 2026 it has none: nobody can be on one, and that is not looked for);
 //   - another player on their own motorcycle is seen on it, its bars turned as theirs are, their phone in their left
-//     hand; another in their open car is seen at its wheel with the phone in their right; one in a closed car is not
-//     seen through it; more motorcycles about than are drawn as models are their pictures, each with its rider on it;
+//     hand; another in their open car is seen at its wheel with the phone in their right; one in a closed car (one not
+//     yet given glass) is not seen through it; more motorcycles about than are drawn as models are their pictures,
+//     each with its rider on it;
 //   - nothing goes wrong in either page.
 //   ../server/with-postgres.sh node test/vehicle-sync.mjs [shots folder]
 import { createRequire } from 'node:module';
@@ -34,6 +35,14 @@ const LATENCY = 220;          // ms each way
 async function player(label, size) {
   const context = await browser.newContext({ viewport: size, deviceScaleFactor: 1, serviceWorkers: 'block' });
   await watchPictures(context);
+  // (and how long the page was kept from running at a time: the longest gaps between ticks of a quarter-second timer,
+  // with when each ended; a page kept busy that long holds back its words to the website, and the answers come too late
+  // to be read: told when a check fails, 6 November 2026)
+  await context.addInitScript(() => {
+    const gaps = []; let last = performance.now();
+    setInterval(() => { const now = performance.now(), gap = now - last; last = now; if (gap > 1500) { gaps.push({ t: new Date().toISOString().slice(11, 19), s: +(gap / 1000).toFixed(1) }); if (gaps.length > 30) gaps.shift(); } }, 250);
+    window.__stalls = gaps;
+  });
   const page = await context.newPage(); page.setDefaultTimeout(240000);
   // (each word this page has had through to the website about where it is, or not: told when a check fails)
   // (and what else it fetched that took more than two seconds, with when it began and how long it took)
@@ -158,13 +167,13 @@ await B.shot('02-watcher-sees-it-driven');
 
 // ---- A gets out: the keke stands where it was left; A walks off: it goes with them ----
 await A.page.waitForTimeout(1500);
-const left = await A.page.evaluate(() => { const n = window.__nlw; const r = n.server.send({ type: 'vehicle.exit' }); const v = n.view.vehicles.find((x) => x.yours); return { ok: r.ok, x: v && v.x, z: v && v.z }; });
+const left = await A.page.evaluate(() => { const n = window.__nlw; const r = n.server.send({ type: 'vehicle.exit' }); const v = n.view.vehicles.find((x) => x.yours); return { ok: r.ok, x: v && v.x, z: v && v.z, t: new Date().toISOString().slice(11, 19) }; });
 await B.page.waitForFunction((name) => { const q = (window.__nlw.view.players || []).find((o) => o.name === name); return q && !q.vehicle && q.kekes && q.kekes.length; }, A.username, { timeout: 30000 }).catch(() => {});
 await B.page.waitForTimeout(800);
 const standing = await B.page.evaluate(({ name, id }) => { const n = window.__nlw, q = n.shownPeers.find((o) => o.name === name); const e = q && n.peerKekes.get(`p:${q.id}:${id}`); const driven = q && n.peerKekes.get(`d:${q.id}`); return { standing: !!e, at: e && [e.actor.group.position.x, e.actor.group.position.z], driven: !!driven, bayShown: n.vehicleActors.get(id) ? n.vehicleActors.get(id).group.visible : null }; }, { name: A.username, id: hired.id });
 check('out of it, the keke is seen standing where the driver left it (and not in its bay)', left.ok && standing.standing && !standing.driven && Math.hypot(standing.at[0] - left.x, standing.at[1] - left.z) < 0.5 && standing.bayShown === false, { left, standing });
 // (if not: what the driver's own game says it left, and each page's link)
-if (!(left.ok && standing.standing)) console.log('     the driver\'s parked kekes and the links:', JSON.stringify({ parked: await A.page.evaluate(() => { const n = window.__nlw, s = n.view.self; return { parked: s.parkedKekes, at: [s.x, s.z], vehicle: s.driving || null }; }), watcherSees: await B.page.evaluate((name) => { const q = (window.__nlw.view.players || []).find((o) => o.name === name); return q ? { vehicle: q.vehicle, kekes: q.kekes, x: q.x, z: q.z } : null; }, A.username), driver: await A.page.evaluate(() => window.__nlw.link), watcher: await B.page.evaluate(() => window.__nlw.link), driverTold: A.told.slice(-6) }));
+if (!(left.ok && standing.standing)) console.log('     the driver\'s parked kekes and the links:', JSON.stringify({ parked: await A.page.evaluate(() => { const n = window.__nlw, s = n.view.self; return { parked: s.parkedKekes, at: [s.x, s.z], vehicle: s.driving || null }; }), watcherSees: await B.page.evaluate((name) => { const q = (window.__nlw.view.players || []).find((o) => o.name === name); return q ? { vehicle: q.vehicle, kekes: q.kekes, x: q.x, z: q.z } : null; }, A.username), driver: await A.page.evaluate(() => window.__nlw.link), watcher: await B.page.evaluate(() => window.__nlw.link), driverTold: A.told.slice(-6), driverSlow: A.slow.slice(-10), driverPaused: await A.page.evaluate(() => (window.__stalls || []).slice(-10)), watcherPaused: await B.page.evaluate(() => (window.__stalls || []).slice(-6)) }));
 
 // ---- okadas: someone riding one, and someone on the back of one (a visitor's word, as the link hands it on) ----
 if (OKADAS) {
@@ -199,7 +208,10 @@ await B.page.evaluate(() => {
   const peers = [
     ['bike-phone', { name: 'Bike_Phone', look: { figure: 'W1' }, x: at.x + 5, z: at.z + 4, heading: 0.5, ride: { bike: 'red-superbike', lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0, steer: 0.45 }, phone: 1 }],
     ['open-car', { name: 'Open_Car', look: { figure: 'M1' }, x: at.x - 7, z: at.z + 6, heading: 2.2, car: { car: 'white-roadster', steer: 0.3, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 }, phone: 1 }],
-    ['closed-car', { name: 'Closed_Car', look: { figure: 'W1' }, x: at.x + 9, z: at.z - 7, heading: -1, car: { car: 'grey-saloon', steer: 0, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 } }],
+    // (a car not yet given glass, its windows painted on: since 5 November 2026 the Grey Saloon, a sample of the cars
+    // brief's Stage 2, has glass and whoever sits in it is seen, as test/car-seen-sync.mjs checks; once every car has
+    // glass, Stage 3, there is no closed car left to look for)
+    ['closed-car', { name: 'Closed_Car', look: { figure: 'W1' }, x: at.x + 9, z: at.z - 7, heading: -1, car: { car: 'midnight-saloon', steer: 0, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 } }],
     // more motorcycles than are drawn as models: the furthest stand in as their pictures
     ...['streetfighter', 'chopper', 'cafe-racer', 'gold-tourer'].map((bike, k) => [`bike-${k}`, { name: `Bike_${k}`, x: at.x - 14 - k * 4, z: at.z - 12 - k * 3, heading: 0.3 * k, ride: { bike, lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0, steer: 0 } }]),
   ];

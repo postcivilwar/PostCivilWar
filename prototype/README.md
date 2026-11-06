@@ -5285,7 +5285,10 @@ windows cut (`userData.windowsCut`) is drawn into it whole, as the solid shell i
 ### Sound and the springs
 
 Inside a shut car with glass the town's sounds are muffled (`audio.js` `muffle`: its background, voices and effects
-heard through a low-pass, the vehicles' half as much, the phone and the music not at all), clearer with a door open.
+heard through a low-pass and at half their loudness, `HUSH`; the vehicles' half as much; the phone and the music not at
+all), clearer with a door open. (6 November: at first only their high sounds were taken off, and the town's
+background, mostly the wind's low rush, was as loud inside a shut Grey Saloon as beside it, -51 dB and -52, as the
+sound test's new check of it found; now -6 dB.)
 The car sinks a little on its springs as someone sits in it, rises as they get up, and rocks as its door is slammed
 (`car-view.js` `rock`, at the moves' own moments).
 
@@ -5340,7 +5343,7 @@ node test/play.mjs out/                            # plays the built page in hea
 node test/play.mjs out/ town                       # one session: opening, desktop, town, phone, action, sideways or upright
 node test/touch.mjs                                # real touch input: Run, the stick, Block, every change of buttons
 node test/hold.mjs                                 # the handset in the hand, measured on both figures
-node test/sound.mjs                                # how loud each group of sounds is
+node test/sound.mjs [page]                         # how loud each group of sounds is (each place compared measured with no car of the town's near; another build's local page to run it on that in turn)
 ../server/with-postgres.sh node test/habitation.mjs out/   # the habitation, two players: the first sign and the gate past it, the bridge stop, walking freely (off the paths, across the bridges, stopped at a big tree's roots), the models, fish, birds seen flying over and heard, sounds, the boiling river (its steam, its sound, its signs, stopped at its edge, no Swim), night, the torch, each picture's view, what it costs on a computer and on a phone; feet on a phone's sandy bank, legs seen in the shallows, deep water stopped at and told, a bridge's rail, the waterfall's stairs walked down and climbed, a jump seen by the other player
 node test/figures.mjs out/                         # every supplied figure: chosen in its list, standing, walking, running, struck, knocked down, the phone
 ../server/with-postgres.sh node test/showroom.mjs out/   # PostCivilWar PowerBike: the tower and its signs, the one column, in and out, the bikes, the salesman, asking and buying, a phone's screen, a second player
