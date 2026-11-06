@@ -5542,6 +5542,21 @@ A car just come (fetched to be drawn) is unseen until it is first put where it s
 where it was made, and handed out (`driven`) before it was put anywhere; the one drawn in its place meanwhile is handed
 out until then.
 
+### Before and after (measured on this machine, 6 November 2026)
+
+Stage 3 as it was live (page `2aaad646da784610`) against this build, each alone on the machine, by
+`tools/measure/places.mjs` (the sheets: `stage4-before-after-phone-medium.pdf`, `stage4-before-after-computer.pdf`, with
+the pictures):
+- a phone at Medium, the graphics card's memory: the motor park 90.1 → 91.3 MB by day and 88.4 → 95.8 at night (what
+  is near there changes with the traffic from run to run: 89.7 to 96.0 on the morning's measuring of the builds before
+  it), the market 117.3 → 119.2 and 126.7 → 127.8, the PowerBike showroom 132.2 → 130.7 and 120.4 → 120.8, the car
+  showroom's hall 125.4 → 126.6 and 123.4 → 123.3, Peace Interchange 73.7 → 74.1 and 73.8 → 74.2, downtown 75.6 → 76.0
+  and 81.0 → 79.8, video 1's spot 78.3 → 78.0 and 78.3 → 78.4: the busiest under 135 MB; the draws the same within 8;
+- a computer: within 3 MB everywhere (the market 980.8 → 983.6 by day and 1214.9 → 1217.6 at night, the car showroom's
+  hall 1158.6 → 1156.5 and 1132.1 → 1131.2); where cars are near up to a tenth more draws and triangles (the hall at
+  night 441 → 473 draws), as much as the same build differs there from run to run (Stage 3's: 457 and 441); the time of
+  a frame drawn in software here within a tenth.
+
 ### Tested
 
 On the release build (page `d703f84fd4439847`, `game.js?v=ddefc39a23411459`): 632 headless (new: `car-damage.test.mjs`
